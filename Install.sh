@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# LUGA installation script.
+# LUGA2 installation script.
 
 set -euo pipefail
 
@@ -20,7 +20,10 @@ Initializes external tools, builds the library in release mode, and
 installs the libraries into \${DESTDIR}\${LIBDIR} and the public headers
 and Fortran interface modules into \${DESTDIR}\${INCDIR}.
 
-Requires Binutils, a C compiler, a Fortran compiler, cpp, sed, and awk.
+Requires GNU Make, GNU Binutils (ar, nm, objcopy), a GCC-compatible C and
+Fortran toolchain (e.g. GCC/GFortran), a POSIX shell, and standard
+utilities (mkdir, cp, mv, rm, printf, sed, awk). Dependency generation
+invokes gcc directly.
 
 Recognized variables:
   PREFIX   Installation prefix.                (default: /usr/local)
@@ -87,7 +90,7 @@ MAKEVARS=()
 [ -n "$CFLAGS" ] && MAKEVARS+=("CFLAGS=$CFLAGS")
 [ -n "$FFLAGS" ] && MAKEVARS+=("FFLAGS=$FFLAGS")
 
-echo "LUGA installer"
+echo "LUGA2 installer"
 echo "  PREFIX  : $PREFIX"
 echo "  DESTDIR : $DESTDIR"
 echo "  LIBDIR  : ${DESTDIR}${LIBDIR}"
@@ -104,9 +107,9 @@ make PROFILE=release ${MAKEVARS[@]+"${MAKEVARS[@]}"}
 
 # Install the libraries.
 mkdir -p "${DESTDIR}${LIBDIR}"
-cp bin/libLUGA.a "${DESTDIR}${LIBDIR}/libLUGA.a"
-cp bin/libLUGA.so "${DESTDIR}${LIBDIR}/libLUGA.so"
-chmod 644 "${DESTDIR}${LIBDIR}/libLUGA.a" "${DESTDIR}${LIBDIR}/libLUGA.so"
+cp bin/libLUGA2.a "${DESTDIR}${LIBDIR}/libLUGA2.a"
+cp bin/libLUGA2.so "${DESTDIR}${LIBDIR}/libLUGA2.so"
+chmod 644 "${DESTDIR}${LIBDIR}/libLUGA2.a" "${DESTDIR}${LIBDIR}/libLUGA2.so"
 
 # Install the public headers and Fortran interface modules.
 mkdir -p "${DESTDIR}${INCDIR}"
@@ -121,8 +124,8 @@ chmod 644 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h" \
 
 echo
 echo "Installed:"
-echo "  ${DESTDIR}${LIBDIR}/libLUGA.a"
-echo "  ${DESTDIR}${LIBDIR}/libLUGA.so"
+echo "  ${DESTDIR}${LIBDIR}/libLUGA2.a"
+echo "  ${DESTDIR}${LIBDIR}/libLUGA2.so"
 echo "  ${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h"
 echo "  ${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90"
 echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.h"

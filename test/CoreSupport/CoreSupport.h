@@ -1,5 +1,5 @@
-#ifndef LUGA_Core_Support_H
-#define LUGA_Core_Support_H
+#ifndef LUGA2_Core_Support_H
+#define LUGA2_Core_Support_H
 
 #include <stddef.h>
 

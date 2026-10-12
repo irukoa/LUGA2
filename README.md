@@ -1,6 +1,6 @@
-# LUGA Modules
+# LUGA2 Modules
 
-LUGA provides the following modules.
+LUGA2 provides the following modules.
 
 ## Multidimensional Array Containers (MAC)
 
@@ -26,12 +26,30 @@ The `Base` parameter controls the extrapolation structure. Accuracy improves whe
 
 Both a C interface (`Eint`) and a Fortran interface (`EINT`) are provided.
 
+### Parallel Execution
+
+OpenMP is opt-in and provided through the Fortran compiler flags:
+
+```bash
+./Install.sh 'FFLAGS=-O3 -std=gnu -fPIC -fopenmp'
+```
+
+Enabling OpenMP adds a runtime dependency on the OpenMP runtime (e.g. `libgomp`).
+
 # Building and Installation
 
-LUGA provides:
+LUGA2 provides:
 - C header files for C applications.
 - Fortran interface modules for Fortran applications.
 - Static and/or shared library binaries containing the implementation.
+
+## Requirements
+
+Building and installing require:
+- GNU Make.
+- GNU Binutils (`ar`, `nm`, `objcopy`).
+- A GCC-compatible C and Fortran toolchain (e.g. GCC/GFortran); dependency generation invokes `gcc` directly.
+- A POSIX shell and standard utilities (`mkdir`, `cp`, `mv`, `rm`, `printf`, `sed`, `awk`).
 
 ## Installing
 
@@ -45,14 +63,14 @@ Release installation is orchestrated by the `Install.sh` helper script.
 ```
 
 After installation, the generated artifacts are installed as follows:
-- Libraries `libLUGA.a` and `libLUGA.so` in `$(DESTDIR)$(LIBDIR)`.
+- Libraries `libLUGA2.a` and `libLUGA2.so` in `$(DESTDIR)$(LIBDIR)`.
 - Public headers and Fortran interface modules in `$(DESTDIR)$(INCDIR)`:
   - `MultidimensionalArrayContainers.h`, `MultidimensionalArrayContainers.F90` (MAC)
   - `ExtrapolationIntegration.h`, `ExtrapolationIntegration.F90` (EINT)
 
 ## Build targets
 
-- `make` (default) — builds `libLUGA.a` and `libLUGA.so` with the debug profile.
+- `make` (default) — builds `libLUGA2.a` and `libLUGA2.so` with the debug profile.
 - `make PROFILE=release` — builds the library with the release profile.
 - `make clean` — removes the build products (`obj/`, `bin/`, `discard/`) and test artifacts.
 - `make test`, `make runtest`, `make coverage` — build and run the test suite.

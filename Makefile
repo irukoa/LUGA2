@@ -34,8 +34,8 @@ CFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu23 --coverage -fPIC
 FFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu   --coverage -fPIC -Wno-c-binding-type
 DEFS   := -DTESTABLE
 else
-CFLAGS := -Werror -O3 -std=gnu23 -fPIC -fopenmp
-FFLAGS := -Werror -O3 -std=gnu   -fPIC -fopenmp
+CFLAGS := -Werror -O3 -std=gnu23 -fPIC
+FFLAGS := -Werror -O3 -std=gnu   -fPIC
 DEFS   := -DNDEBUG
 endif
 LDFLAGS :=
@@ -65,14 +65,14 @@ include $(DEPS)
 endif
 
 # Rule for the library.
-LIBST := $(BIN)/libLUGA.a
-LIBDY := $(BIN)/libLUGA.so
+LIBST := $(BIN)/libLUGA2.a
+LIBDY := $(BIN)/libLUGA2.so
 
 main: $(LIBST) $(LIBDY)
 $(LIBST): $(OBJS) | $(BIN)
 		$(info $(call cls,Binary: $@)) $(AR) $(ARFLAGS) $@ $^
 $(LIBDY): $(OBJS) | $(BIN)
-		$(info $(call cls,Binary: $@)) $(FC) $(FFLAGS) $^ -shared -o $@ -Wl,-soname,libLUGA.so $(LDFLAGS) $(LDLIBS)
+		$(info $(call cls,Binary: $@)) $(FC) $(FFLAGS) $^ -shared -o $@ -Wl,-soname,libLUGA2.so $(LDFLAGS) $(LDLIBS)
 
 ifeq ($(PROFILE), debug)
 # Testing profile.
