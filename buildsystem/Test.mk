@@ -19,9 +19,9 @@ LDTESTLIBS  :=
 
 # Common objects.
 $(TESTCOMMONOBJ)/%.o: $(TESTCOMMONSRC)/%.c | $(TESTCOMMONOBJ)
-		$(info Test common: $<) $(CC) $(CFLAGS) $(INC) $(TESTINC) $(DEFS) -c $< -o $@
+		$(info $(call cls,Test common: $<)) $(CC) $(CFLAGS) $(INC) $(TESTINC) $(DEFS) -c $< -o $@
 $(TESTCOMMONOBJ)/%.d: $(TESTCOMMONSRC)/%.c | $(TESTCOMMONOBJ)
-		$(info Test common: $<) $(DEPSCRIPT) $< $(TESTCOMMONOBJ) > $@ || $(RM) $@
+		$(info $(call cls,Test common: $<)) $(DEPSCRIPT) $< $(TESTCOMMONOBJ) > $@ || $(RM) $@
 TESTCOMMONDEPS := $(patsubst $(TESTCOMMONOBJ)/%.o,$(TESTCOMMONOBJ)/%.d,$(TESTCOMMONOBJS))
 ifneq ($(filter-out clean, $(MAKECMDGOALS)), )
 include $(TESTCOMMONDEPS)
@@ -29,7 +29,7 @@ endif
 
 TESTSRCS :=
 TESTOBJS :=
-include test/TestRegistry.mk
+include buildsystem/TestRegistry.mk
 TESTDEPS := $(patsubst $(TESTOBJ)/%.o,$(TESTOBJ)/%.d,$(TESTOBJS))
 ifneq ($(filter-out clean, $(MAKECMDGOALS)), )
 include $(TESTDEPS)
@@ -37,7 +37,7 @@ endif
 
 test: $(TESTEXE)
 $(TESTEXE): $(OBJS) $(TESTCOMMONOBJS) $(TESTOBJS)
-		$(info Test binary: $@) $(FC) $(FFLAGS) $(INC) $(TESTINC) $(DEFS) $^ -o $@ $(LDTESTFLAGS) $(LDTESTLIBS)
+		$(info $(call cls,Test binary: $@)) $(FC) $(FFLAGS) $(INC) $(TESTINC) $(DEFS) $^ -o $@ $(LDTESTFLAGS) $(LDTESTLIBS)
 
 runtest: $(TESTEXE) | $(TESTREP)
 		$(RM) $(TESTREP)/*

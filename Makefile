@@ -12,6 +12,11 @@ OBJ := obj
 BIN := bin
 DSC := discard
 
+# Colored info.
+define cls
+$(shell printf '\033[35m')$(1)$(shell printf '\033[0m')
+endef
+
 # Rules
 .PHONY: main clean
 .DEFAULT_GOAL := main
@@ -23,7 +28,7 @@ endif
 CC         := gcc
 FC         := gfortran
 CPP        := cpp
-DEPSCRIPT  := ./tools/GetDeps.sh
+DEPSCRIPT  := ./buildsystem/GetDeps.sh
 ifeq ($(PROFILE), debug)
 CFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu23 --coverage -fPIC
 FFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu   --coverage -fPIC -Wno-c-binding-type
@@ -54,7 +59,7 @@ OBJS :=
 # Fortran compiler-defined objects in interface-only files.
 FCOBJS :=
 # - Graph creation is delegated to modules in registry.
-include ModuleRegistry.mk
+include buildsystem/ModuleRegistry.mk
 # - Dependency inclusion.
 DEPS := $(patsubst $(OBJ)/%.o,$(OBJ)/%.d,$(OBJS))
 ifneq ($(filter-out clean, $(MAKECMDGOALS)), )
@@ -68,20 +73,20 @@ LIBDY := $(BIN)/libLUGA.so
 
 main: $(LIBST) $(LIBDY)
 $(LIBST): $(OBJS) | $(BIN)
-		$(info Binary: $@) $(AR) $(ARFLAGS) $@ $^
+		$(info $(call cls,Binary: $@)) $(AR) $(ARFLAGS) $@ $^
 $(LIBDY): $(OBJS) | $(BIN)
-		$(info Binary: $@) $(FC) $(FFLAGS) $^ -shared -o $@ -Wl,-soname,libLUGA.so $(LDFLAGS) $(LDLIBS)
+		$(info $(call cls,Binary: $@)) $(FC) $(FFLAGS) $^ -shared -o $@ -Wl,-soname,libLUGA.so $(LDFLAGS) $(LDLIBS)
 
 ifeq ($(PROFILE), debug)
 # Testing profile.
 TESTGOALS := test runtest coverage clean
 ifneq ($(filter $(TESTGOALS), $(MAKECMDGOALS)), )
-include test/Test.mk
+include buildsystem/Test.mk
 endif
 endif
 
 $(OBJ) $(BIN) $(DSC):
-		$(info Directory: $@) $(MKDIR) $@
+		$(info $(call cls,Directory: $@)) $(MKDIR) $@
 
 clean::
 		$(RM) $(OBJ) $(BIN) $(DSC)

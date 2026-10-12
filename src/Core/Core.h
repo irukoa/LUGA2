@@ -1,7 +1,7 @@
 #ifndef LUGA_Core_H
 #define LUGA_Core_H
 
-#include "tools/FunctionMacros.h"
+#include "src/Core/FunctionMacros.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
