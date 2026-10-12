@@ -1,0 +1,131 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/MAC/MultidimensionalArrayContainers.M90"
+#endif
+
+TEST_E(MACFortranNominal_1)
+#ifdef TSD_FORTRAN_IMPL
+  use MultidimensionalArrayContainers
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(MAC)         :: Container
+  integer(C_SIZE_T) :: ShapeVector(3)
+
+  ShapeVector = int([1, 2, 3], C_SIZE_T)
+
+  call Container%Specify(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  ASSERT_X(Container%Initialized())
+
+  ASSERT(Container%Rank() == 3)
+  ASSERT(all(Container%Shape() == ShapeVector))
+  ASSERT(Container%ElementCount() == product(ShapeVector))
+  ASSERT(Container%Layout() == COLUMN_MAJOR)
+
+  ASSERT(all(Container%Multidimensional(0_C_SIZE_T) == [0, 0, 0]))
+  ASSERT(all(Container%Multidimensional(1_C_SIZE_T) == [0, 1, 0]))
+  ASSERT(all(Container%Multidimensional(2_C_SIZE_T) == [0, 0, 1]))
+  ASSERT(all(Container%Multidimensional(3_C_SIZE_T) == [0, 1, 1]))
+  ASSERT(all(Container%Multidimensional(4_C_SIZE_T) == [0, 0, 2]))
+  ASSERT(all(Container%Multidimensional(5_C_SIZE_T) == [0, 1, 2]))
+
+  ASSERT(Container%Flat(int([0, 0, 0], C_SIZE_T)) == 0)
+  ASSERT(Container%Flat(int([0, 1, 0], C_SIZE_T)) == 1)
+  ASSERT(Container%Flat(int([0, 0, 1], C_SIZE_T)) == 2)
+  ASSERT(Container%Flat(int([0, 1, 1], C_SIZE_T)) == 3)
+  ASSERT(Container%Flat(int([0, 0, 2], C_SIZE_T)) == 4)
+  ASSERT(Container%Flat(int([0, 1, 2], C_SIZE_T)) == 5)
+
+  call Container%Free()
+  ASSERT(.not.Container%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(MACFortranNominal_2)
+#ifdef TSD_FORTRAN_IMPL
+  use MultidimensionalArrayContainers
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(MAC)         :: Container
+  integer(C_SIZE_T) :: ShapeVector(3)
+
+  ShapeVector = int([1, 2, 3], C_SIZE_T)
+
+  call Container%Specify(Shape = ShapeVector, Layout = ROW_MAJOR)
+  ASSERT_X(Container%Initialized())
+
+  ASSERT(Container%Rank() == 3)
+  ASSERT(all(Container%Shape() == ShapeVector))
+  ASSERT(Container%ElementCount() == product(ShapeVector))
+  ASSERT(Container%Layout() == ROW_MAJOR)
+
+  ASSERT(all(Container%Multidimensional(0_C_SIZE_T) == [0, 0, 0]))
+  ASSERT(all(Container%Multidimensional(1_C_SIZE_T) == [0, 0, 1]))
+  ASSERT(all(Container%Multidimensional(2_C_SIZE_T) == [0, 0, 2]))
+  ASSERT(all(Container%Multidimensional(3_C_SIZE_T) == [0, 1, 0]))
+  ASSERT(all(Container%Multidimensional(4_C_SIZE_T) == [0, 1, 1]))
+  ASSERT(all(Container%Multidimensional(5_C_SIZE_T) == [0, 1, 2]))
+
+  ASSERT(Container%Flat(int([0, 0, 0], C_SIZE_T)) == 0)
+  ASSERT(Container%Flat(int([0, 0, 1], C_SIZE_T)) == 1)
+  ASSERT(Container%Flat(int([0, 0, 2], C_SIZE_T)) == 2)
+  ASSERT(Container%Flat(int([0, 1, 0], C_SIZE_T)) == 3)
+  ASSERT(Container%Flat(int([0, 1, 1], C_SIZE_T)) == 4)
+  ASSERT(Container%Flat(int([0, 1, 2], C_SIZE_T)) == 5)
+
+  call Container%Free()
+  ASSERT(.not.Container%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(MACFortranNominalSuite,
+           MACFortranNominal_1,
+           MACFortranNominal_2);
+#endif
+
+TEST_E(MACFortranLayoutSpecification)
+#ifdef TSD_FORTRAN_IMPL
+  use MultidimensionalArrayContainers
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(MAC)         :: Container
+  integer(C_SIZE_T) :: ShapeVector(3)
+
+  ShapeVector = int([1, 2, 3], C_SIZE_T)
+
+  call Container%Specify(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  ASSERT_X(Container%Initialized())
+  ASSERT(Container%Layout() == COLUMN_MAJOR)
+  call Container%Free()
+  ASSERT(.not.Container%Initialized())
+
+  call Container%Specify(Shape = ShapeVector, Layout = ROW_MAJOR)
+  ASSERT_X(Container%Initialized())
+  ASSERT(Container%Layout() == ROW_MAJOR)
+  call Container%Free()
+  ASSERT(.not.Container%Initialized())
+
+  call Container%Specify(Shape = ShapeVector, Layout = ROW_MAJOR + 1_MACLayout)
+  ASSERT_X(Container%Initialized())
+  ASSERT(Container%Layout() == COLUMN_MAJOR)
+  call Container%Free()
+  ASSERT(.not.Container%Initialized())
+
+  call Container%Specify(Shape = ShapeVector)
+  ASSERT_X(Container%Initialized())
+  ASSERT(Container%Layout() == COLUMN_MAJOR)
+  call Container%Free()
+  ASSERT(.not.Container%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(MACFortranLayoutSpecificationSuite,
+           MACFortranLayoutSpecification);
+#endif

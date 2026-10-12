@@ -1,0 +1,94 @@
+#ifndef MAC_C_Interfaces_H
+#define MAC_C_Interfaces_H
+
+#include "src/MAC/MultidimensionalArrayContainers.M90"
+
+submodule (MultidimensionalArrayContainers) MAC_C_Interfaces
+
+  implicit none
+
+  interface
+    pure subroutine FreeMAC(OpaqueHandle) &
+      bind(C, name="FreeMAC")
+      import C_PTR
+      type(C_PTR), intent(inout) :: OpaqueHandle
+    end subroutine FreeMAC
+  end interface
+
+  interface
+    pure function NewMAC(Rank, Shape, Layout) result(OpaqueHandle) &
+      bind(C, name="NewMAC")
+      import C_SIZE_T, C_PTR, MACLayout
+      integer(C_SIZE_T),  intent(in), value :: Rank
+      integer(C_SIZE_T),  intent(in)        :: Shape(*)
+      integer(MACLayout), intent(in), value :: Layout
+
+      type(C_PTR) :: OpaqueHandle
+    end function NewMAC
+  end interface
+
+  interface
+    pure function MACGetRank(OpaqueHandle) result(Rank) &
+      bind(C, name="MACGetRank")
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: Rank
+    end function MACGetRank
+  end interface
+
+  interface
+    pure function MACGetShape(OpaqueHandle) result(Shape) &
+      bind(C, name="MACGetShape")
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: Shape
+    end function MACGetShape
+  end interface
+
+  interface
+    pure function MACGetElementCount(OpaqueHandle) result(ElementCount) &
+      bind(C, name="MACGetElementCount")
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: ElementCount
+    end function MACGetElementCount
+  end interface
+
+  interface
+    pure function MACGetLayout(OpaqueHandle) result(Layout) &
+      bind(C, name="MACGetLayout")
+      import C_PTR, MACLayout
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(MACLayout) :: Layout
+    end function MACGetLayout
+  end interface
+
+  interface
+    pure subroutine MACFlatToMultidimensional(OpaqueHandle, Rank, FlatIndex, MultidimensionalIndex) &
+      bind(C, name="MACFlatToMultidimensional")
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Rank
+      integer(C_SIZE_T), intent(in), value :: FlatIndex
+      integer(C_SIZE_T), intent(out)       :: MultidimensionalIndex(*)
+    end subroutine MACFlatToMultidimensional
+  end interface
+
+  interface
+    pure subroutine MACMultidimensionalToFlat(OpaqueHandle, Rank, MultidimensionalIndex, FlatIndex) &
+      bind(C, name="MACMultidimensionalToFlat")
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Rank
+      integer(C_SIZE_T), intent(in)        :: MultidimensionalIndex(*)
+      integer(C_SIZE_T), intent(out)       :: FlatIndex
+    end subroutine MACMultidimensionalToFlat
+  end interface
+
+end submodule MAC_C_Interfaces
+
+#endif

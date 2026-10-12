@@ -1,0 +1,132 @@
+#ifndef MultidimensionalArrayContainers_FH
+#define MultidimensionalArrayContainers_FH
+
+module MultidimensionalArrayContainers
+
+  use, intrinsic :: ISO_C_BINDING, only: C_PTR, C_NULL_PTR, &
+                                         C_SIZE_T
+
+  implicit none
+
+  private
+
+  public :: C_SIZE_T
+
+  enum, bind(C)
+    enumerator :: COLUMN_MAJOR = 1
+    enumerator :: ROW_MAJOR    = 2
+  end enum
+  public :: COLUMN_MAJOR
+  public :: ROW_MAJOR
+  integer, parameter, public :: MACLayout = kind(COLUMN_MAJOR)
+
+  type, public :: MAC
+    private
+    type(C_PTR) :: OpaqueHandle = C_NULL_PTR
+    logical     :: Init         = .false.
+    contains
+    procedure, public, pass(Container) :: Free             => FortranFreeMAC
+    procedure, public, pass(Container) :: Specify          => FortranNewMAC
+    procedure, public, pass(Container) :: Initialized      => FortranInitialized
+    procedure, public, pass(Container) :: Rank             => FortranMACGetRank
+    procedure, public, pass(Container) :: Shape            => FortranMACGetShape
+    procedure, public, pass(Container) :: ElementCount     => FortranMACGetElementCount
+    procedure, public, pass(Container) :: Layout           => FortranMACGetLayout
+    procedure, public, pass(Container) :: Multidimensional => FortranMACFlatToMultidimensional
+    procedure, public, pass(Container) :: Flat             => FortranMACMultidimensionalToFlat
+    final                              :: FortranFreeMAC_Final
+  end type MAC
+
+  interface
+    pure module subroutine FortranFreeMAC(Container)
+      class(MAC), intent(inout) :: Container
+    end subroutine FortranFreeMAC
+  end interface
+
+  interface
+    pure module subroutine FortranFreeMAC_Final(Container)
+      type(MAC), intent(inout) :: Container
+    end subroutine FortranFreeMAC_Final
+  end interface
+
+  interface
+    pure module subroutine FortranNewMAC(Container, Shape, Layout)
+      class(MAC),        intent(inout) :: Container
+      integer(C_SIZE_T), intent(in)    :: Shape(:)
+
+      integer(MACLayout), intent(in),  optional :: Layout
+    end subroutine FortranNewMAC
+  end interface
+
+  interface
+    pure module function FortranInitialized(Container) &
+      result(Initialized)
+      class(MAC), intent(in) :: Container
+
+      logical :: Initialized
+    end function FortranInitialized
+  end interface
+
+  interface
+    pure module function FortranMACGetRank(Container) &
+      result(Rank)
+      class(MAC), intent(in) :: Container
+
+      integer(C_SIZE_T) :: Rank
+    end function FortranMACGetRank
+  end interface
+
+  interface
+    module function FortranMACGetShape(Container) &
+      result(Shape)
+      class(MAC), intent(in) :: Container
+
+      integer(C_SIZE_T) :: Shape(FortranMACGetRank(Container))
+    end function FortranMACGetShape
+  end interface
+
+  interface
+    pure module function FortranMACGetElementCount(Container) &
+      result(ElementCount)
+      class(MAC), intent(in) :: Container
+
+      integer(C_SIZE_T) :: ElementCount
+    end function FortranMACGetElementCount
+  end interface
+
+  interface
+    pure module function FortranMACGetLayout(Container) &
+      result(Layout)
+      class(MAC), intent(in) :: Container
+
+      integer(MACLayout) :: Layout
+    end function FortranMACGetLayout
+  end interface
+
+  interface
+    !Note: FlatIndex \in [0, ElementCount - 1].
+    !Note: MultidimensionalIndex(i) \in [0, Shape(i) - 1].
+    pure module function FortranMACFlatToMultidimensional(Container, FlatIndex) &
+      result(MultidimensionalIndex)
+      class(MAC),        intent(in) :: Container
+      integer(C_SIZE_T), intent(in) :: FlatIndex
+
+      integer(C_SIZE_T) :: MultidimensionalIndex(FortranMACGetRank(Container))
+    end function FortranMACFlatToMultidimensional
+  end interface
+
+  interface
+    !Note: FlatIndex \in [0, ElementCount - 1].
+    !Note: MultidimensionalIndex(i) \in [0, Shape(i) - 1].
+    pure module function FortranMACMultidimensionalToFlat(Container, MultidimensionalIndex) &
+      result(FlatIndex)
+      class(MAC),        intent(in) :: Container
+      integer(C_SIZE_T), intent(in) :: MultidimensionalIndex(FortranMACGetRank(Container))
+
+      integer(C_SIZE_T) :: FlatIndex
+    end function FortranMACMultidimensionalToFlat
+  end interface
+
+end module MultidimensionalArrayContainers
+
+#endif
