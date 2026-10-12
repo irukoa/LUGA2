@@ -56,8 +56,6 @@ SRCS :=
 INC := -I./
 # - Objects.
 OBJS :=
-# Fortran compiler-defined objects in interface-only files.
-FCOBJS :=
 # - Graph creation is delegated to modules in registry.
 include buildsystem/ModuleRegistry.mk
 # - Dependency inclusion.
@@ -65,7 +63,6 @@ DEPS := $(patsubst $(OBJ)/%.o,$(OBJ)/%.d,$(OBJS))
 ifneq ($(filter-out clean, $(MAKECMDGOALS)), )
 include $(DEPS)
 endif
-WEAKEN_SYMBOLS = $(foreach def, $(FCOBJS), --weaken-symbols=$(def))
 
 # Rule for the library.
 LIBST := $(BIN)/libLUGA.a

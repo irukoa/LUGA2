@@ -1,0 +1,102 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/EINT/ExtrapolationIntegration.M90"
+#endif
+
+TEST_E(EINTFortranNominalReference)
+#ifdef TSD_FORTRAN_IMPL
+  use ExtrapolationIntegration
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  integer, parameter :: rk = C_DOUBLE
+  integer, parameter :: sk = C_SIZE_T
+
+  integer(sk), parameter :: Count = 2_sk**8 * 3_sk**3 + 1_rk
+  real(rk)               :: Array(Count)
+
+  real(rk), parameter :: UpperBound = 10.0_rk, &
+                         Reference  = 1.658347594218874049_rk
+
+  real(rk), parameter :: Tolerance = epsilon(1.0_rk) * 10000
+
+  real(rk)    :: x, Result
+  integer(sk) :: i
+
+  Array(1) = 1.0_rk
+  do i = 2, Count
+    x = UpperBound * real(i - 1_sk, rk) / real(Count - 1_sk, rk)
+    Array(i) = sin(x) / x
+  enddo
+
+  Result = UpperBound * EINT(Array = Array, Base = 2_sk)
+  ASSERT(100.0_rk * abs(Result - Reference) / Reference < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(EINTFortranBaseSpecification)
+#ifdef TSD_FORTRAN_IMPL
+  use ExtrapolationIntegration
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  integer, parameter :: rk = C_DOUBLE
+  integer, parameter :: sk = C_SIZE_T
+
+  integer(sk), parameter :: Count = 2_sk**3 + 1_rk
+  real(rk)               :: Array(Count)
+
+  real(rk)    :: Result, Reference
+  integer(sk) :: i
+
+  real(rk), parameter :: Tolerance = epsilon(1.0_rk) * 10
+
+  do i = 1, Count
+    Array(i) = real(i - 1_sk, rk) / real(Count - 1_sk, rk)
+  enddo
+  Reference = EINT(Array = Array, Base = 2_sk)
+
+  Result = EINT(Array = Array)
+  ASSERT(abs(Result - Reference) < Tolerance)
+
+  Result = EINT(Array = Array, Base = 1_sk)
+  ASSERT(abs(Result - Reference) < Tolerance)
+
+  Result = EINT(Array = Array, Base = 8_sk)
+  ASSERT(abs(Result - Reference) < Tolerance)
+#endif
+END_TEST_E
+
+TEST_E(EINTFortranFastReturn)
+#ifdef TSD_FORTRAN_IMPL
+  use ExtrapolationIntegration
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  integer, parameter :: rk = C_DOUBLE
+
+  real(rk) :: SmallArray(1), ZeroArray(0)
+  real(rk) :: Result
+
+  real(rk), parameter :: Tolerance = epsilon(1.0_rk) * 10
+
+  SmallArray(1) = 2.5_rk
+
+  Result = EINT(Array = SmallArray)
+  ASSERT(abs(Result - SmallArray(1)) < Tolerance)
+
+  Result = EINT(Array = ZeroArray)
+  ASSERT(abs(Result) < Tolerance)
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(EINTFortranNominalSuite,
+           EINTFortranNominalReference,
+           EINTFortranBaseSpecification,
+           EINTFortranFastReturn);
+#endif

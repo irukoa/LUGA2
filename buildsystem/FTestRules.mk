@@ -1,19 +1,8 @@
-# Fortran compiler-generated symbol weakening.
-FCOBJS += $(patsubst $(DIR)/%.M90,$(OBJ)/%.def,$(wildcard $(DIR)/*.M90))
-
-$(TESTOBJ)/%.def: $(DIR)/%.M90 | $(TESTOBJ) $(DSC)
-		$(info $(call cls,Weak symbol list: $<)) $(MKDIR) $(DSC)/$*; \
-		ConvertedSource="$(addsuffix .F90, $(DSC)/$*/$(notdir $<))"; \
-		ObjectFile="$(addsuffix .o, $(DSC)/$*/$(notdir $<))"; \
-		$(CP) $< $$ConvertedSource; \
-		$(FC) $(FFLAGS) $(INC) $(DEFS) -J$(DSC)/$* -c $$ConvertedSource -o $$ObjectFile; \
-		$(NM) $(NMFLAGS) $$ObjectFile | $(AWK) '{print $$3}' > $@
-
 # Fortran test file compilation.
 TESTSRCS += $(wildcard $(DIR)/*.cf)
 TESTOBJS += $(patsubst $(DIR)/%.cf,$(TESTOBJ)/%.o,$(wildcard $(DIR)/*.cf))
 
-$(TESTOBJ)/%.o: $(DIR)/%.cf $(FCOBJS) | $(TESTOBJ) $(DSC)
+$(TESTOBJ)/%.o: $(DIR)/%.cf $(FMODDEFS) | $(TESTOBJ) $(DSC)
 		$(info $(call cls,Fortran Test Object: $<)) $(MKDIR) $(DSC)/$* ; \
 		ConvertedSource="$(addsuffix .f90, $(DSC)/$*/$(notdir $<))"; \
 		CObjectFile="$(TESTOBJ)/$(notdir $(basename $<)).co"; \
