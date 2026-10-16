@@ -24,8 +24,6 @@ The input is a uniformly spaced `N`-element array of function values including b
 
 The `Base` parameter controls the extrapolation structure. Accuracy improves when `N - 1` contains larger powers of `Base`. For smooth functions, the method achieves progressively higher-order convergence.
 
-Both a C interface (`Eint`) and a Fortran interface (`EINT`) are provided.
-
 ### Parallel Execution
 
 OpenMP is opt-in and provided through the Fortran compiler flags:

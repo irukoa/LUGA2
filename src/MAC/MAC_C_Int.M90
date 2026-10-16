@@ -20,7 +20,7 @@ submodule (MultidimensionalArrayContainers) MAC_C_Interfaces
       bind(C, name="NewMAC")
       import C_SIZE_T, C_PTR, MACLayout
       integer(C_SIZE_T),  intent(in), value :: Rank
-      integer(C_SIZE_T),  intent(in)        :: Shape(*)
+      integer(C_SIZE_T),  intent(in)        :: Shape(Rank)
       integer(MACLayout), intent(in), value :: Layout
 
       type(C_PTR) :: OpaqueHandle
@@ -74,7 +74,7 @@ submodule (MultidimensionalArrayContainers) MAC_C_Interfaces
       type(C_PTR),       intent(in), value :: OpaqueHandle
       integer(C_SIZE_T), intent(in), value :: Rank
       integer(C_SIZE_T), intent(in), value :: FlatIndex
-      integer(C_SIZE_T), intent(out)       :: MultidimensionalIndex(*)
+      integer(C_SIZE_T), intent(out)       :: MultidimensionalIndex(Rank)
     end subroutine MACFlatToMultidimensional
   end interface
 
@@ -84,7 +84,7 @@ submodule (MultidimensionalArrayContainers) MAC_C_Interfaces
       import C_PTR, C_SIZE_T
       type(C_PTR),       intent(in), value :: OpaqueHandle
       integer(C_SIZE_T), intent(in), value :: Rank
-      integer(C_SIZE_T), intent(in)        :: MultidimensionalIndex(*)
+      integer(C_SIZE_T), intent(in)        :: MultidimensionalIndex(Rank)
       integer(C_SIZE_T), intent(out)       :: FlatIndex
     end subroutine MACMultidimensionalToFlat
   end interface

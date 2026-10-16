@@ -21,19 +21,19 @@ TEST(EINTNominalReference) {
     Array[i - 1] = sin(x) / x;
   }
 
-  Result = UpperBound * Eint(Count, Array, 2);
+  Result = UpperBound * EINT(Count, Array, 2);
 
   ASSERT((double)100.0 * fabs(Result - Reference) / Reference < Tolerance);
 }
 
 TEST(EINTZeroCount) {
-  const double Result = Eint((size_t)0, NULL, 2);
+  const double Result = EINT((size_t)0, NULL, 2);
   ASSERT(fabs(Result) < DBL_EPSILON);
 }
 
 TEST(EINTFastReturn) {
   const double Sample = (double)2.5;
-  const double Result = Eint((size_t)1, (double[]){Sample}, 2);
+  const double Result = EINT((size_t)1, (double[]){Sample}, 2);
   ASSERT(fabs(Result - Sample) < DBL_EPSILON);
 }
 

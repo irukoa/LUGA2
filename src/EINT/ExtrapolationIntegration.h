@@ -78,7 +78,7 @@
  * @return
  * Approximated value of the normalized integral.
  */
-double Eint(size_t Count,
+double EINT(size_t Count,
             double Array[Count],
             size_t Base);
 
