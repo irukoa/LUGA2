@@ -9,16 +9,6 @@ APIDEF(void *,
   return (void *)malloc(Size);
 }
 
-APIDEF(void *,
-       Core_Realloc,
-       void        *Ptr,
-       const size_t NewSize) {
-  if (NewSize == 0) {
-    return NULL;
-  }
-  return (void *)realloc(Ptr, NewSize);
-}
-
 APIDEF(bool,
        Core_AddOverflow,
        const size_t A,

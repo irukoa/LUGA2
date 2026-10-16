@@ -9,11 +9,6 @@ APIDEC(void *,
        Core_Malloc,
        const size_t Size);
 
-APIDEC(void *,
-       Core_Realloc,
-       void        *Ptr,
-       const size_t NewSize);
-
 APIDEC(bool,
        Core_AddOverflow,
        const size_t A,
