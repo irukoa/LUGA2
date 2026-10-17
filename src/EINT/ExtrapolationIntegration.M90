@@ -75,7 +75,19 @@ module ExtrapolationIntegration
       integer(C_SIZE_T), intent(in), optional :: Base
     end function EINT
   end interface
+
+  !<
+  !< - Parallel version (OMP).
+  !<
+  interface
+    real(C_DOUBLE) module function EINT_P(Array, Base)
+      real(C_DOUBLE),    intent(in)           :: Array(:)
+      integer(C_SIZE_T), intent(in), optional :: Base
+    end function EINT_P
+  end interface
+
   public :: EINT
+  public :: EINT_P
 
 end module ExtrapolationIntegration
 

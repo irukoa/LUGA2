@@ -26,7 +26,7 @@ The `Base` parameter controls the extrapolation structure. Accuracy improves whe
 
 ### Parallel Execution
 
-OpenMP is opt-in and provided through the Fortran compiler flags:
+OpenMP is opt-in for `EINT_P`, and provided through the Fortran compiler flags:
 
 ```bash
 ./Install.sh 'FFLAGS=-O3 -std=gnu -fPIC -fopenmp'

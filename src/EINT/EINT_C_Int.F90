@@ -21,4 +21,19 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
                   Base  = Base)
   end function EINT_C
 
+  real(C_DOUBLE) function EINT_PC(Count, Array, Base) &
+    bind(C, name="EINT_P")
+    integer(C_SIZE_T), intent(in), value :: Count
+    real(C_DOUBLE),    intent(in)        :: Array(Count)
+    integer(C_SIZE_T), intent(in), value :: Base
+
+    if (Count == 0_C_SIZE_T) then
+      EINT_PC = 0.0_C_DOUBLE
+      return
+    end if
+
+    EINT_PC = EINT_P(Array = Array, &
+                  Base  = Base)
+  end function EINT_PC
+
 end submodule EINT_C_Interfaces
