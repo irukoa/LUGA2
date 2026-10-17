@@ -82,4 +82,11 @@ double EINT(size_t Count,
             double Array[Count],
             size_t Base);
 
+/**
+ * - Parallel version (OMP).
+ */
+double EINT_P(size_t Count,
+              double Array[Count],
+              size_t Base);
+
 #endif
