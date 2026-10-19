@@ -27,7 +27,13 @@ TEST(EINTNominalReference) {
 }
 
 TEST(EINTZeroCount) {
-  const double Result = EINT((size_t)0, NULL, 2);
+  double       Array[1];
+  const double Result = EINT((size_t)0, Array, 2);
+  ASSERT(fabs(Result) < DBL_EPSILON);
+}
+
+TEST(EINTNULLArray) {
+  const double Result = EINT((size_t)1, NULL, 2);
   ASSERT(fabs(Result) < DBL_EPSILON);
 }
 
@@ -42,6 +48,7 @@ TEST_SUITE(EINTNominalSuite,
 
 TEST_SUITE(EINTEdgeCaseSuite,
            EINTZeroCount,
+           EINTNULLArray,
            EINTFastReturn);
 
 TEST(EINT_PNominalReference) {
@@ -68,7 +75,13 @@ TEST(EINT_PNominalReference) {
 }
 
 TEST(EINT_PZeroCount) {
-  const double Result = EINT_P((size_t)0, NULL, 2);
+  double       Array[1];
+  const double Result = EINT_P((size_t)0, Array, 2);
+  ASSERT(fabs(Result) < DBL_EPSILON);
+}
+
+TEST(EINT_PNULLArray) {
+  const double Result = EINT_P((size_t)1, NULL, 2);
   ASSERT(fabs(Result) < DBL_EPSILON);
 }
 
@@ -83,4 +96,5 @@ TEST_SUITE(EINT_PNominalSuite,
 
 TEST_SUITE(EINT_PEdgeCaseSuite,
            EINT_PZeroCount,
+           EINT_PNULLArray,
            EINT_PFastReturn);

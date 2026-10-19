@@ -78,15 +78,15 @@
  * @return
  * Approximated value of the normalized integral.
  */
-double EINT(size_t Count,
-            double Array[Count],
-            size_t Base);
+double EINT(const size_t Count,
+            const double Array[Count],
+            const size_t Base);
 
 /**
  * - Parallel version (OMP).
  */
-double EINT_P(size_t Count,
-              double Array[Count],
-              size_t Base);
+double EINT_P(const size_t Count,
+              const double Array[Count],
+              const size_t Base);
 
 #endif
