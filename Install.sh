@@ -112,11 +112,15 @@ cp bin/libLUGA2.so "${DESTDIR}${LIBDIR}/libLUGA2.so"
 chmod 644 "${DESTDIR}${LIBDIR}/libLUGA2.a" "${DESTDIR}${LIBDIR}/libLUGA2.so"
 
 # Install the public headers and Fortran interface modules.
-mkdir -p "${DESTDIR}${INCDIR}"
+mkdir -p "${DESTDIR}${INCDIR}/Artifacts"
 cp src/MAC/MultidimensionalArrayContainers.h "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h"
 cp src/MAC/MultidimensionalArrayContainers.M90 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90"
+cp discard/MultidimensionalArrayContainers/*.mod "${DESTDIR}${INCDIR}/Artifacts"
+cp obj/MultidimensionalArrayContainers.def "${DESTDIR}${INCDIR}/Artifacts"
 cp src/EINT/ExtrapolationIntegration.h "${DESTDIR}${INCDIR}/ExtrapolationIntegration.h"
 cp src/EINT/ExtrapolationIntegration.M90 "${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90"
+cp discard/ExtrapolationIntegration/*.mod "${DESTDIR}${INCDIR}/Artifacts"
+cp obj/ExtrapolationIntegration.def "${DESTDIR}${INCDIR}/Artifacts"
 chmod 644 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h" \
   "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90" \
   "${DESTDIR}${INCDIR}/ExtrapolationIntegration.h" \
@@ -130,4 +134,8 @@ echo "  ${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h"
 echo "  ${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90"
 echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.h"
 echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90"
+echo "  Compilation-specific .mod artifacts"
+echo "  Interface-only module symbol lists"
+echo "  Cleaning..."
 echo
+make clean
