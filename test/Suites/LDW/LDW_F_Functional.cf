@@ -1,0 +1,390 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/LDW/LapackDeferredWrappers.M90"
+#endif
+
+TEST_E(LDWFortranDHNominalReference)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, REAL64, &
+                                    C_DOUBLE_COMPLEX, C_DOUBLE, C_INT, &
+                                    Cmplx1, CmplxI, &
+                                    DiagHermitian
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
+  real(C_DOUBLE) :: E(3)
+  integer(C_INT) :: Info
+
+  H(1, :) = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
+  H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
+  H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
+
+  Info = 10_C_INT
+  !Nominal.
+  call DiagHermitian(Dimension = 3_C_SIZE_T, &
+                     Matrix = H, &
+                     Unitary = U, &
+                     Eigenvalues = E, &
+                     ZHEEVDProcedure = myZHEEVD, &
+                     Info = Info)
+  ASSERT(Info == 0_C_INT)
+
+  Info = 10_C_INT
+  !Not including Eigenvalues field.
+  call DiagHermitian(Dimension = 3_C_SIZE_T, &
+                     Matrix = H, &
+                     Unitary = U, &
+                     ZHEEVDProcedure = myZHEEVD, &
+                     Info = Info)
+  ASSERT(Info == 0_C_INT)
+
+  contains
+
+    subroutine myZHEEVD(JOBZ, UPLO, &
+                        N, A, LDA, &
+                        W, &
+                        WORK, LWORK, RWORK, LRWORK, IWORK, LIWORK, &
+                        INFO)
+      character,       intent(in)    :: JOBZ
+      character,       intent(in)    :: UPLO
+      integer(INT32),  intent(in)    :: N
+      integer(INT32),  intent(in)    :: LDA
+      complex(REAL64), intent(inout) :: A(LDA, N)
+      real(REAL64),    intent(out)   :: W(N)
+      integer(INT32),  intent(in)    :: LWORK
+      complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+      integer(INT32),  intent(in)    :: LRWORK
+      real(REAL64),    intent(out)   :: RWORK(max(1, LRWORK))
+      integer(INT32),  intent(in)    :: LIWORK
+      integer(INT32),  intent(out)   :: IWORK(max(1, LIWORK))
+      integer(INT32),  intent(out)   :: INFO
+      A = A
+      W = real(len(JOBZ) + len(UPLO), REAL64)
+      WORK = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+      RWORK = 1.0_REAL64
+      IWORK = 1_INT32
+      INFO = 0_INT32
+    end subroutine myZHEEVD
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranDHFastReturn)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, REAL64, &
+                                    C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, CmplxI, &
+                                    DiagHermitian
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
+  integer(C_INT) :: Info
+
+  H(1, :) = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
+  H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
+  H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
+
+  Info = 10_C_INT
+  !Fast return.
+  call DiagHermitian(Dimension = 0_C_SIZE_T, &
+                     Matrix = H, &
+                     Unitary = U, &
+                     ZHEEVDProcedure = myZHEEVD, &
+                     Info = Info)
+  ASSERT(Info == 0_C_INT)
+
+  contains
+
+    subroutine myZHEEVD(JOBZ, UPLO, &
+                        N, A, LDA, &
+                        W, &
+                        WORK, LWORK, RWORK, LRWORK, IWORK, LIWORK, &
+                        INFO)
+      character,       intent(in)    :: JOBZ
+      character,       intent(in)    :: UPLO
+      integer(INT32),  intent(in)    :: N
+      integer(INT32),  intent(in)    :: LDA
+      complex(REAL64), intent(inout) :: A(LDA, N)
+      real(REAL64),    intent(out)   :: W(N)
+      integer(INT32),  intent(in)    :: LWORK
+      complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+      integer(INT32),  intent(in)    :: LRWORK
+      real(REAL64),    intent(out)   :: RWORK(max(1, LRWORK))
+      integer(INT32),  intent(in)    :: LIWORK
+      integer(INT32),  intent(out)   :: IWORK(max(1, LIWORK))
+      integer(INT32),  intent(out)   :: INFO
+      A = A
+      W = real(len(JOBZ) + len(UPLO), REAL64)
+      WORK = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+      RWORK = 1.0_REAL64
+      IWORK = 1_INT32
+      INFO = 0_INT32
+    end subroutine myZHEEVD
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranDHTooLarge)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, REAL64, &
+                                    C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, CmplxI, &
+                                    DiagHermitian
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
+  integer(C_INT) :: Info
+
+  H(1, :) = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
+  H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
+  H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
+
+  Info = 10_C_INT
+  !Too large matrix.
+  call DiagHermitian(Dimension = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                     Matrix = H, &
+                     Unitary = U, &
+                     ZHEEVDProcedure = myZHEEVD, &
+                     Info = Info)
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+
+  contains
+
+    subroutine myZHEEVD(JOBZ, UPLO, &
+                        N, A, LDA, &
+                        W, &
+                        WORK, LWORK, RWORK, LRWORK, IWORK, LIWORK, &
+                        INFO)
+      character,       intent(in)    :: JOBZ
+      character,       intent(in)    :: UPLO
+      integer(INT32),  intent(in)    :: N
+      integer(INT32),  intent(in)    :: LDA
+      complex(REAL64), intent(inout) :: A(LDA, N)
+      real(REAL64),    intent(out)   :: W(N)
+      integer(INT32),  intent(in)    :: LWORK
+      complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+      integer(INT32),  intent(in)    :: LRWORK
+      real(REAL64),    intent(out)   :: RWORK(max(1, LRWORK))
+      integer(INT32),  intent(in)    :: LIWORK
+      integer(INT32),  intent(out)   :: IWORK(max(1, LIWORK))
+      integer(INT32),  intent(out)   :: INFO
+      A = A
+      W = real(len(JOBZ) + len(UPLO), REAL64)
+      WORK = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+      RWORK = 1.0_REAL64
+      IWORK = 1_INT32
+      INFO = 0_INT32
+    end subroutine myZHEEVD
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranDHFailWorkspaceQuery)
+#ifdef TSD_FORTRAN_IMPL
+#define FAILING_STAT 9_INT32
+  use LapackDeferredWrappers, only: INT32, REAL64, &
+                                    C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, CmplxI, &
+                                    DiagHermitian
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
+  integer(C_INT) :: Info
+
+  logical :: myZHEEVDFailing = .true.
+
+  H(1, :) = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
+  H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
+  H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
+
+  Info = 10_C_INT
+  !Failing workspace query.
+  call DiagHermitian(Dimension = 3_C_SIZE_T, &
+                     Matrix = H, &
+                     Unitary = U, &
+                     ZHEEVDProcedure = myZHEEVD, &
+                     Info = Info)
+  ASSERT(Info == FAILING_STAT)
+
+  contains
+
+    subroutine myZHEEVD(JOBZ, UPLO, &
+                        N, A, LDA, &
+                        W, &
+                        WORK, LWORK, RWORK, LRWORK, IWORK, LIWORK, &
+                        INFO)
+      character,       intent(in)    :: JOBZ
+      character,       intent(in)    :: UPLO
+      integer(INT32),  intent(in)    :: N
+      integer(INT32),  intent(in)    :: LDA
+      complex(REAL64), intent(inout) :: A(LDA, N)
+      real(REAL64),    intent(out)   :: W(N)
+      integer(INT32),  intent(in)    :: LWORK
+      complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+      integer(INT32),  intent(in)    :: LRWORK
+      real(REAL64),    intent(out)   :: RWORK(max(1, LRWORK))
+      integer(INT32),  intent(in)    :: LIWORK
+      integer(INT32),  intent(out)   :: IWORK(max(1, LIWORK))
+      integer(INT32),  intent(out)   :: INFO
+      A = A
+      W = real(len(JOBZ) + len(UPLO), REAL64)
+      WORK = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+      RWORK = 1.0_REAL64
+      IWORK = 1_INT32
+      if (myZHEEVDFailing) then
+        INFO = FAILING_STAT
+      else
+        INFO = 0_INT32
+      endif
+    end subroutine myZHEEVD
+
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(LDWFortranDHNominalSuite,
+           LDWFortranDHFastReturn,
+           LDWFortranDHTooLarge,
+           LDWFortranDHFailWorkspaceQuery,
+           LDWFortranDHNominalReference);
+#endif
+
+TEST_E(LDWFortranDegenFastReturn)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, &
+                                    DegeneracyGroup
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  real(C_DOUBLE)    :: E(1)
+  integer(C_SIZE_T) :: D(1)
+
+  E = 0.0_C_DOUBLE
+  D = 1_C_SIZE_T
+
+  call DegeneracyGroup(0_C_SIZE_T, E, 0.1_C_DOUBLE, D)
+
+  ASSERT(all(D == 1_C_SIZE_T))
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranDegenNegativeThr)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, &
+                                    DegeneracyGroup
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  real(C_DOUBLE)    :: E(1)
+  integer(C_SIZE_T) :: D(1)
+
+  E = 0.0_C_DOUBLE
+  D = 1_C_SIZE_T
+
+  call DegeneracyGroup(1_C_SIZE_T, E, -0.1_C_DOUBLE, D)
+
+  ASSERT(all(D == 1_C_SIZE_T))
+
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(LDWFortranDegenNominalSuite,
+           LDWFortranDegenFastReturn,
+           LDWFortranDegenNegativeThr);
+#endif
+
+TEST_E(LDWFortranDiagHermitianReference)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE_COMPLEX, C_DOUBLE, C_INT, &
+                                    Cmplx1, CmplxI, &
+                                    DiagHermitian
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  external :: zheevd
+
+  complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
+  real(C_DOUBLE) :: E(3)
+  integer(C_INT) :: Info
+
+  integer :: i, j
+
+  H(1, :) = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
+  H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
+  H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
+
+  call DiagHermitian(Dimension = 3_C_SIZE_T, &
+                     Matrix = H, &
+                     Unitary = U, &
+                     Eigenvalues = E, &
+                     ZHEEVDProcedure = zheevd, &
+                     Info = Info)
+  ASSERT(Info == 0_C_INT)
+
+  ASSERT(abs(E(1) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 1)*conjg(U(:, 1)))) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 1)*conjg(U(:, 2)))) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 1)*conjg(U(:, 3)))) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(abs(E(2) - 4.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 2)*conjg(U(:, 1)))) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 2)*conjg(U(:, 2)))) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 2)*conjg(U(:, 3)))) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(abs(E(3) - 4.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 3)*conjg(U(:, 1)))) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 3)*conjg(U(:, 2)))) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(abs(sum(U(:, 3)*conjg(U(:, 3)))) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  H = matmul(conjg(transpose(U)), matmul(H, U))
+  do i = 1, 3
+    do j = 1, 3
+      if (i == j) then
+        ASSERT(abs(H(i, j) - E(i)*Cmplx1) < 10*epsilon(1.0_C_DOUBLE))
+      else
+        ASSERT(abs(H(i, j)) < 10*epsilon(1.0_C_DOUBLE))
+      endif
+    enddo
+  enddo
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranDegeneracyGroupReference)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, &
+                                    DegeneracyGroup
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  real(C_DOUBLE)    :: E(9)
+  integer(C_SIZE_T) :: D(9)
+
+  E = real([0.0, 0.2, 0.5, 0.9, 0.95, 1.1, 1.2, 7.1, 7.2], C_DOUBLE)
+
+  call DegeneracyGroup(9_C_SIZE_T, E, 0.3_C_DOUBLE, D)
+
+  ASSERT(all(D == int([3, 0, 0, 4, 0, 0, 0, 2, 0], C_SIZE_T)))
+
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(LDWFortranReference,
+           LDWFortranDiagHermitianReference,
+           LDWFortranDegeneracyGroupReference);
+#endif

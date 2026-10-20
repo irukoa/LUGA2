@@ -121,10 +121,16 @@ cp src/EINT/ExtrapolationIntegration.h "${DESTDIR}${INCDIR}/ExtrapolationIntegra
 cp src/EINT/ExtrapolationIntegration.M90 "${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90"
 cp discard/ExtrapolationIntegration/*.mod "${DESTDIR}${INCDIR}/Artifacts"
 cp obj/ExtrapolationIntegration.def "${DESTDIR}${INCDIR}/Artifacts"
+cp src/LDW/LapackDeferredWrappers.h "${DESTDIR}${INCDIR}/LapackDeferredWrappers.h"
+cp src/LDW/LapackDeferredWrappers.M90 "${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
+cp discard/LapackDeferredWrappers/*.mod "${DESTDIR}${INCDIR}/Artifacts"
+cp obj/LapackDeferredWrappers.def "${DESTDIR}${INCDIR}/Artifacts"
 chmod 644 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h" \
   "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90" \
   "${DESTDIR}${INCDIR}/ExtrapolationIntegration.h" \
-  "${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90"
+  "${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90" \
+  "${DESTDIR}${INCDIR}/LapackDeferredWrappers.h" \
+  "${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
 
 echo
 echo "Installed:"
@@ -134,6 +140,8 @@ echo "  ${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h"
 echo "  ${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90"
 echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.h"
 echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90"
+echo "  ${DESTDIR}${INCDIR}/LapackDeferredWrappers.h"
+echo "  ${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
 echo "  Compilation-specific .mod artifacts"
 echo "  Interface-only module symbol lists"
 echo "  Cleaning..."

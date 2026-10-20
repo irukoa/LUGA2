@@ -34,6 +34,12 @@ OpenMP is opt-in for `EINT_P`, and provided through the Fortran compiler flags:
 
 Enabling OpenMP adds a runtime dependency on the OpenMP runtime (e.g. `libgomp`).
 
+## LAPACK Deferred Wrappers (LDW)
+
+Deferred LAPACK wrappers: LAPACK procedures are supplied by the application at runtime rather than linked into LUGA2.
+
+Provides Hermitian diagonalization (`DiagHermitian`) through a caller-supplied `ZHEEVD` procedure, and consecutive eigenvalue grouping (`DegeneracyGroup`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
+
 # Building and Installation
 
 LUGA2 provides:
@@ -65,13 +71,14 @@ After installation, the generated artifacts are installed as follows:
 - Public headers and Fortran interface modules in `$(DESTDIR)$(INCDIR)`:
   - `MultidimensionalArrayContainers.h`, `MultidimensionalArrayContainers.F90` (MAC)
   - `ExtrapolationIntegration.h`, `ExtrapolationIntegration.F90` (EINT)
+  - `LapackDeferredWrappers.h`, `LapackDeferredWrappers.F90` (LDW)
 
 ## Build targets
 
 - `make` (default) — builds `libLUGA2.a` and `libLUGA2.so` with the debug profile.
 - `make PROFILE=release` — builds the library with the release profile.
 - `make clean` — removes the build products (`obj/`, `bin/`, `discard/`) and test artifacts.
-- `make test`, `make runtest`, `make coverage` — build and run the test suite.
+- `make test`, `make runtest`, `make coverage` — build and run the test suite. Note: these require BLAS and LAPACK.
 
 ## Using the Library from C
 
