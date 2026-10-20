@@ -3,6 +3,44 @@
 #include "src/MAC/MultidimensionalArrayContainers.M90"
 #endif
 
+TEST_E(MACFortranTypeCopy_1)
+#ifdef TSD_FORTRAN_IMPL
+  use MultidimensionalArrayContainers
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(MAC)         :: ContainerA, ContainerB, ContainerC
+  integer(C_SIZE_T) :: ShapeVector(3)
+
+  ShapeVector = int([1, 2, 3], C_SIZE_T)
+
+  call ContainerA%Specify(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  ASSERT_X(ContainerA%Initialized())
+
+  ContainerB = ContainerA
+  ASSERT(ContainerB%Initialized())
+  ASSERT(ContainerB%ElementCount() == product(ShapeVector))
+  call ContainerB%Free()
+  ASSERT(.not.ContainerB%Initialized())
+  ASSERT(ContainerA%Initialized())
+  ASSERT(ContainerA%ElementCount() == product(ShapeVector))
+
+  ContainerB = ContainerA
+  ASSERT_X(ContainerB%Initialized())
+
+  ContainerC = ContainerA
+  ASSERT_X(ContainerC%Initialized())
+
+  call ContainerA%Free()
+  ASSERT(.not.ContainerA%Initialized())
+  ASSERT(ContainerB%Initialized())
+  call ContainerB%Free()
+  ASSERT(.not.ContainerB%Initialized())
+  ASSERT(ContainerC%Initialized())
+#endif
+END_TEST_E
+
 TEST_E(MACFortranNominal_1)
 #ifdef TSD_FORTRAN_IMPL
   use MultidimensionalArrayContainers
@@ -83,6 +121,7 @@ END_TEST_E
 
 #ifdef TSD_KERNEL
 TEST_SUITE(MACFortranNominalSuite,
+           MACFortranTypeCopy_1,
            MACFortranNominal_1,
            MACFortranNominal_2);
 #endif

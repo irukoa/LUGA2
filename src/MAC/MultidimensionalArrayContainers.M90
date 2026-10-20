@@ -24,6 +24,7 @@ module MultidimensionalArrayContainers
     private
     type(C_PTR) :: OpaqueHandle = C_NULL_PTR
     logical     :: Init         = .false.
+    logical     :: Owner        = .true.
     contains
     procedure, public, pass(Container) :: Free             => FortranFreeMAC
     procedure, public, pass(Container) :: Specify          => FortranNewMAC
@@ -34,8 +35,17 @@ module MultidimensionalArrayContainers
     procedure, public, pass(Container) :: Layout           => FortranMACGetLayout
     procedure, public, pass(Container) :: Multidimensional => FortranMACFlatToMultidimensional
     procedure, public, pass(Container) :: Flat             => FortranMACMultidimensionalToFlat
+    procedure                          :: FortranCopyMAC
+    generic,   public                  :: assignment(=) => FortranCopyMAC
     final                              :: FortranFreeMAC_Final
   end type MAC
+
+  interface
+    module subroutine FortranCopyMAC(Copy, Original)
+      class(MAC), intent(out) :: Copy
+      type(MAC),  intent(in)  :: Original
+    end subroutine FortranCopyMAC
+  end interface
 
   interface
     pure module subroutine FortranFreeMAC(Container)

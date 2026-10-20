@@ -8,13 +8,27 @@ submodule (MultidimensionalArrayContainers:MAC_C_Interfaces) MAC_F_Implementatio
 
   contains
 
+  module procedure FortranCopyMAC
+    Copy%OpaqueHandle = Original%OpaqueHandle
+    Copy%Init         = Original%Init
+    Copy%Owner        = .false.
+  end procedure FortranCopyMAC
+
   module procedure FortranFreeMAC
-    call FreeMAC(Container%OpaqueHandle)
+    if (Container%Owner) then
+      call FreeMAC(Container%OpaqueHandle)
+    else
+      Container%OpaqueHandle = C_NULL_PTR
+    endif
     Container%Init = .false.
   end procedure FortranFreeMAC
 
   module procedure FortranFreeMAC_Final
-    call FreeMAC(Container%OpaqueHandle)
+    if (Container%Owner) then
+      call FreeMAC(Container%OpaqueHandle)
+    else
+      Container%OpaqueHandle = C_NULL_PTR
+    endif
     Container%Init = .false.
   end procedure FortranFreeMAC_Final
 
@@ -38,7 +52,8 @@ submodule (MultidimensionalArrayContainers:MAC_C_Interfaces) MAC_F_Implementatio
                                     Shape  = Shape, &
                                     Layout = LocalLayout)
 
-    if (C_ASSOCIATED(Container%OpaqueHandle)) Container%Init = .true.
+    if (C_ASSOCIATED(Container%OpaqueHandle)) Container%Init  = .true.
+    if (C_ASSOCIATED(Container%OpaqueHandle)) Container%Owner = .true.
   end procedure FortranNewMAC
 
   module procedure FortranInitialized
