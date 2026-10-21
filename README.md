@@ -40,6 +40,13 @@ Deferred LAPACK wrappers: LAPACK procedures are supplied by the application at r
 
 Provides Hermitian diagonalization (`DiagHermitian`) through a caller-supplied `ZHEEVD` procedure, and consecutive eigenvalue grouping (`DegeneracyGroup`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
 
+## Graph Topologies and Shortest-path Algorithms (GRTP)
+
+Directed graph topology construction and shortest-path algorithms.
+
+- **Topology** — `GraphSupportBuilder` incrementally builds a directed graph by adding and removing edges (self-loops allowed, parallel edges rejected) and finalizes it into an immutable `GraphSupport` instance with compact, sorted neighbor lists enabling efficient traversal and binary-search edge lookup.
+- **Algorithms** — Dijkstra (single- and multi-source), bidirectional Dijkstra (with shortest-path reconstruction), and Bellman–Ford (with optional reachable negative-cycle detection). A reusable `GraphWorkspace` holds all temporary and output data to avoid repeated allocations across computations.
+
 # Building and Installation
 
 LUGA2 provides:

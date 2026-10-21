@@ -125,12 +125,18 @@ cp src/LDW/LapackDeferredWrappers.h "${DESTDIR}${INCDIR}/LapackDeferredWrappers.
 cp src/LDW/LapackDeferredWrappers.M90 "${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
 cp discard/LapackDeferredWrappers/*.mod "${DESTDIR}${INCDIR}/Artifacts"
 cp obj/LapackDeferredWrappers.def "${DESTDIR}${INCDIR}/Artifacts"
+cp src/GRTP/GraphUtilities.h "${DESTDIR}${INCDIR}/GraphUtilities.h"
+cp src/GRTP/GraphUtilities.M90 "${DESTDIR}${INCDIR}/GraphUtilities.F90"
+cp discard/GraphUtilities/*.mod "${DESTDIR}${INCDIR}/Artifacts"
+cp obj/GraphUtilities.def "${DESTDIR}${INCDIR}/Artifacts"
 chmod 644 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h" \
   "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90" \
   "${DESTDIR}${INCDIR}/ExtrapolationIntegration.h" \
   "${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90" \
   "${DESTDIR}${INCDIR}/LapackDeferredWrappers.h" \
-  "${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
+  "${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90" \
+  "${DESTDIR}${INCDIR}/GraphUtilities.h" \
+  "${DESTDIR}${INCDIR}/GraphUtilities.F90"
 
 echo
 echo "Installed:"
@@ -142,6 +148,8 @@ echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.h"
 echo "  ${DESTDIR}${INCDIR}/ExtrapolationIntegration.F90"
 echo "  ${DESTDIR}${INCDIR}/LapackDeferredWrappers.h"
 echo "  ${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
+echo "  ${DESTDIR}${INCDIR}/GraphUtilities.h"
+echo "  ${DESTDIR}${INCDIR}/GraphUtilities.F90"
 echo "  Compilation-specific .mod artifacts"
 echo "  Interface-only module symbol lists"
 echo "  Cleaning..."

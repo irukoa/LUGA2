@@ -1,0 +1,329 @@
+#ifndef GRTP_C_Interfaces_H
+#define GRTP_C_Interfaces_H
+
+#include "src/GRTP/GraphUtilities.M90"
+
+submodule (GraphUtilities) GRTP_C_Interfaces
+
+  use, intrinsic :: ISO_C_BINDING, only: C_BOOL, C_FUNPTR
+
+  implicit none
+
+  ! GRAPH TOPOLOGY - MUTABLE SUPPORT.
+
+  interface
+   pure subroutine FreeGraphSupportBuilder(OpaqueHandle) &
+      bind(C, name="FreeGraphSupportBuilder")
+      import C_PTR
+      type(C_PTR), intent(inout) :: OpaqueHandle
+    end subroutine FreeGraphSupportBuilder
+  end interface
+
+  interface
+   pure function NewGraphSupportBuilder(VertexCount) &
+      bind(C, name="NewGraphSupportBuilder") &
+      result(OpaqueHandle)
+      import C_SIZE_T, C_PTR
+      integer(C_SIZE_T), intent(in), value :: VertexCount
+
+      type(C_PTR) :: OpaqueHandle
+    end function NewGraphSupportBuilder
+  end interface
+
+  interface
+   function GraphSupportBuilderAddEdge(OpaqueHandle, Origin, Destination) &
+      bind(C, name="GraphSupportBuilderAddEdge") &
+      result(Added)
+      import C_PTR, C_SIZE_T, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Origin
+      integer(C_SIZE_T), intent(in), value :: Destination
+
+      logical(C_BOOL) :: Added
+    end function GraphSupportBuilderAddEdge
+  end interface
+
+  interface
+   function GraphSupportBuilderRemoveEdge(OpaqueHandle, Origin, Destination) &
+      bind(C, name="GraphSupportBuilderRemoveEdge") &
+      result(Removed)
+      import C_PTR, C_SIZE_T, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Origin
+      integer(C_SIZE_T), intent(in), value :: Destination
+
+      logical(C_BOOL) :: Removed
+    end function GraphSupportBuilderRemoveEdge
+  end interface
+
+  interface
+   pure function GraphSupportBuilderGetVertexCount(OpaqueHandle) &
+      bind(C, name="GraphSupportBuilderGetVertexCount") &
+      result(VertexCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: VertexCount
+    end function GraphSupportBuilderGetVertexCount
+  end interface
+
+  interface
+   pure function GraphSupportBuilderGetEdgeCount(OpaqueHandle) &
+      bind(C, name="GraphSupportBuilderGetEdgeCount") &
+      result(EdgeCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: EdgeCount
+    end function GraphSupportBuilderGetEdgeCount
+  end interface
+
+  interface
+   pure function GraphSupportBuilderGetNeighborCount(OpaqueHandle, Vertex) &
+      bind(C, name="GraphSupportBuilderGetNeighborCount") &
+      result(NeighborCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Vertex
+
+      integer(C_SIZE_T) :: NeighborCount
+    end function GraphSupportBuilderGetNeighborCount
+  end interface
+
+  interface
+   pure function GraphSupportBuilderGetNeighbors(OpaqueHandle, Vertex) &
+      bind(C, name="GraphSupportBuilderGetNeighbors") &
+      result(Neighbors)
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Vertex
+
+      type(C_PTR) :: Neighbors
+    end function GraphSupportBuilderGetNeighbors
+  end interface
+
+  interface
+   pure function GraphSupportBuilderHasEdge(OpaqueHandle, Origin, Destination) &
+      bind(C, name="GraphSupportBuilderHasEdge") &
+      result(HasEdge)
+      import C_PTR, C_SIZE_T, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Origin
+      integer(C_SIZE_T), intent(in), value :: Destination
+
+      logical(C_BOOL) :: HasEdge
+    end function GraphSupportBuilderHasEdge
+  end interface
+
+  ! GRAPH TOPOLOGY - IMMUTABLE SUPPORT.
+
+  interface
+   pure subroutine FreeGraphSupport(OpaqueHandle) &
+      bind(C, name="FreeGraphSupport")
+      import C_PTR
+      type(C_PTR), intent(inout) :: OpaqueHandle
+    end subroutine FreeGraphSupport
+  end interface
+
+  interface
+   pure function NewGraphSupport(BuilderHandle) &
+      bind(C, name="NewGraphSupport") &
+      result(OpaqueHandle)
+      import C_PTR
+      type(C_PTR), intent(in), value :: BuilderHandle
+
+      type(C_PTR) :: OpaqueHandle
+    end function NewGraphSupport
+  end interface
+
+  interface
+   pure function GraphSupportGetVertexCount(OpaqueHandle) &
+      bind(C, name="GraphSupportGetVertexCount") &
+      result(VertexCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: VertexCount
+    end function GraphSupportGetVertexCount
+  end interface
+
+  interface
+   pure function GraphSupportGetEdgeCount(OpaqueHandle) &
+      bind(C, name="GraphSupportGetEdgeCount") &
+      result(EdgeCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: EdgeCount
+    end function GraphSupportGetEdgeCount
+  end interface
+
+  interface
+   pure function GraphSupportGetNeighborCount(OpaqueHandle, Vertex) &
+      bind(C, name="GraphSupportGetNeighborCount") &
+      result(NeighborCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Vertex
+
+      integer(C_SIZE_T) :: NeighborCount
+    end function GraphSupportGetNeighborCount
+  end interface
+
+  interface
+   pure function GraphSupportGetNeighbors(OpaqueHandle, Vertex) &
+      bind(C, name="GraphSupportGetNeighbors") &
+      result(Neighbors)
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Vertex
+
+      type(C_PTR) :: Neighbors
+    end function GraphSupportGetNeighbors
+  end interface
+
+  interface
+   function GraphSupportGetEdgeIndex(OpaqueHandle, Origin, Destination, EdgeIndex) &
+      bind(C, name="GraphSupportGetEdgeIndex") &
+      result(HasEdge)
+      import C_PTR, C_SIZE_T, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Origin
+      integer(C_SIZE_T), intent(in), value :: Destination
+      integer(C_SIZE_T), intent(out)       :: EdgeIndex
+
+      logical(C_BOOL) :: HasEdge
+    end function GraphSupportGetEdgeIndex
+  end interface
+
+  interface
+   function GraphSupportGetEdgeVertices(OpaqueHandle, EdgeIndex, Origin, Destination) &
+      bind(C, name="GraphSupportGetEdgeVertices") &
+      result(HasEdge)
+      import C_PTR, C_SIZE_T, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: EdgeIndex
+      integer(C_SIZE_T), intent(out)       :: Origin
+      integer(C_SIZE_T), intent(out)       :: Destination
+
+      logical(C_BOOL) :: HasEdge
+    end function GraphSupportGetEdgeVertices
+  end interface
+
+  interface
+   pure function GraphSupportHasEdge(OpaqueHandle, Origin, Destination) &
+      bind(C, name="GraphSupportHasEdge") &
+      result(HasEdge)
+      import C_PTR, C_SIZE_T, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: Origin
+      integer(C_SIZE_T), intent(in), value :: Destination
+
+      logical(C_BOOL) :: HasEdge
+    end function GraphSupportHasEdge
+  end interface
+
+  ! GRAPH ALGORITHMS - WORKSPACE.
+
+  interface
+   pure subroutine FreeGraphWorkspace(OpaqueHandle) &
+      bind(C, name="FreeGraphWorkspace")
+      import C_PTR
+      type(C_PTR), intent(inout) :: OpaqueHandle
+    end subroutine FreeGraphWorkspace
+  end interface
+
+  interface
+   pure function NewGraphWorkspace(SupportHandle) &
+      bind(C, name="NewGraphWorkspace") &
+      result(OpaqueHandle)
+      import C_PTR
+      type(C_PTR), intent(in), value :: SupportHandle
+
+      type(C_PTR) :: OpaqueHandle
+    end function NewGraphWorkspace
+  end interface
+
+  interface
+   pure function GraphWorkspaceGetDistance(OpaqueHandle) &
+      bind(C, name="GraphWorkspaceGetDistance") &
+      result(Distance)
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: Distance
+    end function GraphWorkspaceGetDistance
+  end interface
+
+  interface
+   pure function GraphWorkspaceGetParent(OpaqueHandle) &
+      bind(C, name="GraphWorkspaceGetParent") &
+      result(Parent)
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: Parent
+    end function GraphWorkspaceGetParent
+  end interface
+
+  ! GRAPH ALGORITHMS - SHORTEST PATHS.
+
+  interface
+   function GraphDijkstra_C(WorkspaceHandle, SourceCount, Source, &
+                            WeightFunction, UserContext) &
+      bind(C, name="GraphDijkstra") &
+      result(Success)
+      import C_PTR, C_SIZE_T, C_FUNPTR, C_BOOL
+      type(C_PTR),       intent(in), value :: WorkspaceHandle
+      integer(C_SIZE_T), intent(in), value :: SourceCount
+      integer(C_SIZE_T), intent(in)        :: Source(SourceCount)
+      type(C_FUNPTR),    intent(in), value :: WeightFunction
+      type(C_PTR),       intent(in), value :: UserContext
+
+      logical(C_BOOL) :: Success
+    end function GraphDijkstra_C
+  end interface
+
+  interface
+   function GraphBidirectionalDijkstra_C(ForwardHandle, BackwardHandle, &
+                                         Source, Target, WeightFunction, &
+                                         UserContext, ShortestPath, &
+                                         ShortestPathVertexCount, &
+                                         ShortestDistance) &
+      bind(C, name="GraphBidirectionalDijkstra") &
+      result(Success)
+      import C_PTR, C_SIZE_T, C_FUNPTR, C_BOOL, C_DOUBLE
+      type(C_PTR),       intent(in), value :: ForwardHandle
+      type(C_PTR),       intent(in), value :: BackwardHandle
+      integer(C_SIZE_T), intent(in), value :: Source
+      integer(C_SIZE_T), intent(in), value :: Target
+      type(C_FUNPTR),    intent(in), value :: WeightFunction
+      type(C_PTR),       intent(in), value :: UserContext
+      type(C_PTR),       intent(in), value :: ShortestPath
+      integer(C_SIZE_T), intent(out)       :: ShortestPathVertexCount
+      real(C_DOUBLE),    intent(out)       :: ShortestDistance
+
+      logical(C_BOOL) :: Success
+    end function GraphBidirectionalDijkstra_C
+  end interface
+
+  interface
+   function GraphBellmanFord_C(WorkspaceHandle, SourceCount, Source, &
+                               WeightFunction, UserContext, NegativeCycles) &
+      bind(C, name="GraphBellmanFord") &
+      result(Success)
+      import C_PTR, C_SIZE_T, C_FUNPTR, C_BOOL
+      type(C_PTR),       intent(in), value :: WorkspaceHandle
+      integer(C_SIZE_T), intent(in), value :: SourceCount
+      integer(C_SIZE_T), intent(in)        :: Source(SourceCount)
+      type(C_FUNPTR),    intent(in), value :: WeightFunction
+      type(C_PTR),       intent(in), value :: UserContext
+      logical(C_BOOL),   intent(out)       :: NegativeCycles
+
+      logical(C_BOOL) :: Success
+    end function GraphBellmanFord_C
+  end interface
+
+end submodule GRTP_C_Interfaces
+
+#endif

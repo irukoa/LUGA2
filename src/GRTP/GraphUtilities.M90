@@ -1,0 +1,417 @@
+#ifndef GraphUtilities_FH
+#define GraphUtilities_FH
+
+module GraphUtilities
+
+  use, intrinsic :: ISO_C_BINDING, only: C_PTR, C_NULL_PTR, &
+                                         C_SIZE_T, C_DOUBLE
+
+  implicit none
+
+  private
+
+  public :: C_SIZE_T
+  public :: C_DOUBLE
+
+  !< Sentinel value representing the absence of a predecessor.
+  !< Used by shortest-path algorithms to indicate that no parent vertex
+  !< exists for a particular vertex.
+  !< Values are provided by the C implementation.
+  integer(C_SIZE_T), protected, bind(C, name="C_SIZE_MAX"), public :: UnreachableVertex
+
+  !< Sentinel value representing the distance to an unreachable vertex.
+  !< Used by shortest-path algorithms to indicate that no parent vertex
+  !< exists for a particular vertex.
+  !< Values are provided by the C implementation.
+  real(C_DOUBLE), protected, bind(C, name="C_INFINITY"), public :: INFINITY
+
+  type, public :: GraphSupportBuilder
+    private
+    type(C_PTR) :: OpaqueHandle = C_NULL_PTR
+    logical     :: Init         = .false.
+    logical     :: Owner        = .true.
+    contains
+    procedure, public, pass(Builder) :: Free          => FortranFreeGraphSupportBuilder
+    procedure, public, pass(Builder) :: New           => FortranNewGraphSupportBuilder
+    procedure, public, pass(Builder) :: Initialized   => FortranGraphSupportBuilderInitialized
+    procedure, public, pass(Builder) :: AddEdge       => FortranGraphSupportBuilderAddEdge
+    procedure, public, pass(Builder) :: RemoveEdge    => FortranGraphSupportBuilderRemoveEdge
+    procedure, public, pass(Builder) :: VertexCount   => FortranGraphSupportBuilderVertexCount
+    procedure, public, pass(Builder) :: EdgeCount     => FortranGraphSupportBuilderEdgeCount
+    procedure, public, pass(Builder) :: NeighborCount => FortranGraphSupportBuilderNeighborCount
+    procedure, public, pass(Builder) :: Neighbors     => FortranGraphSupportBuilderNeighbors
+    procedure, public, pass(Builder) :: HasEdge       => FortranGraphSupportBuilderHasEdge
+    procedure                        :: FortranCopyGraphSupportBuilder
+    generic,   public                :: assignment(=) => FortranCopyGraphSupportBuilder
+    final                            :: FortranFreeGraphSupportBuilder_Final
+  end type GraphSupportBuilder
+
+  interface
+    module subroutine FortranCopyGraphSupportBuilder(Copy, Original)
+      class(GraphSupportBuilder), intent(out) :: Copy
+      type(GraphSupportBuilder),  intent(in)  :: Original
+    end subroutine FortranCopyGraphSupportBuilder
+  end interface
+
+  interface
+    pure module subroutine FortranFreeGraphSupportBuilder(Builder)
+      class(GraphSupportBuilder), intent(inout) :: Builder
+    end subroutine FortranFreeGraphSupportBuilder
+  end interface
+
+  interface
+    pure module subroutine FortranFreeGraphSupportBuilder_Final(Builder)
+      type(GraphSupportBuilder), intent(inout) :: Builder
+    end subroutine FortranFreeGraphSupportBuilder_Final
+  end interface
+
+  interface
+    pure module subroutine FortranNewGraphSupportBuilder(Builder, VertexCount)
+      class(GraphSupportBuilder), intent(inout) :: Builder
+      integer(C_SIZE_T),          intent(in)    :: VertexCount
+    end subroutine FortranNewGraphSupportBuilder
+  end interface
+
+  interface
+    pure module function FortranGraphSupportBuilderInitialized(Builder) &
+      result(Initialized)
+      class(GraphSupportBuilder), intent(in) :: Builder
+
+      logical :: Initialized
+    end function FortranGraphSupportBuilderInitialized
+  end interface
+
+  interface
+    !Note: Origin, Destination \in [0, VertexCount - 1].
+    module function FortranGraphSupportBuilderAddEdge(Builder, Origin, Destination) &
+      result(Added)
+      class(GraphSupportBuilder), intent(inout) :: Builder
+      integer(C_SIZE_T),          intent(in)    :: Origin
+      integer(C_SIZE_T),          intent(in)    :: Destination
+
+      logical :: Added
+    end function FortranGraphSupportBuilderAddEdge
+  end interface
+
+  interface
+    !Note: Origin, Destination \in [0, VertexCount - 1].
+    module function FortranGraphSupportBuilderRemoveEdge(Builder, Origin, Destination) &
+      result(Removed)
+      class(GraphSupportBuilder), intent(inout) :: Builder
+      integer(C_SIZE_T),          intent(in)    :: Origin
+      integer(C_SIZE_T),          intent(in)    :: Destination
+
+      logical :: Removed
+    end function FortranGraphSupportBuilderRemoveEdge
+  end interface
+
+  interface
+    pure module function FortranGraphSupportBuilderVertexCount(Builder) &
+      result(VertexCount)
+      class(GraphSupportBuilder), intent(in) :: Builder
+
+      integer(C_SIZE_T) :: VertexCount
+    end function FortranGraphSupportBuilderVertexCount
+  end interface
+
+  interface
+    pure module function FortranGraphSupportBuilderEdgeCount(Builder) &
+      result(EdgeCount)
+      class(GraphSupportBuilder), intent(in) :: Builder
+
+      integer(C_SIZE_T) :: EdgeCount
+    end function FortranGraphSupportBuilderEdgeCount
+  end interface
+
+  interface
+    !Note: Vertex \in [0, VertexCount - 1].
+    pure module function FortranGraphSupportBuilderNeighborCount(Builder, Vertex) &
+      result(NeighborCount)
+      class(GraphSupportBuilder), intent(in) :: Builder
+      integer(C_SIZE_T),          intent(in) :: Vertex
+
+      integer(C_SIZE_T) :: NeighborCount
+    end function FortranGraphSupportBuilderNeighborCount
+  end interface
+
+  interface
+    !Note: Vertex \in [0, VertexCount - 1].
+    module function FortranGraphSupportBuilderNeighbors(Builder, Vertex) &
+      result(Neighbors)
+      class(GraphSupportBuilder), intent(in) :: Builder
+      integer(C_SIZE_T),          intent(in) :: Vertex
+
+      integer(C_SIZE_T) :: Neighbors(FortranGraphSupportBuilderNeighborCount(Builder, Vertex))
+    end function FortranGraphSupportBuilderNeighbors
+  end interface
+
+  interface
+    !Note: Origin, Destination \in [0, VertexCount - 1].
+    pure module function FortranGraphSupportBuilderHasEdge(Builder, Origin, Destination) &
+      result(HasEdge)
+      class(GraphSupportBuilder), intent(in) :: Builder
+      integer(C_SIZE_T),          intent(in) :: Origin
+      integer(C_SIZE_T),          intent(in) :: Destination
+
+      logical :: HasEdge
+    end function FortranGraphSupportBuilderHasEdge
+  end interface
+
+  type, public :: GraphSupport
+    private
+    type(C_PTR) :: OpaqueHandle = C_NULL_PTR
+    logical     :: Init         = .false.
+    logical     :: Owner        = .true.
+    contains
+    procedure, public, pass(Support) :: Free          => FortranFreeGraphSupport
+    procedure, public, pass(Support) :: New           => FortranNewGraphSupport
+    procedure, public, pass(Support) :: Initialized   => FortranGraphSupportInitialized
+    procedure, public, pass(Support) :: VertexCount   => FortranGraphSupportVertexCount
+    procedure, public, pass(Support) :: EdgeCount     => FortranGraphSupportEdgeCount
+    procedure, public, pass(Support) :: NeighborCount => FortranGraphSupportNeighborCount
+    procedure, public, pass(Support) :: Neighbors     => FortranGraphSupportNeighbors
+    procedure, public, pass(Support) :: EdgeIndex     => FortranGraphSupportEdgeIndex
+    procedure, public, pass(Support) :: EdgeVertices  => FortranGraphSupportEdgeVertices
+    procedure, public, pass(Support) :: HasEdge       => FortranGraphSupportHasEdge
+    procedure                        :: FortranCopyGraphSupport
+    generic,   public                :: assignment(=) => FortranCopyGraphSupport
+    final                            :: FortranFreeGraphSupport_Final
+  end type GraphSupport
+
+  interface
+    module subroutine FortranCopyGraphSupport(Copy, Original)
+      class(GraphSupport), intent(out) :: Copy
+      type(GraphSupport),  intent(in)  :: Original
+    end subroutine FortranCopyGraphSupport
+  end interface
+
+  interface
+    pure module subroutine FortranFreeGraphSupport(Support)
+      class(GraphSupport), intent(inout) :: Support
+    end subroutine FortranFreeGraphSupport
+  end interface
+
+  interface
+    pure module subroutine FortranFreeGraphSupport_Final(Support)
+      type(GraphSupport), intent(inout) :: Support
+    end subroutine FortranFreeGraphSupport_Final
+  end interface
+
+  interface
+    pure module subroutine FortranNewGraphSupport(Support, Builder)
+      class(GraphSupport),        intent(inout) :: Support
+      class(GraphSupportBuilder), intent(in)    :: Builder
+    end subroutine FortranNewGraphSupport
+  end interface
+
+  interface
+    pure module function FortranGraphSupportInitialized(Support) &
+      result(Initialized)
+      class(GraphSupport), intent(in) :: Support
+
+      logical :: Initialized
+    end function FortranGraphSupportInitialized
+  end interface
+
+  interface
+    pure module function FortranGraphSupportVertexCount(Support) &
+      result(VertexCount)
+      class(GraphSupport), intent(in) :: Support
+
+      integer(C_SIZE_T) :: VertexCount
+    end function FortranGraphSupportVertexCount
+  end interface
+
+  interface
+    pure module function FortranGraphSupportEdgeCount(Support) &
+      result(EdgeCount)
+      class(GraphSupport), intent(in) :: Support
+
+      integer(C_SIZE_T) :: EdgeCount
+    end function FortranGraphSupportEdgeCount
+  end interface
+
+  interface
+    !Note: Vertex \in [0, VertexCount - 1].
+    pure module function FortranGraphSupportNeighborCount(Support, Vertex) &
+      result(NeighborCount)
+      class(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),   intent(in) :: Vertex
+
+      integer(C_SIZE_T) :: NeighborCount
+    end function FortranGraphSupportNeighborCount
+  end interface
+
+  interface
+    !Note: Vertex \in [0, VertexCount - 1].
+    module function FortranGraphSupportNeighbors(Support, Vertex) &
+      result(Neighbors)
+      class(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),   intent(in) :: Vertex
+
+      integer(C_SIZE_T) :: Neighbors(FortranGraphSupportNeighborCount(Support, Vertex))
+    end function FortranGraphSupportNeighbors
+  end interface
+
+  interface
+    !Note: EdgeIndex \in [0, EdgeCount - 1].
+    module function FortranGraphSupportEdgeIndex(Support, Origin, Destination, EdgeIndex) &
+      result(HasEdge)
+      class(GraphSupport), intent(in)  :: Support
+      integer(C_SIZE_T),   intent(in)  :: Origin
+      integer(C_SIZE_T),   intent(in)  :: Destination
+      integer(C_SIZE_T),   intent(out) :: EdgeIndex
+
+      logical :: HasEdge
+    end function FortranGraphSupportEdgeIndex
+  end interface
+
+  interface
+    !Note: Origin, Destination \in [0, VertexCount - 1].
+    module function FortranGraphSupportEdgeVertices(Support, EdgeIndex, Origin, Destination) &
+      result(HasEdge)
+      class(GraphSupport), intent(in)  :: Support
+      integer(C_SIZE_T),   intent(in)  :: EdgeIndex
+      integer(C_SIZE_T),   intent(out) :: Origin
+      integer(C_SIZE_T),   intent(out) :: Destination
+
+      logical :: HasEdge
+    end function FortranGraphSupportEdgeVertices
+  end interface
+
+  interface
+    !Note: Origin, Destination \in [0, VertexCount - 1].
+    pure module function FortranGraphSupportHasEdge(Support, Origin, Destination) &
+      result(HasEdge)
+      class(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),   intent(in) :: Origin
+      integer(C_SIZE_T),   intent(in) :: Destination
+
+      logical :: HasEdge
+    end function FortranGraphSupportHasEdge
+  end interface
+
+  !< GRAPH ALGORITHMS.
+
+  !< Weighting callback signature.
+  !Note: Declare weight functions as module or external procedures;
+  !      an internal procedure gets a stack trampoline,
+  !      and makes the executable require an executable stack.
+  abstract interface
+    function GraphWeightFunction(Support, Origin, Destination, UserContext) &
+      result(Weight)
+      import GraphSupport, C_SIZE_T, C_DOUBLE
+      type(GraphSupport), intent(in)            :: Support
+      integer(C_SIZE_T),  intent(in)            :: Origin
+      integer(C_SIZE_T),  intent(in)            :: Destination
+
+      class(*), intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Weight
+    end function GraphWeightFunction
+  end interface
+
+  public :: GraphWeightFunction
+
+  type, public :: GraphWorkspace
+    private
+    type(C_PTR)       :: OpaqueHandle      = C_NULL_PTR
+    integer(C_SIZE_T) :: VertexCount       = 0_C_SIZE_T
+    logical           :: Init              = .false.
+    logical           :: Owner             = .true.
+    contains
+    procedure, public, pass(Workspace) :: Free        => FortranFreeGraphWorkspace
+    procedure, public, pass(Workspace) :: New         => FortranNewGraphWorkspace
+    procedure, public, pass(Workspace) :: Initialized => FortranGraphWorkspaceInitialized
+    procedure, public, pass(Workspace) :: Distance    => FortranGraphWorkspaceDistance
+    procedure, public, pass(Workspace) :: Parent      => FortranGraphWorkspaceParent
+    procedure                          :: FortranCopyGraphWorkspace
+    generic,   public                  :: assignment(=) => FortranCopyGraphWorkspace
+    final                              :: FortranFreeGraphWorkspace_Final
+  end type GraphWorkspace
+
+  interface
+    module subroutine FortranCopyGraphWorkspace(Copy, Original)
+      class(GraphWorkspace), intent(out) :: Copy
+      type(GraphWorkspace),  intent(in)  :: Original
+    end subroutine FortranCopyGraphWorkspace
+  end interface
+
+  interface
+    pure module subroutine FortranFreeGraphWorkspace(Workspace)
+      class(GraphWorkspace), intent(inout) :: Workspace
+    end subroutine FortranFreeGraphWorkspace
+  end interface
+
+  interface
+    pure module subroutine FortranFreeGraphWorkspace_Final(Workspace)
+      type(GraphWorkspace), intent(inout) :: Workspace
+    end subroutine FortranFreeGraphWorkspace_Final
+  end interface
+
+  interface
+    !Note: The workspace retains a borrowed reference to the support:
+    !      the support must outlive the workspace.
+    pure module subroutine FortranNewGraphWorkspace(Workspace, Support)
+      class(GraphWorkspace), intent(inout) :: Workspace
+      class(GraphSupport),   intent(in)    :: Support
+    end subroutine FortranNewGraphWorkspace
+  end interface
+
+  interface
+    pure module function FortranGraphWorkspaceInitialized(Workspace) &
+      result(Initialized)
+      class(GraphWorkspace), intent(in) :: Workspace
+
+      logical :: Initialized
+    end function FortranGraphWorkspaceInitialized
+  end interface
+
+  interface
+    module subroutine FortranGraphWorkspaceDistance(Workspace, Distance)
+      class(GraphWorkspace), intent(in)  :: Workspace
+      real(C_DOUBLE),        intent(out) :: Distance(Workspace%VertexCount)
+    end subroutine FortranGraphWorkspaceDistance
+  end interface
+
+  interface
+    module subroutine FortranGraphWorkspaceParent(Workspace, Parent)
+      class(GraphWorkspace), intent(in)  :: Workspace
+      integer(C_SIZE_T),     intent(out) :: Parent(Workspace%VertexCount)
+    end subroutine FortranGraphWorkspaceParent
+  end interface
+
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      callbacks are invoked synchronously on the calling thread.
+    !Note: The `Support` passed to a weight function is only valid inside the callback.
+    !Note: UserContext must be declared CLASS(*), POINTER: a less polymorphic
+    !      actual is rejected by some compilers for an INTENT(INOUT) unlimited
+    !      polymorphic dummy. Weight functions must test PRESENT and ASSOCIATED
+    !      before selecting on it, since it is absent when no context is supplied.
+    !Note: RECURSIVE guarantees that each activation keeps its own bridge state,
+    !      so a weight function may start another run (nested or from a thread).
+    recursive module function GraphDijkstra(Workspace, &
+                                            SourceCount, &
+                                            Source, &
+                                            WeightFunction, &
+                                            UserContext) &
+      result(Success)
+      class(GraphWorkspace), intent(inout) :: Workspace
+      integer(C_SIZE_T),     intent(in)    :: SourceCount
+      integer(C_SIZE_T),     intent(in)    :: Source(SourceCount)
+
+      procedure(GraphWeightFunction), optional, pointer :: WeightFunction
+      class(*), intent(inout),        optional, pointer :: UserContext
+
+      logical :: Success
+    end function GraphDijkstra
+  end interface
+
+  public :: GraphDijkstra
+
+  !TODO: rest of the algorithms.
+
+end module GraphUtilities
+
+#endif

@@ -1,0 +1,759 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/GRTP/GraphUtilities.M90"
+#endif
+
+TEST_E(GRTPFortranBuilderNominal)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, C_SIZE_T
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT(Builder%VertexCount() == 4)
+  ASSERT(Builder%EdgeCount() == 0)
+
+  !Nominal insertions.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(Builder%EdgeCount() == 3)
+
+  !Duplicated and out of range edges are rejected without side effects.
+  ASSERT(.not.Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(.not.Builder%AddEdge(0_C_SIZE_T, 4_C_SIZE_T))
+  ASSERT(.not.Builder%AddEdge(4_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT(Builder%EdgeCount() == 3)
+
+  ASSERT(Builder%HasEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(.not.Builder%HasEdge(2_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(.not.Builder%HasEdge(0_C_SIZE_T, 3_C_SIZE_T))
+
+  ASSERT_X(Builder%RemoveEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(.not.Builder%HasEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(Builder%EdgeCount() == 2)
+
+  !Removing a missing edge reports the failure and changes nothing.
+  ASSERT(.not.Builder%RemoveEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(.not.Builder%RemoveEdge(0_C_SIZE_T, 4_C_SIZE_T))
+  ASSERT(Builder%EdgeCount() == 2)
+  ASSERT(Builder%HasEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(Builder%HasEdge(1_C_SIZE_T, 2_C_SIZE_T))
+
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBuilderQueries)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, C_SIZE_T
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+
+  !A fresh builder has no connections at all.
+  ASSERT(Builder%NeighborCount(0_C_SIZE_T) == 0)
+  ASSERT(size(Builder%Neighbors(0_C_SIZE_T)) == 0)
+
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+
+  ASSERT(Builder%NeighborCount(0_C_SIZE_T) == 1)
+  ASSERT(Builder%NeighborCount(1_C_SIZE_T) == 0)
+  ASSERT(Builder%NeighborCount(2_C_SIZE_T) == 1)
+  ASSERT(Builder%NeighborCount(3_C_SIZE_T) == 0)
+
+  ASSERT(all(Builder%Neighbors(0_C_SIZE_T) == [2_C_SIZE_T]))
+  ASSERT(all(Builder%Neighbors(2_C_SIZE_T) == [3_C_SIZE_T]))
+  ASSERT(size(Builder%Neighbors(1_C_SIZE_T)) == 0)
+  ASSERT(size(Builder%Neighbors(3_C_SIZE_T)) == 0)
+
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBuilderCopy)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, C_SIZE_T
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder, Other, Copy, Empty, EmptyCopy
+
+  !A copy of a default initialized builder stays empty and owns nothing.
+  EmptyCopy = Empty
+  ASSERT(.not.EmptyCopy%Initialized())
+  ASSERT(EmptyCopy%VertexCount() == 0)
+  ASSERT(EmptyCopy%EdgeCount() == 0)
+  ASSERT(EmptyCopy%NeighborCount(0_C_SIZE_T) == 0)
+  ASSERT(size(EmptyCopy%Neighbors(0_C_SIZE_T)) == 0)
+  ASSERT(.not.EmptyCopy%HasEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(.not.EmptyCopy%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+
+  !Freeing such an alias only unbinds it, and it may be repeated.
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
+
+  !The assignment aliases the graph instead of duplicating it.
+  Copy = Builder
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%VertexCount() == 4)
+  ASSERT(Copy%EdgeCount() == 2)
+  ASSERT(Copy%NeighborCount(0_C_SIZE_T) == 1)
+  ASSERT(all(Copy%Neighbors(0_C_SIZE_T) == [1_C_SIZE_T]))
+  ASSERT(Copy%HasEdge(1_C_SIZE_T, 2_C_SIZE_T))
+
+  ASSERT_X(Copy%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT(Builder%EdgeCount() == 3)
+  ASSERT(Builder%HasEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  ASSERT_X(Builder%RemoveEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(.not.Copy%HasEdge(0_C_SIZE_T, 1_C_SIZE_T))
+
+  !Releasing the alias leaves the original owner untouched and usable.
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Builder%Initialized())
+  ASSERT(Builder%EdgeCount() == 2)
+  ASSERT(Builder%HasEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  !Assigning another graph rebinds the alias while both graphs stay alive.
+  call Other%New(6_C_SIZE_T)
+  ASSERT_X(Other%Initialized())
+  ASSERT_X(Other%AddEdge(3_C_SIZE_T, 4_C_SIZE_T))
+
+  Copy = Other
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%VertexCount() == 6)
+  ASSERT(Copy%EdgeCount() == 1)
+  ASSERT(Copy%HasEdge(3_C_SIZE_T, 4_C_SIZE_T))
+  ASSERT(.not.Copy%HasEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Other%VertexCount() == 6)
+  ASSERT(Other%EdgeCount() == 1)
+  ASSERT(Builder%VertexCount() == 4)
+  ASSERT(Builder%EdgeCount() == 2)
+
+  call Other%Free()
+  ASSERT(.not.Other%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranBuilderSuite,
+           GRTPFortranBuilderNominal,
+           GRTPFortranBuilderQueries,
+           GRTPFortranBuilderCopy);
+#endif
+
+TEST_E(GRTPFortranSupportNominal)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, &
+                            C_SIZE_T, UnreachableVertex
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  integer(C_SIZE_T)         :: EdgeIndex, Origin, Destination
+
+  !0 -> 1, 0 -> 2, 2 -> 3 with an isolated vertex #4.
+  call Builder%New(5_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%VertexCount() == 5)
+  ASSERT(Support%EdgeCount() == 3)
+
+  ASSERT(Support%NeighborCount(0_C_SIZE_T) == 2)
+  ASSERT(Support%NeighborCount(1_C_SIZE_T) == 0)
+  ASSERT(Support%NeighborCount(2_C_SIZE_T) == 1)
+  ASSERT(Support%NeighborCount(4_C_SIZE_T) == 0)
+
+  !The support stores the connections of each vertex in order.
+  ASSERT(all(Support%Neighbors(0_C_SIZE_T) == [1_C_SIZE_T, 2_C_SIZE_T]))
+  ASSERT(all(Support%Neighbors(2_C_SIZE_T) == [3_C_SIZE_T]))
+  ASSERT(size(Support%Neighbors(1_C_SIZE_T)) == 0)
+  ASSERT(size(Support%Neighbors(4_C_SIZE_T)) == 0)
+
+  ASSERT(Support%HasEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(Support%HasEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT(.not.Support%HasEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT(.not.Support%HasEdge(3_C_SIZE_T, 4_C_SIZE_T))
+
+  !Edge identifiers follow the origin then destination ordering.
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  ASSERT(EdgeIndex == 0_C_SIZE_T)
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  ASSERT(EdgeIndex == 1_C_SIZE_T)
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  ASSERT(EdgeIndex == 2_C_SIZE_T)
+
+  !Failed queries leave the sentinel behind instead of a stale value.
+  ASSERT(.not.Support%EdgeIndex(3_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  ASSERT(EdgeIndex == UnreachableVertex)
+  ASSERT(.not.Support%EdgeIndex(0_C_SIZE_T, 5_C_SIZE_T, EdgeIndex))
+  ASSERT(EdgeIndex == UnreachableVertex)
+
+  ASSERT_X(Support%EdgeVertices(1_C_SIZE_T, Origin, Destination))
+  ASSERT(Origin == 0_C_SIZE_T)
+  ASSERT(Destination == 2_C_SIZE_T)
+  ASSERT_X(Support%EdgeVertices(2_C_SIZE_T, Origin, Destination))
+  ASSERT(Origin == 2_C_SIZE_T)
+  ASSERT(Destination == 3_C_SIZE_T)
+
+  ASSERT(.not.Support%EdgeVertices(3_C_SIZE_T, Origin, Destination))
+  ASSERT(Origin == UnreachableVertex)
+  ASSERT(Destination == UnreachableVertex)
+
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranSupportCopy)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, C_SIZE_T
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support, Copy
+
+  call Builder%New(3_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+
+  !The assignment only aliases the topology; the copy never owns it.
+  Copy = Support
+  ASSERT(Copy%Initialized())
+  ASSERT(Copy%VertexCount() == 3)
+  ASSERT(Copy%EdgeCount() == 1)
+  ASSERT(Copy%HasEdge(0_C_SIZE_T, 2_C_SIZE_T))
+
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 1)
+
+  !A second copy after a Free rebinds the alias to the live topology.
+  Copy = Support
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%EdgeCount() == 1)
+  ASSERT(all(Copy%Neighbors(0_C_SIZE_T) == [2_C_SIZE_T]))
+
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranUninitialized)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: EdgeIndex, Origin, Destination
+  integer(C_SIZE_T)         :: Parent(1)
+  real(C_DOUBLE)            :: Distance(1)
+
+  !Accessors on default initialized objects report the absence of a graph
+  !rather than dereferencing a null handle.
+  ASSERT(.not.Builder%Initialized())
+  ASSERT(Builder%VertexCount() == 0)
+  ASSERT(Builder%EdgeCount() == 0)
+  ASSERT(Builder%NeighborCount(0_C_SIZE_T) == 0)
+  ASSERT(size(Builder%Neighbors(0_C_SIZE_T)) == 0)
+  ASSERT(.not.Builder%HasEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(.not.Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT(.not.Builder%RemoveEdge(0_C_SIZE_T, 1_C_SIZE_T))
+
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  ASSERT(.not.Support%Initialized())
+  ASSERT(Support%VertexCount() == 0)
+  ASSERT(Support%EdgeCount() == 0)
+  ASSERT(Support%NeighborCount(0_C_SIZE_T) == 0)
+  ASSERT(size(Support%Neighbors(0_C_SIZE_T)) == 0)
+  ASSERT(.not.Support%HasEdge(0_C_SIZE_T, 1_C_SIZE_T))
+
+  ASSERT(.not.Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  ASSERT(EdgeIndex == UnreachableVertex)
+  ASSERT(.not.Support%EdgeVertices(0_C_SIZE_T, Origin, Destination))
+  ASSERT(Origin == UnreachableVertex)
+  ASSERT(Destination == UnreachableVertex)
+
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  !A default initialized workspace holds no result buffers: both getters return
+  !without touching the arrays passed by the caller.
+  ASSERT(.not.Workspace%Initialized())
+  Distance = -1.0_C_DOUBLE
+  Parent   = 42_C_SIZE_T
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(Parent == 42_C_SIZE_T))
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranSupportSuite,
+           GRTPFortranSupportNominal,
+           GRTPFortranSupportCopy,
+           GRTPFortranUninitialized);
+#endif
+
+TEST_E(GRTPFortranWorkspaceNominal)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: Parent(6), Source(1)
+  real(C_DOUBLE)            :: Distance(6)
+  procedure(GraphWeightFunction), pointer :: Weight
+
+  !0 -> 1, 0 -> 2, 2 -> 3 with an isolated vertex #4.
+  call Builder%New(5_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  !The workspace sizes its buffers after the support topology: the getters fill
+  !exactly VertexCount = 5 entries and leave the guard slot untouched.
+  Distance(6) = -1.0_C_DOUBLE
+  Parent(6)   = 42_C_SIZE_T
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+  ASSERT(abs(Distance(6) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(Parent(6) == 42_C_SIZE_T)
+
+  !Reallocating over a live workspace releases the previous handle.
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+  Distance(6) = -1.0_C_DOUBLE
+  call Workspace%Distance(Distance)
+  ASSERT(abs(Distance(6) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+
+  Source = [0_C_SIZE_T]
+
+  !Without a weight function every edge costs one unit.
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, Source))
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(5)))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == 0_C_SIZE_T)
+  ASSERT(Parent(4) == 2_C_SIZE_T)
+  ASSERT(Parent(5) == UnreachableVertex)
+
+  !Degenerate invocations are rejected without corrupting the workspace.
+  ASSERT(.not.GraphDijkstra(Workspace, 0_C_SIZE_T, Source))
+  ASSERT(.not.GraphDijkstra(Workspace, 1_C_SIZE_T, [5_C_SIZE_T]))
+
+  !A disassociated weight function falls back to the unit weights.
+  Weight => null()
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, Source, WeightFunction = Weight))
+  call Workspace%Distance(Distance)
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+
+  !A released workspace hands out nothing: the getters are no-ops.
+  Distance = -1.0_C_DOUBLE
+  Parent   = 42_C_SIZE_T
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(Parent == 42_C_SIZE_T))
+
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranWorkspaceCopy)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace, Copy, Empty, EmptyCopy
+  integer(C_SIZE_T)         :: Parent(5)
+  real(C_DOUBLE)            :: Distance(5), CopyDistance(5)
+
+  !A copy of a default initialized workspace is empty and owns nothing.
+  EmptyCopy = Empty
+  ASSERT(.not.EmptyCopy%Initialized())
+  Distance = -1.0_C_DOUBLE
+  Parent   = 42_C_SIZE_T
+  call EmptyCopy%Distance(Distance)
+  call EmptyCopy%Parent(Parent)
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(Parent == 42_C_SIZE_T))
+  ASSERT(.not.GraphDijkstra(EmptyCopy, 1_C_SIZE_T, [0_C_SIZE_T]))
+
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+
+  !0 -> 1, 0 -> 2, 2 -> 3 with an isolated vertex #4.
+  call Builder%New(5_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+  call Workspace%Distance(Distance)
+
+  !The alias inherits the cached topology size and shares the result buffers.
+  Copy = Workspace
+  ASSERT_X(Copy%Initialized())
+
+  !Vertex #4 is unreachable, so only the reachable entries are comparable.
+  call Copy%Distance(CopyDistance)
+  ASSERT(all(abs(CopyDistance(:4) - Distance(:4)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(.not.IEEE_IS_FINITE(CopyDistance(5)))
+
+  call Copy%Parent(Parent)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(4) == 2_C_SIZE_T)
+  ASSERT(Parent(5) == UnreachableVertex)
+
+  !A run through the alias is visible through the original.
+  ASSERT_X(GraphDijkstra(Copy, 1_C_SIZE_T, [2_C_SIZE_T]))
+  call Workspace%Distance(Distance)
+  ASSERT(abs(Distance(3) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(1)))
+
+  !Releasing the alias leaves the original owner untouched and usable.
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+
+  Distance = -1.0_C_DOUBLE
+  Parent   = 42_C_SIZE_T
+  call Copy%Distance(Distance)
+  call Copy%Parent(Parent)
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(Parent == 42_C_SIZE_T))
+
+  ASSERT_X(Workspace%Initialized())
+
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+  call Workspace%Distance(Distance)
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  !A copy of a released workspace is empty as well.
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+
+  EmptyCopy = Workspace
+  ASSERT(.not.EmptyCopy%Initialized())
+  Distance = -1.0_C_DOUBLE
+  Parent   = 42_C_SIZE_T
+  call EmptyCopy%Distance(Distance)
+  call EmptyCopy%Parent(Parent)
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(Parent == 42_C_SIZE_T))
+  ASSERT(.not.GraphDijkstra(EmptyCopy, 1_C_SIZE_T, [0_C_SIZE_T]))
+
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranWorkspaceWeighted)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  procedure(GraphWeightFunction), pointer :: Weight
+  real(C_DOUBLE), target :: Penalty
+  class(*), pointer       :: ContextPtr
+  integer(C_SIZE_T)       :: Parent(5)
+  real(C_DOUBLE)          :: Distance(5)
+
+  !0 -> 1, 0 -> 2, 2 -> 3 with an isolated vertex #4.
+  call Builder%New(5_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  Weight => PenalizedWeight
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight))
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == 0_C_SIZE_T)
+  ASSERT(Parent(4) == 2_C_SIZE_T)
+
+  !The user context reaches the Fortran weight function unchanged.
+  Penalty = 0.5_C_DOUBLE
+  ContextPtr => Penalty
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, ContextPtr))
+  call Workspace%Distance(Distance)
+
+  ASSERT(abs(Distance(2) - 2.5_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.5_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 4.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  nullify(ContextPtr)
+  Weight => null()
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  contains
+
+    function PenalizedWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      !One unit plus a toll that depends on the parity of the destination, so
+      !the weights are non uniform and the relaxation has to honour them.
+      WeightValue = 0.0_C_DOUBLE
+      if (Support%HasEdge(Origin, Destination)) then
+        WeightValue = 1.0_C_DOUBLE + real(mod(Destination, 2_C_SIZE_T), C_DOUBLE)
+        if (present(UserContext)) then
+          if (associated(UserContext)) then
+            select type (UserContext)
+            type is (real(C_DOUBLE))
+              WeightValue = WeightValue + UserContext
+            end select
+          endif
+        endif
+      endif
+    end function PenalizedWeight
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranAliasFinalization)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, C_SIZE_T, C_DOUBLE
+
+  implicit none
+  TSD_FORTRAN_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: Parent(4)
+  real(C_DOUBLE)            :: Distance(4)
+
+  call Builder%New(3_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  !Aliases dropped without Free are finalized as non owners, so the graphs they
+  !refer to stay alive and reachable.
+  call FinalizeAliases()
+
+  ASSERT(Builder%Initialized())
+  ASSERT(Builder%EdgeCount() == 1)
+  ASSERT(Builder%HasEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT(Builder%EdgeCount() == 2)
+
+  ASSERT(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 1)
+  ASSERT(Workspace%Initialized())
+  Distance(4) = -1.0_C_DOUBLE
+  call Workspace%Distance(Distance)
+  ASSERT(abs(Distance(4) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+  call Workspace%Distance(Distance)
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  !Owned objects left to their finalizers are released exactly once.
+  call FinalizeOwners()
+
+  ASSERT(Builder%Initialized())
+  ASSERT(Support%EdgeCount() == 1)
+  Parent(4) = 42_C_SIZE_T
+  call Workspace%Parent(Parent)
+  ASSERT(Parent(4) == 42_C_SIZE_T)
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  contains
+
+    subroutine FinalizeAliases()
+      type(GraphSupportBuilder) :: BuilderAlias
+      type(GraphSupport)        :: SupportAlias
+      type(GraphWorkspace)      :: WorkspaceAlias
+      real(C_DOUBLE)            :: DistanceAlias(4)
+
+      BuilderAlias   = Builder
+      SupportAlias   = Support
+      WorkspaceAlias = Workspace
+
+      ASSERT_X(BuilderAlias%Initialized())
+      ASSERT(BuilderAlias%EdgeCount() == 1)
+      ASSERT(SupportAlias%EdgeCount() == 1)
+      DistanceAlias(4) = -1.0_C_DOUBLE
+      call WorkspaceAlias%Distance(DistanceAlias)
+      ASSERT(abs(DistanceAlias(4) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+
+      !No Free here: the finalizers of the aliases must not release the graphs.
+    end subroutine FinalizeAliases
+
+    subroutine FinalizeOwners()
+      type(GraphSupportBuilder) :: LocalBuilder
+      type(GraphSupport)        :: LocalSupport
+      type(GraphWorkspace)      :: LocalWorkspace
+      integer(C_SIZE_T)         :: LocalParent(3)
+
+      !No Free here either: the owning finalizers release these graphs on return.
+      call LocalBuilder%New(2_C_SIZE_T)
+      ASSERT_X(LocalBuilder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+
+      call LocalSupport%New(LocalBuilder)
+      ASSERT_X(LocalSupport%Initialized())
+
+      call LocalWorkspace%New(LocalSupport)
+      ASSERT_X(LocalWorkspace%Initialized())
+      LocalParent(3) = 42_C_SIZE_T
+      call LocalWorkspace%Parent(LocalParent)
+      ASSERT(LocalParent(3) == 42_C_SIZE_T)
+    end subroutine FinalizeOwners
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranWorkspaceSuite,
+           GRTPFortranWorkspaceNominal,
+           GRTPFortranWorkspaceCopy,
+           GRTPFortranWorkspaceWeighted);
+#endif
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranOwnershipSuite,
+           GRTPFortranAliasFinalization);
+#endif
