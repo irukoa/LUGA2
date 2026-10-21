@@ -2,6 +2,9 @@
 
 FMODDEFS :=
 
+DIR := src/Core
+include buildsystem/FModuleDefs.mk
+
 DIR := src/MAC
 include buildsystem/FModuleDefs.mk
 

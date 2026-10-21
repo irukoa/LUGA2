@@ -1,0 +1,85 @@
+#ifndef LUGA2_Core_FH
+#define LUGA2_Core_FH
+
+module CoreFortran
+
+  use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
+                                         C_SIZE_T, &
+                                         C_BOOL
+
+  implicit none
+
+  private
+
+  public :: C_PTR
+  public :: C_SIZE_T
+  public :: C_BOOL
+
+  interface
+    subroutine FortranFree(CPointer) &
+      bind(C, name="FortranFree")
+      import C_PTR
+      type(C_PTR), intent(in), value :: CPointer
+    end subroutine FortranFree
+  end interface
+
+  public :: FortranFree
+
+  interface
+    function FortranMalloc(Size) &
+      bind(C, name="FortranMalloc") &
+      result(CPointer)
+      import C_SIZE_T, C_PTR
+      integer(C_SIZE_T), intent(in), value :: Size
+      type(C_PTR) :: CPointer
+    end function FortranMalloc
+  end interface
+
+  public :: FortranMalloc
+
+  interface
+    function FortranRealloc(Ptr, NewSize) &
+      bind(C, name="FortranRealloc") &
+      result(CPointer)
+      import C_SIZE_T, C_PTR
+      type(C_PTR), intent(in), value :: Ptr
+      integer(C_SIZE_T), intent(in), value :: NewSize
+      type(C_PTR) :: CPointer
+    end function FortranRealloc
+  end interface
+
+  public :: FortranRealloc
+
+  interface
+    function FortranAddOverflow(A, B, Res) &
+      bind(C, name="FortranAddOverflow") &
+      result(Overflow)
+      import C_SIZE_T, C_BOOL
+      integer(C_SIZE_T), intent(in), value :: A
+      integer(C_SIZE_T), intent(in), value :: B
+      integer(C_SIZE_T), intent(out)       :: Res
+
+      logical(C_BOOL) :: Overflow
+    end function FortranAddOverflow
+  end interface
+
+  public :: FortranAddOverflow
+
+  interface
+    function FortranMulOverflow(A, B, Res) &
+      bind(C, name="FortranMulOverflow") &
+      result(Overflow)
+      import C_SIZE_T, C_BOOL
+      integer(C_SIZE_T), intent(in), value :: A
+      integer(C_SIZE_T), intent(in), value :: B
+      integer(C_SIZE_T), intent(out)       :: Res
+
+      logical(C_BOOL) :: Overflow
+    end function FortranMulOverflow
+  end interface
+
+  public :: FortranMulOverflow
+
+end module CoreFortran
+
+#endif
