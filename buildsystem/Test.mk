@@ -46,7 +46,7 @@ runtest: $(TESTEXE) | $(TESTREP)
 		$(RM) $(OBJ)/*.gcda
 		./$(TESTEXE) $(TARGS) 2>&1 | tee $(TESTREP)/TestRun.log
 		$(RM) $(OBJ)/Core.gcda
-		lcov --capture --directory $(OBJ) --output-file=test/coverage.info
+		lcov --capture --directory $(OBJ) --rc branch_coverage=1 --output-file=test/coverage.info
 		$(COVOMIT) test/coverage.info > test/coverage.filtered.info
 		$(MV) test/coverage.filtered.info test/coverage.info
 		genhtml test/coverage.info --output-directory=$(TESTREP)
@@ -58,7 +58,7 @@ coverage: $(TESTEXE) | $(TESTREP)
 		$(RM) $(OBJ)/*.gcda
 		./$(TESTEXE) $(TARGS) 2>&1 | tee $(TESTREP)/TestRun.log
 		$(RM) $(OBJ)/Core.gcda
-		lcov --capture --directory $(OBJ) --output-file=test/coverage.info
+		lcov --capture --directory $(OBJ) --rc branch_coverage=1 --output-file=test/coverage.info
 		$(COVOMIT) test/coverage.info > test/coverage.filtered.info
 		$(MV) test/coverage.filtered.info test/coverage.info
 		genhtml test/coverage.info --output-directory=$(TESTREP)
