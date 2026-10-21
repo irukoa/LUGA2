@@ -8,7 +8,7 @@ TEST_E(EINTFortranNominalReference)
   use ExtrapolationIntegration, only: EINT => EINT
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   integer, parameter :: rk = C_DOUBLE
   integer, parameter :: sk = C_SIZE_T
@@ -41,7 +41,7 @@ TEST_E(EINTFortranBaseSpecification)
   use ExtrapolationIntegration, only: EINT => EINT
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   integer, parameter :: rk = C_DOUBLE
   integer, parameter :: sk = C_SIZE_T
@@ -75,7 +75,7 @@ TEST_E(EINTFortranFastReturn)
   use ExtrapolationIntegration, only: EINT => EINT
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   integer, parameter :: rk = C_DOUBLE
 
@@ -106,7 +106,7 @@ TEST_E(EINT_PFortranNominalReference)
   use ExtrapolationIntegration, only: EINT => EINT_P
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   integer, parameter :: rk = C_DOUBLE
   integer, parameter :: sk = C_SIZE_T
@@ -139,7 +139,7 @@ TEST_E(EINT_PFortranBaseSpecification)
   use ExtrapolationIntegration, only: EINT => EINT_P
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   integer, parameter :: rk = C_DOUBLE
   integer, parameter :: sk = C_SIZE_T
@@ -173,7 +173,7 @@ TEST_E(EINT_PFortranFastReturn)
   use ExtrapolationIntegration, only: EINT => EINT_P
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   integer, parameter :: rk = C_DOUBLE
 

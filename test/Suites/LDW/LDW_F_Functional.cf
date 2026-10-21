@@ -11,7 +11,7 @@ TEST_E(LDWFortranDHNominalReference)
                                     DiagHermitian
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
   real(C_DOUBLE) :: E(3)
@@ -79,7 +79,7 @@ TEST_E(LDWFortranDHFastReturn)
                                     DiagHermitian
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
   integer(C_INT) :: Info
@@ -136,7 +136,7 @@ TEST_E(LDWFortranDHTooLarge)
                                     DiagHermitian
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
   integer(C_INT) :: Info
@@ -194,7 +194,7 @@ TEST_E(LDWFortranDHFailWorkspaceQuery)
                                     DiagHermitian
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
   integer(C_INT) :: Info
@@ -263,7 +263,7 @@ TEST_E(LDWFortranDegenFastReturn)
                                     DegeneracyGroup
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   real(C_DOUBLE)    :: E(1)
   integer(C_SIZE_T) :: D(1)
@@ -284,7 +284,7 @@ TEST_E(LDWFortranDegenNegativeThr)
                                     DegeneracyGroup
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   real(C_DOUBLE)    :: E(1)
   integer(C_SIZE_T) :: D(1)
@@ -312,7 +312,7 @@ TEST_E(LDWFortranDiagHermitianReference)
                                     DiagHermitian
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   external :: zheevd
 
@@ -369,7 +369,7 @@ TEST_E(LDWFortranDegeneracyGroupReference)
                                     DegeneracyGroup
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   real(C_DOUBLE)    :: E(9)
   integer(C_SIZE_T) :: D(9)

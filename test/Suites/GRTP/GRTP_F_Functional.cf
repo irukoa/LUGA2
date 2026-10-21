@@ -8,7 +8,7 @@ TEST_E(GRTPFortranBuilderNominal)
   use GraphUtilities, only: GraphSupportBuilder, C_SIZE_T
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
 
@@ -54,7 +54,7 @@ TEST_E(GRTPFortranBuilderQueries)
   use GraphUtilities, only: GraphSupportBuilder, C_SIZE_T
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
 
@@ -88,7 +88,7 @@ TEST_E(GRTPFortranBuilderCopy)
   use GraphUtilities, only: GraphSupportBuilder, C_SIZE_T
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder, Other, Copy, Empty, EmptyCopy
 
@@ -175,7 +175,7 @@ TEST_E(GRTPFortranSupportNominal)
                             C_SIZE_T, UnreachableVertex
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support
@@ -246,7 +246,7 @@ TEST_E(GRTPFortranSupportCopy)
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, C_SIZE_T
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support, Copy
@@ -290,7 +290,7 @@ TEST_E(GRTPFortranUninitialized)
                             C_SIZE_T, C_DOUBLE, UnreachableVertex
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support
@@ -359,7 +359,7 @@ TEST_E(GRTPFortranWorkspaceNominal)
                             C_SIZE_T, C_DOUBLE, UnreachableVertex
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support
@@ -451,7 +451,7 @@ TEST_E(GRTPFortranWorkspaceCopy)
                             GraphDijkstra, C_SIZE_T, C_DOUBLE, UnreachableVertex
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support
@@ -559,7 +559,7 @@ TEST_E(GRTPFortranWorkspaceWeighted)
                             C_SIZE_T, C_DOUBLE
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support
@@ -648,7 +648,7 @@ TEST_E(GRTPFortranAliasFinalization)
                             GraphDijkstra, C_SIZE_T, C_DOUBLE
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(GraphSupportBuilder) :: Builder
   type(GraphSupport)        :: Support

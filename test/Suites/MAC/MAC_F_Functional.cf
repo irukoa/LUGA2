@@ -8,7 +8,7 @@ TEST_E(MACFortranTypeCopy_1)
   use MultidimensionalArrayContainers
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(MAC)         :: ContainerA, ContainerB, ContainerC
   integer(C_SIZE_T) :: ShapeVector(3)
@@ -46,7 +46,7 @@ TEST_E(MACFortranNominal_1)
   use MultidimensionalArrayContainers
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(MAC)         :: Container
   integer(C_SIZE_T) :: ShapeVector(3)
@@ -85,7 +85,7 @@ TEST_E(MACFortranNominal_2)
   use MultidimensionalArrayContainers
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(MAC)         :: Container
   integer(C_SIZE_T) :: ShapeVector(3)
@@ -131,7 +131,7 @@ TEST_E(MACFortranLayoutSpecification)
   use MultidimensionalArrayContainers
 
   implicit none
-  TSD_FORTRAN_INTERFACES
+  TSD_TEST_E_INTERFACES
 
   type(MAC)         :: Container
   integer(C_SIZE_T) :: ShapeVector(3)
