@@ -132,6 +132,13 @@ size_t TSD_Driver(const size_t      argc,
                                 .Procedure = TEST_##NAME##_Wrapper,            \
                                 .Ctx       = NULL};
 
+// - Test creator: externally-implemented context-dependent test.
+#define TEST_EF(CONTEXT, NAME)                                                 \
+  extern void           TEST_##NAME(void *ContextData);                        \
+  static const TSD_Test NAME = {.Name      = #NAME,                            \
+                                .Procedure = TEST_##NAME,                      \
+                                .Ctx       = &CONTEXT};
+
 // - Test suite creator.
 #define TEST_SUITE(NAME, ...)                                                  \
   static const TSD_Test      NAME[]      = {__VA_ARGS__};                      \

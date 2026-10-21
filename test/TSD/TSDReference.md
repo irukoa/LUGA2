@@ -137,14 +137,45 @@ Note: may require a TSD language extension. See, e.g. `TSD_Fortran.h`.
 TEST_E(FortranTest)
 #ifdef TSD_FORTRAN_IMPL
 
-  use FortranFixture
-  TSD_FORTRAN_INTERFACES
-  call SetUp()
+  use FortranFixture, only: FSetUp, FTearDown
+  TSD_TEST_E_INTERFACES
+  call FSetUp()
   ![...]
-  call TearDown()
+  call FTearDown()
 
 #endif
 END_TEST_E
+```
+
+### Intended use
+
+Used to define global tests in other programming languages.
+
+## `TEST_EF(CONTEXT, NAME)`
+
+Creates an externally-implemented test object which executes a C-side context.
+
+- `CONTEXT`: context name.
+- `NAME`: test name.
+
+Note: may require a TSD language extension. See, e.g. `TSD_Fortran.h`.
+
+### Example
+```fortran
+#ifdef TSD_KERNEL
+CONTEXT(Context, CSetup, CTeardown, 0);
+#endif
+TEST_EF(Context, FortranTest)
+#ifdef TSD_FORTRAN_IMPL
+
+  use FortranFixture, only: FSetUp, FTearDown
+  TSD_TEST_EF_INTERFACES
+  call FSetUp()
+  ![...]
+  call FTearDown()
+
+#endif
+END_TEST_EF
 ```
 
 ### Intended use

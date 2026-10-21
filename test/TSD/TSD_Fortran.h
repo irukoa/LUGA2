@@ -7,7 +7,7 @@
 #define str(s)         #s
 #define TESTNAME(NAME) TEST_##NAME
 
-#define TSD_FORTRAN_INTERFACES                                                 \
+#define TSD_TEST_E_INTERFACES                                                  \
   interface;                                                                   \
   subroutine TSD_SetTestSt(NewSt) bind(C, name = "TSD_SetTestSt");             \
   use, intrinsic::ISO_C_BINDING;                                               \
@@ -15,11 +15,26 @@
   end subroutine TSD_SetTestSt;                                                \
   end            interface
 
+#define TSD_TEST_EF_INTERFACES                                                 \
+  interface;                                                                   \
+  subroutine TSD_SetTestSt(NewSt) bind(C, name = "TSD_SetTestSt");             \
+  use, intrinsic::ISO_C_BINDING;                                               \
+  logical(c_bool), intent(in), value::NewSt;                                   \
+  end subroutine TSD_SetTestSt;                                                \
+  end            interface;                                                    \
+  type(C_PTR), intent(in), value::ContextData
+
 #define TEST_E(NAME)                                                           \
   subroutine TESTNAME(NAME)() bind(C, name = xstr(TESTNAME(NAME)));            \
   use, intrinsic::ISO_C_BINDING;                                               \
   use, intrinsic::ISO_FORTRAN_ENV
 #define END_TEST_E end subroutine
+
+#define TEST_EF(CONTEXT, NAME)                                                 \
+  subroutine TESTNAME(NAME)(ContextData) bind(C, name = xstr(TESTNAME(NAME))); \
+  use, intrinsic::ISO_C_BINDING;                                               \
+  use, intrinsic::ISO_FORTRAN_ENV
+#define END_TEST_EF end subroutine
 
 #define ASSERT_NOEXIT_WRAP(EXPR, FILE, LINE)                                   \
   if (.not.(EXPR))                                                             \
@@ -44,6 +59,7 @@
 
 #include "test/TSD/TSD.h"
 #define END_TEST_E
+#define END_TEST_EF
 
 #endif
 
