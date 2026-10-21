@@ -1,0 +1,845 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/LDW/LapackDeferredWrappers.M90"
+#endif
+#ifdef TSD_KERNEL
+#include "src/Core/Core.h"
+#include "test/CoreSupport/CoreSupport.h"
+#endif
+
+#ifdef TSD_KERNEL
+CONTEXT_FN(StructuralSetup) {
+  (void)ContextData;
+  Core_Malloc = FallibleMalloc;
+  ResetFallibleMalloc();
+  Core_MulOverflow = FallibleMulOverflow;
+  ResetFallibleMulOverflow();
+}
+CONTEXT_FN(StructuralTeardown) {
+  (void)ContextData;
+  RESET_FN(Core_Malloc);
+  RESET_FN(Core_MulOverflow);
+  ResetFallibleMalloc();
+  ResetFallibleMulOverflow();
+}
+CONTEXT(StructuralCtx,
+        StructuralSetup,
+        StructuralTeardown,
+        (size_t)0);
+#endif
+
+#ifdef TSD_FORTRAN_IMPL
+
+!> Deterministic ZHEEVD stand-in for the LDW structural tests.
+!>
+!> The workspace query reports fixed sizes (LWORK=5, LRWORK=7, LIWORK=9)
+!> so that a mix-up between the element sizes of the three workspace
+!> buffers is observable. The computational call writes every output
+!> buffer, which also verifies that the buffers are large enough.
+!>
+!> StubMode selects the failure to inject. Each Run... helper assigns it
+!> immediately before calling DiagHermitian, so tests do not depend on the
+!> state left behind by another test.
+module LDWStructuralZHEEVDStubs
+
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_QUIET_NAN, IEEE_VALUE
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, C_DOUBLE_COMPLEX
+  use LapackDeferredWrappers, only: INT32, REAL64, C_INT, C_SIZE_T, &
+                                    DiagHermitian
+
+  implicit none
+  private
+
+  ! Stub behaviour selectors.
+  integer(INT32), parameter, public :: &
+    ZHEEVDNominal       = 0_INT32, &
+    ZHEEVDFailQuery     = 1_INT32, &
+    ZHEEVDFailCompute   = 2_INT32, &
+    ZHEEVDNegativeWork  = 3_INT32, &
+    ZHEEVDNaNWork       = 4_INT32, &
+    ZHEEVDHugeWork      = 5_INT32, &
+    ZHEEVDNegativeRWork = 6_INT32, &
+    ZHEEVDNaNRWork      = 7_INT32, &
+    ZHEEVDHugeRWork     = 8_INT32, &
+    ZHEEVDZeroIWork     = 9_INT32
+
+  ! Status codes reported by the failing stubs.
+  integer(INT32), parameter, public :: &
+    ZHEEVDQueryStatus   = 7_INT32, &
+    ZHEEVDComputeStatus = -6_INT32
+
+  ! Nominal workspace sizes.
+  integer(INT32), parameter :: &
+    NominalLWork  = 5_INT32, &
+    NominalLRWork = 7_INT32, &
+    NominalLIWork = 9_INT32
+
+  integer(INT32) :: StubMode = ZHEEVDNominal
+
+  public :: RunDiagHermitian
+  public :: RunDiagHermitianAtDimension
+  public :: RunDiagHermitianResults
+
+contains
+
+  !> Runs DiagHermitian on a 3x3 matrix with the requested stub behaviour.
+  subroutine RunDiagHermitian(Mode, Info)
+    integer(INT32), intent(in)  :: Mode
+    integer(C_INT), intent(out) :: Info
+
+    complex(REAL64) :: H(3, 3), U(3, 3)
+    real(REAL64)    :: E(3)
+
+    H        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call DiagHermitian(Dimension = 3_C_SIZE_T, &
+                       Matrix = H, &
+                       Unitary = U, &
+                       Eigenvalues = E, &
+                       ZHEEVDProcedure = ZHEEVDStub, &
+                       Info = Info)
+  end subroutine RunDiagHermitian
+
+  !> Runs DiagHermitian with an arbitrary dimension and the nominal stub.
+  !> The 1x1 buffers are only dereferenced when Dimension is 1.
+  subroutine RunDiagHermitianAtDimension(Dimension, Info)
+    integer(C_SIZE_T), intent(in)  :: Dimension
+    integer(C_INT),    intent(out) :: Info
+
+    complex(REAL64) :: H(1, 1), U(1, 1)
+    real(REAL64)    :: E(1)
+
+    H        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = ZHEEVDNominal
+
+    call DiagHermitian(Dimension = Dimension, &
+                       Matrix = H, &
+                       Unitary = U, &
+                       Eigenvalues = E, &
+                       ZHEEVDProcedure = ZHEEVDStub, &
+                       Info = Info)
+  end subroutine RunDiagHermitianAtDimension
+
+  !> Runs DiagHermitian on a 3x3 matrix and returns its outputs.
+  subroutine RunDiagHermitianResults(Mode, Unitary, Eigenvalues, Info)
+    integer(INT32),  intent(in)  :: Mode
+    complex(REAL64), intent(out) :: Unitary(3, 3)
+    real(REAL64),    intent(out) :: Eigenvalues(3)
+    integer(C_INT),  intent(out) :: Info
+
+    complex(REAL64) :: H(3, 3)
+
+    H        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call DiagHermitian(Dimension = 3_C_SIZE_T, &
+                       Matrix = H, &
+                       Unitary = Unitary, &
+                       Eigenvalues = Eigenvalues, &
+                       ZHEEVDProcedure = ZHEEVDStub, &
+                       Info = Info)
+  end subroutine RunDiagHermitianResults
+
+  !> ZHEEVD stand-in. The workspace query reports NominalLWork/LRWork/LIWork
+  !> or an invalid value, depending on StubMode. The computational call
+  !> returns U = I and W = [1, 2, ...] so that the copy-back can be checked.
+  subroutine ZHEEVDStub(JOBZ, UPLO, &
+                        N, A, LDA, &
+                        W, &
+                        WORK, LWORK, RWORK, LRWORK, IWORK, LIWORK, &
+                        INFO)
+    character,       intent(in)    :: JOBZ
+    character,       intent(in)    :: UPLO
+    integer(INT32),  intent(in)    :: N
+    integer(INT32),  intent(in)    :: LDA
+    complex(REAL64), intent(inout) :: A(LDA, N)
+    real(REAL64),    intent(out)   :: W(N)
+    integer(INT32),  intent(in)    :: LWORK
+    complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+    integer(INT32),  intent(in)    :: LRWORK
+    real(REAL64),    intent(out)   :: RWORK(max(1, LRWORK))
+    integer(INT32),  intent(in)    :: LIWORK
+    integer(INT32),  intent(out)   :: IWORK(max(1, LIWORK))
+    integer(INT32),  intent(out)   :: INFO
+
+    integer(INT32) :: i, j
+
+    INFO = 0_INT32
+
+    if (JOBZ /= 'V' .or. UPLO /= 'U' .or. LDA < N) then
+      INFO = -1_INT32
+      return
+    endif
+
+    ! Workspace query.
+    if (LWORK == -1_INT32) then
+      select case (StubMode)
+      case (ZHEEVDFailQuery)
+        INFO = ZHEEVDQueryStatus
+      case (ZHEEVDNegativeWork)
+        WORK(1)  = cmplx(-1.0_REAL64, 0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDNaNWork)
+        WORK(1)  = cmplx(IEEE_VALUE(0.0_REAL64, IEEE_QUIET_NAN), &
+                         0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDHugeWork)
+        WORK(1)  = cmplx(2.0_REAL64 * real(huge(1_INT32), REAL64), &
+                         0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDNegativeRWork)
+        WORK(1)  = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+        RWORK(1) = -1.0_REAL64
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDNaNRWork)
+        WORK(1)  = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+        RWORK(1) = IEEE_VALUE(0.0_REAL64, IEEE_QUIET_NAN)
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDHugeRWork)
+        WORK(1)  = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+        RWORK(1) = 2.0_REAL64 * real(huge(1_INT32), REAL64)
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDZeroIWork)
+        WORK(1)  = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = 0_INT32
+      case default
+        WORK(1)  = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = NominalLIWork
+      end select
+      return
+    endif
+
+    ! Computational call. Every output is defined so that the implementation
+    ! never copies uninitialized data back to the caller, even on failure.
+    do j = 1, N
+      do i = 1, N
+        if (i == j) then
+          A(i, j) = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+        else
+          A(i, j) = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+        endif
+      enddo
+      W(j) = real(j, REAL64)
+    enddo
+
+    WORK  = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    RWORK = 0.0_REAL64
+    IWORK = 0_INT32
+
+    if (StubMode == ZHEEVDFailCompute) INFO = ZHEEVDComputeStatus
+
+  end subroutine ZHEEVDStub
+
+end module LDWStructuralZHEEVDStubs
+
+#endif
+
+TEST_EF(StructuralCtx, LDWStructuralZeroDimension)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitianAtDimension
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !No workspace is needed: the routine must return before any allocation.
+  call RunDiagHermitianAtDimension(0_C_SIZE_T, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralTooLargeDimension)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitianAtDimension
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Dimension exceeds huge(1_INT32): reject before any allocation.
+  call RunDiagHermitianAtDimension(int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                                   Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralMatrixCopyColumnBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First multiplication: bytes per matrix column (16 * Dimension).
+  call SetFallibleMulOverflow(1_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralMatrixCopyTotalBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second multiplication: total matrix bytes (16 * Dimension * Dimension).
+  call SetFallibleMulOverflow(2_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralEigenvaluesBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third multiplication: eigenvalue bytes (8 * Dimension), before the query.
+  call SetFallibleMulOverflow(3_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourth multiplication: WORK bytes (16 * LWORK), after the query.
+  call SetFallibleMulOverflow(4_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralRWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifth multiplication: RWORK bytes (8 * LRWORK), after the query.
+  call SetFallibleMulOverflow(5_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralIWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Sixth multiplication: IWORK bytes (4 * LIWORK), after the query.
+  call SetFallibleMulOverflow(6_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralMatrixCopyAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First allocation: the matrix copy buffer.
+  call SetFallibleMalloc(1_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralEigenvaluesAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second allocation: the eigenvalue buffer.
+  call SetFallibleMalloc(2_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third allocation: the complex workspace.
+  call SetFallibleMalloc(3_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralRWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourth allocation: the real workspace.
+  call SetFallibleMalloc(4_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralIWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifth allocation: the integer workspace. All previously allocated
+  !buffers must be released on this path (checked by the valgrind run).
+  call SetFallibleMalloc(5_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralQueryStatusFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDFailQuery, &
+                                      ZHEEVDQueryStatus
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A nonzero workspace-query status is propagated unchanged.
+  call RunDiagHermitian(ZHEEVDFailQuery, Info)
+
+  ASSERT(Info == int(ZHEEVDQueryStatus, C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralNegativeWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNegativeWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A negative LWORK must be rejected after the query.
+  call RunDiagHermitian(ZHEEVDNegativeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralNaNWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNaNWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A non-finite LWORK must be rejected after the query.
+  call RunDiagHermitian(ZHEEVDNaNWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralHugeWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDHugeWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !An LWORK which does not fit in INT32 must be rejected after the query.
+  call RunDiagHermitian(ZHEEVDHugeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralNegativeRWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNegativeRWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A negative LRWORK must be rejected after the query.
+  call RunDiagHermitian(ZHEEVDNegativeRWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralNaNRWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNaNRWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A non-finite LRWORK must be rejected after the query.
+  call RunDiagHermitian(ZHEEVDNaNRWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralHugeRWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDHugeRWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !An LRWORK which does not fit in INT32 must be rejected after the query.
+  call RunDiagHermitian(ZHEEVDHugeRWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZeroIWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDZeroIWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !LIWORK must be at least 1.
+  call RunDiagHermitian(ZHEEVDZeroIWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralComputeStatusFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDFailCompute, &
+                                      ZHEEVDComputeStatus
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A nonzero status from the computational call is propagated unchanged.
+  call RunDiagHermitian(ZHEEVDFailCompute, Info)
+
+  ASSERT(Info == int(ZHEEVDComputeStatus, C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralAllocatorCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly five allocations, so a failure armed at the sixth
+  !call must never trigger. This pins the indices used above.
+  call SetFallibleMalloc(6_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralMultiplierCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly six multiplications, so a failure armed at the seventh
+  !call must never trigger. This pins the indices used above.
+  call SetFallibleMulOverflow(7_C_SIZE_T)
+  call RunDiagHermitian(ZHEEVDNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralNominal)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitianResults, ZHEEVDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: U(3, 3)
+  real(C_DOUBLE)            :: E(3)
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !The stub writes LWORK/RWORK/IWORK elements, so this also verifies that
+  !the three workspace buffers were sized with the right element sizes.
+  call RunDiagHermitianResults(ZHEEVDNominal, U, E, Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(E - [1.0_C_DOUBLE, 2.0_C_DOUBLE, 3.0_C_DOUBLE]) < 10*epsilon(1.0_C_DOUBLE)))
+
+  do j = 1, 3
+    do i = 1, 3
+      if (i == j) then
+        ASSERT(abs(U(i, j) - cmplx(1.0_C_DOUBLE, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)) < 10*epsilon(1.0_C_DOUBLE))
+      else
+        ASSERT(abs(U(i, j)) < 10*epsilon(1.0_C_DOUBLE))
+      endif
+    enddo
+  enddo
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralDegeneracyNoAllocator)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+#include "test/CoreSupport/CoreSupportFortran.inc"
+
+  real(C_DOUBLE)    :: E(3)
+  integer(C_SIZE_T) :: D(3)
+  type(C_PTR)       :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  E = real([0.0, 0.1, 1.0], C_DOUBLE)
+
+  !DegeneracyGroup is allocation-free: armed allocator failures must not
+  !change its result.
+  call SetFallibleMalloc(1_C_SIZE_T)
+  call SetFallibleMulOverflow(1_C_SIZE_T)
+
+  call DegeneracyGroup(3_C_SIZE_T, E, 0.2_C_DOUBLE, D)
+
+  ASSERT(all(D == int([2, 0, 1], C_SIZE_T)))
+#endif
+END_TEST_EF
+
+#ifdef TSD_KERNEL
+TEST_SUITE(LDWStructuralSuite,
+           LDWStructuralZeroDimension,
+           LDWStructuralTooLargeDimension,
+           LDWStructuralMatrixCopyColumnBytesMulOverflow,
+           LDWStructuralMatrixCopyTotalBytesMulOverflow,
+           LDWStructuralEigenvaluesBytesMulOverflow,
+           LDWStructuralWorkBytesMulOverflow,
+           LDWStructuralRWorkBytesMulOverflow,
+           LDWStructuralIWorkBytesMulOverflow,
+           LDWStructuralMatrixCopyAllocFail,
+           LDWStructuralEigenvaluesAllocFail,
+           LDWStructuralWorkAllocFail,
+           LDWStructuralRWorkAllocFail,
+           LDWStructuralIWorkAllocFail,
+           LDWStructuralQueryStatusFail,
+           LDWStructuralNegativeWorkQuery,
+           LDWStructuralNaNWorkQuery,
+           LDWStructuralHugeWorkQuery,
+           LDWStructuralNegativeRWorkQuery,
+           LDWStructuralNaNRWorkQuery,
+           LDWStructuralHugeRWorkQuery,
+           LDWStructuralZeroIWorkQuery,
+           LDWStructuralComputeStatusFail,
+           LDWStructuralAllocatorCallsExhausted,
+           LDWStructuralMultiplierCallsExhausted,
+           LDWStructuralNominal,
+           LDWStructuralDegeneracyNoAllocator);
+#endif
