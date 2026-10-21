@@ -8,6 +8,8 @@ TESTEXE := test/Run_Tests.x
 TESTOBJ := test/obj
 TESTREP := test/reports
 
+COVOMIT := awk -f buildsystem/OmitTerminatorLines.awk
+
 TESTCOMMONSRC  := test/TSD
 TESTCOMMONOBJ  := test/commonobj
 TESTCOMMONSRCS := $(wildcard $(TESTCOMMONSRC)/*.c)
@@ -45,6 +47,8 @@ runtest: $(TESTEXE) | $(TESTREP)
 		./$(TESTEXE) $(TARGS) 2>&1 | tee $(TESTREP)/TestRun.log
 		$(RM) $(OBJ)/Core.gcda
 		lcov --capture --directory $(OBJ) --output-file=test/coverage.info
+		$(COVOMIT) test/coverage.info > test/coverage.filtered.info
+		$(MV) test/coverage.filtered.info test/coverage.info
 		genhtml test/coverage.info --output-directory=$(TESTREP)
 		$(MV) test/coverage.info $(TESTREP)
 		valgrind --leak-check=full --show-leak-kinds=all ./$(TESTEXE) $(TARGS) 2>&1 | tee $(TESTREP)/ValgrindTestRun.log
@@ -55,6 +59,8 @@ coverage: $(TESTEXE) | $(TESTREP)
 		./$(TESTEXE) $(TARGS) 2>&1 | tee $(TESTREP)/TestRun.log
 		$(RM) $(OBJ)/Core.gcda
 		lcov --capture --directory $(OBJ) --output-file=test/coverage.info
+		$(COVOMIT) test/coverage.info > test/coverage.filtered.info
+		$(MV) test/coverage.filtered.info test/coverage.info
 		genhtml test/coverage.info --output-directory=$(TESTREP)
 		$(MV) test/coverage.info $(TESTREP)
 		valgrind --leak-check=full --show-leak-kinds=all ./$(TESTEXE) $(TARGS) 2>&1 | tee $(TESTREP)/ValgrindTestRun.log
