@@ -101,15 +101,17 @@ TEST(NewMAC_Nominal) {
   ASSERT(!Container);
 }
 
-TEST_SUITE(MACStructuralMemorySuite,
+TEST_SUITE(MACStructuralContractSuite,
            FreeMAC_BadInput,
            FreeMAC_Nominal,
            NewMAC_BadInput,
+           NewMAC_Nominal);
+
+TEST_SUITE(MACStructuralAllocationSuite,
            NewMAC_OverflowFail,
            NewMAC_ShapeSizeMulOverflowFail,
            NewMAC_MainAllocFail,
-           NewMAC_ShapeAllocFail,
-           NewMAC_Nominal);
+           NewMAC_ShapeAllocFail);
 
 TEST(MACNullFunctionReturn_Nominal) {
   ASSERT(MACGetRank(NULL) == 0);

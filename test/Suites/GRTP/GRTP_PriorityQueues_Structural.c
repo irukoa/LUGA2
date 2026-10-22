@@ -122,19 +122,21 @@ TEST(IndexedMinBinaryHeapPeekMinimum_BadInput) {
   ASSERT(!IndexedMinBinaryHeapPeekMinimum(NULL, NULL, NULL));
 }
 
-TEST_SUITE(IndexedMinBinaryHeapMemorySuite,
+TEST_SUITE(IndexedMinBinaryHeapContractSuite,
            FreeIndexedMinBinaryHeap_BadInput,
            FreeIndexedMinBinaryHeap_Nominal,
            NewIndexedMinBinaryHeap_BadInput,
-           NewIndexedMinBinaryHeap_MallocFail1,
-           NewIndexedMinBinaryHeap_MallocFail2,
-           NewIndexedMinBinaryHeap_MallocFail3,
-           NewIndexedMinBinaryHeap_MallocFail4,
-           NewIndexedMinBinaryHeap_HeapSizeMulOverflowFail,
-           NewIndexedMinBinaryHeap_PrioritySizeMulOverflowFail,
            IndexedMinBinaryHeapInitialize_BadInput,
            IndexedMinBinaryHeapIsEmpty_BadInput,
            IndexedMinBinaryHeapContains_BadInput,
            IndexedMinBinaryHeapDecreaseKey_BadInput,
            IndexedMinBinaryHeapExtractMinimum_BadInput,
            IndexedMinBinaryHeapPeekMinimum_BadInput);
+
+TEST_SUITE(IndexedMinBinaryHeapAllocationSuite,
+           NewIndexedMinBinaryHeap_MallocFail1,
+           NewIndexedMinBinaryHeap_MallocFail2,
+           NewIndexedMinBinaryHeap_MallocFail3,
+           NewIndexedMinBinaryHeap_MallocFail4,
+           NewIndexedMinBinaryHeap_HeapSizeMulOverflowFail,
+           NewIndexedMinBinaryHeap_PrioritySizeMulOverflowFail);

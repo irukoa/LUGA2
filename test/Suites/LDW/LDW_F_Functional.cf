@@ -918,7 +918,7 @@ TEST_E(LDWFortranDegeneracyGroupReference)
 END_TEST_E
 
 #ifdef TSD_KERNEL
-TEST_SUITE(LDWFortranReference,
+TEST_SUITE(LDWFortranReferenceSuite,
            LDWFortranDiagHermitianReference,
            LDWFortranDegeneracyGroupReference);
 #endif

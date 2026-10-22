@@ -13,7 +13,7 @@ TEST_E(EINTFortranNominalReference)
   integer, parameter :: rk = C_DOUBLE
   integer, parameter :: sk = C_SIZE_T
 
-  integer(sk), parameter :: Count = 2_sk**8 * 3_sk**3 + 1_rk
+  integer(sk), parameter :: Count = 2_sk**8 * 3_sk**3 + 1_sk
   real(rk)               :: Array(Count)
 
   real(rk), parameter :: UpperBound = 10.0_rk, &

@@ -150,7 +150,7 @@ TEST(GRTPIndexedMinBinaryHeap_DecreaseKeyRejectsNonLowering) {
   ASSERT(!Heap);
 }
 
-TEST_SUITE(GRTPIndexedMinBinaryHeap,
+TEST_SUITE(GRTPIndexedMinBinaryHeapSuite,
            GRTPIndexedMinBinaryHeap_New,
            GRTPIndexedMinBinaryHeap_Functional,
            GRTPIndexedMinBinaryHeap_DecreaseKeyRejectsNonLowering);

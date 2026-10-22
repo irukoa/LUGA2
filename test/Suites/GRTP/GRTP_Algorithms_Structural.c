@@ -375,10 +375,17 @@ TEST(GraphBellmanFord_BadInput) {
   ASSERT_X(!Support);
 }
 
-TEST_SUITE(GraphWorkspaceMemorySuite,
+TEST_SUITE(GraphWorkspaceContractSuite,
            FreeGraphWorkspace_BadInput,
            FreeGraphWorkspace_Nominal,
            NewGraphWorkspace_BadInput,
+           GraphWorkspaceGetDistance_BadInput,
+           GraphWorkspaceGetParent_BadInput,
+           GraphDijkstra_BadInput,
+           GraphBidirectionalDijkstra_BadInput,
+           GraphBellmanFord_BadInput);
+
+TEST_SUITE(GraphWorkspaceAllocationSuite,
            NewGraphWorkspace_MallocFail1,
            NewGraphWorkspace_MallocFail2,
            NewGraphWorkspace_MallocFail3,
@@ -387,9 +394,4 @@ TEST_SUITE(GraphWorkspaceMemorySuite,
            NewGraphWorkspace_HeapArrayMallocFail,
            NewGraphWorkspace_HeapPriorityMallocFail,
            NewGraphWorkspace_DistanceMulOverflowFail,
-           NewGraphWorkspace_ParentMulOverflowFail,
-           GraphWorkspaceGetDistance_BadInput,
-           GraphWorkspaceGetParent_BadInput,
-           GraphDijkstra_BadInput,
-           GraphBidirectionalDijkstra_BadInput,
-           GraphBellmanFord_BadInput);
+           NewGraphWorkspace_ParentMulOverflowFail);

@@ -3,7 +3,7 @@
 #include <float.h>
 #include <math.h>
 
-TEST(Dijkstra1) {
+TEST(GRTPDijkstraIsolatedVertices) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -52,7 +52,7 @@ TEST(Dijkstra1) {
   ASSERT_X(!Support);
 }
 
-TEST(Dijkstra2) {
+TEST(GRTPDijkstraUnitWeightsCycle) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -132,7 +132,7 @@ static double WeightFunction(const GraphSupport *Support,
   return (double)1.0;
 }
 
-TEST(Dijkstra3) {
+TEST(GRTPDijkstraWeightedCycle) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -219,7 +219,7 @@ TEST(Dijkstra3) {
   ASSERT_X(!Support);
 }
 
-TEST(Dijkstra4) {
+TEST(GRTPDijkstraWeightedSingleSource) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -337,7 +337,7 @@ TEST(Dijkstra4) {
   ASSERT_X(!Support);
 }
 
-TEST(Dijkstra5) {
+TEST(GRTPDijkstraWeightedMultiSource) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -456,13 +456,13 @@ TEST(Dijkstra5) {
 }
 
 TEST_SUITE(GRTPDijkstraSuite,
-           Dijkstra1,
-           Dijkstra2,
-           Dijkstra3,
-           Dijkstra4,
-           Dijkstra5);
+           GRTPDijkstraIsolatedVertices,
+           GRTPDijkstraUnitWeightsCycle,
+           GRTPDijkstraWeightedCycle,
+           GRTPDijkstraWeightedSingleSource,
+           GRTPDijkstraWeightedMultiSource);
 
-TEST(BidirectionalDijkstra1) {
+TEST(GRTPBidirectionalIsolatedVertices) {
   GraphWorkspace      *WorkspaceA = NULL;
   GraphWorkspace      *WorkspaceB = NULL;
   GraphSupport        *Support    = NULL;
@@ -537,7 +537,7 @@ TEST(BidirectionalDijkstra1) {
   ASSERT_X(!Support);
 }
 
-TEST(BidirectionalDijkstra2) {
+TEST(GRTPBidirectionalUnitWeightsCycle) {
   GraphWorkspace      *WorkspaceA   = NULL;
   GraphWorkspace      *WorkspaceB   = NULL;
   GraphSupport        *Support      = NULL;
@@ -612,7 +612,7 @@ TEST(BidirectionalDijkstra2) {
   ASSERT_X(!Support);
 }
 
-TEST(BidirectionalDijkstra3) {
+TEST(GRTPBidirectionalDisjointComponents) {
   GraphWorkspace      *WorkspaceA = NULL;
   GraphWorkspace      *WorkspaceB = NULL;
   GraphSupport        *Support    = NULL;
@@ -677,12 +677,253 @@ TEST(BidirectionalDijkstra3) {
   ASSERT_X(!Support);
 }
 
-TEST_SUITE(GRTPBidirectionalDijkstraSuite,
-           BidirectionalDijkstra1,
-           BidirectionalDijkstra2,
-           BidirectionalDijkstra3);
+TEST(GRTPBidirectionalRejectsLongerMeeting) {
+  GraphWorkspace      *Forward  = NULL;
+  GraphWorkspace      *Backward = NULL;
+  GraphSupport        *Support  = NULL;
+  GraphSupportBuilder *Builder  = NULL;
+  CustomContext        Context;
+  size_t               EdgeIndex;
+  size_t               ShortestPath[4];
+  size_t               ShortestPathVertexCount = 0;
+  double               ShortestDistance        = -1.0;
+  const double        *Distance                = NULL;
+  const size_t        *Parent                  = NULL;
 
-TEST(BellmanFord1) {
+  /*
+            A
+          / | \
+        3/  |3 \1
+        /   |   \
+       B -- C    D
+          1
+
+      B is the source and A the target: the direct edge costs 3, the detour
+      through C costs 4. D hangs off A with weight 1.
+  */
+
+  Builder = NewGraphSupportBuilder(4);
+  ASSERT_X(Builder);
+  // A.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 0, 1));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 0, 2));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 0, 3));
+  // B.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 1, 0));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 1, 2));
+  // C.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 2, 0));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 2, 1));
+  // D.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 3, 0));
+
+  Support = NewGraphSupport(Builder);
+  ASSERT_X(Support);
+  FreeGraphSupportBuilder(&Builder);
+  ASSERT_X(!Builder);
+
+  Context.EdgeCount = GraphSupportGetEdgeCount(Support);
+  ASSERT_X(Context.EdgeCount < MAX_EDGES);
+
+  // A.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 0, 1, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)3.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 0, 2, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)3.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 0, 3, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+  // B.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 1, 0, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)3.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 1, 2, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+  // C.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 2, 0, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)3.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 2, 1, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+  // D.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 3, 0, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+
+  Forward = NewGraphWorkspace(Support);
+  ASSERT_X(Forward);
+  Backward = NewGraphWorkspace(Support);
+  ASSERT_X(Backward);
+
+  /*
+      The searches first meet at A, after 3 units, and then at C, after
+      ForwardDistance[C] + BackwardDistance[C] = 4 units. The later rendezvous
+      is longer than the one already recorded, so it must be discarded instead
+      of widening the answer, and the remaining frontiers must be pruned: their
+      smallest priorities already add up to the best distance. D is therefore
+      never reached by the forward search.
+  */
+  ASSERT(GraphBidirectionalDijkstra(
+      Forward, Backward, 1, 0, WeightFunction, (void *)&Context, ShortestPath,
+      &ShortestPathVertexCount, &ShortestDistance));
+
+  ASSERT(ShortestPathVertexCount == 2);
+  ASSERT(ShortestPath[0] == 1);
+  ASSERT(ShortestPath[1] == 0);
+  ASSERT(fabs(ShortestDistance - (double)3.0) < 10 * DBL_EPSILON);
+
+  ASSERT(Distance = (const double *)GraphWorkspaceGetDistance(Forward));
+  ASSERT(Parent = (const size_t *)GraphWorkspaceGetParent(Forward));
+  ASSERT(fabs(Distance[0] - (double)3.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[0] == 1);
+  ASSERT(fabs(Distance[1]) < 10 * DBL_EPSILON);
+  ASSERT(Parent[1] == UnreachableVertex);
+  ASSERT(fabs(Distance[2] - (double)1.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[2] == 1);
+  ASSERT(isinf(Distance[3]));
+  ASSERT(Parent[3] == UnreachableVertex);
+
+  ASSERT(Distance = (const double *)GraphWorkspaceGetDistance(Backward));
+  ASSERT(Parent = (const size_t *)GraphWorkspaceGetParent(Backward));
+  ASSERT(fabs(Distance[0]) < 10 * DBL_EPSILON);
+  ASSERT(Parent[0] == UnreachableVertex);
+  ASSERT(fabs(Distance[1] - (double)3.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[1] == 0);
+  ASSERT(fabs(Distance[2] - (double)3.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[2] == 0);
+  ASSERT(fabs(Distance[3] - (double)1.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[3] == 0);
+
+  FreeGraphWorkspace(&Forward);
+  ASSERT_X(!Forward);
+  FreeGraphWorkspace(&Backward);
+  ASSERT_X(!Backward);
+  FreeGraphSupport(&Support);
+  ASSERT_X(!Support);
+}
+
+TEST(GRTPBidirectionalKeepsFirstMeetingOnTie) {
+  GraphWorkspace      *Forward  = NULL;
+  GraphWorkspace      *Backward = NULL;
+  GraphSupport        *Support  = NULL;
+  GraphSupportBuilder *Builder  = NULL;
+  CustomContext        Context;
+  size_t               EdgeIndex;
+  size_t               ShortestPath[4];
+  size_t               ShortestPathVertexCount = 0;
+  double               ShortestDistance        = -1.0;
+  const double        *Distance                = NULL;
+  const size_t        *Parent                  = NULL;
+
+  /*
+            A
+          / | \
+        3/  |2 \1
+        /   |   \
+       B -- C    D
+          1
+
+      Two routes from B to A cost 3: the direct edge and B - C - A.
+  */
+
+  Builder = NewGraphSupportBuilder(4);
+  ASSERT_X(Builder);
+  // A.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 0, 1));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 0, 2));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 0, 3));
+  // B.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 1, 0));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 1, 2));
+  // C.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 2, 0));
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 2, 1));
+  // D.
+  ASSERT_X(GraphSupportBuilderAddEdge(Builder, 3, 0));
+
+  Support = NewGraphSupport(Builder);
+  ASSERT_X(Support);
+  FreeGraphSupportBuilder(&Builder);
+  ASSERT_X(!Builder);
+
+  Context.EdgeCount = GraphSupportGetEdgeCount(Support);
+  ASSERT_X(Context.EdgeCount < MAX_EDGES);
+
+  // A.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 0, 1, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)3.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 0, 2, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)2.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 0, 3, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+  // B.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 1, 0, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)3.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 1, 2, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+  // C.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 2, 0, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)2.0;
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 2, 1, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+  // D.
+  ASSERT_X(GraphSupportGetEdgeIndex(Support, 3, 0, &EdgeIndex));
+  Context.Weights[EdgeIndex] = (double)1.0;
+
+  Forward = NewGraphWorkspace(Support);
+  ASSERT_X(Forward);
+  Backward = NewGraphWorkspace(Support);
+  ASSERT_X(Backward);
+
+  /*
+      The first rendezvous is A, at 3 units, and the second one is C, at
+      ForwardDistance[C] + BackwardDistance[C] = 3 units as well. Only a
+      strictly shorter rendezvous may replace the recorded one, so the answer
+      keeps the direct edge instead of switching to the equal-length detour.
+  */
+  ASSERT(GraphBidirectionalDijkstra(
+      Forward, Backward, 1, 0, WeightFunction, (void *)&Context, ShortestPath,
+      &ShortestPathVertexCount, &ShortestDistance));
+
+  ASSERT(ShortestPathVertexCount == 2);
+  ASSERT(ShortestPath[0] == 1);
+  ASSERT(ShortestPath[1] == 0);
+  ASSERT(fabs(ShortestDistance - (double)3.0) < 10 * DBL_EPSILON);
+
+  ASSERT(Distance = (const double *)GraphWorkspaceGetDistance(Forward));
+  ASSERT(Parent = (const size_t *)GraphWorkspaceGetParent(Forward));
+  ASSERT(fabs(Distance[0] - (double)3.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[0] == 1);
+  ASSERT(fabs(Distance[1]) < 10 * DBL_EPSILON);
+  ASSERT(Parent[1] == UnreachableVertex);
+  ASSERT(fabs(Distance[2] - (double)1.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[2] == 1);
+  ASSERT(isinf(Distance[3]));
+  ASSERT(Parent[3] == UnreachableVertex);
+
+  ASSERT(Distance = (const double *)GraphWorkspaceGetDistance(Backward));
+  ASSERT(Parent = (const size_t *)GraphWorkspaceGetParent(Backward));
+  ASSERT(fabs(Distance[0]) < 10 * DBL_EPSILON);
+  ASSERT(Parent[0] == UnreachableVertex);
+  ASSERT(fabs(Distance[1] - (double)3.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[1] == 0);
+  ASSERT(fabs(Distance[2] - (double)2.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[2] == 0);
+  ASSERT(fabs(Distance[3] - (double)1.0) < 10 * DBL_EPSILON);
+  ASSERT(Parent[3] == 0);
+
+  FreeGraphWorkspace(&Forward);
+  ASSERT_X(!Forward);
+  FreeGraphWorkspace(&Backward);
+  ASSERT_X(!Backward);
+  FreeGraphSupport(&Support);
+  ASSERT_X(!Support);
+}
+
+TEST_SUITE(GRTPBidirectionalDijkstraSuite,
+           GRTPBidirectionalIsolatedVertices,
+           GRTPBidirectionalUnitWeightsCycle,
+           GRTPBidirectionalDisjointComponents,
+           GRTPBidirectionalRejectsLongerMeeting,
+           GRTPBidirectionalKeepsFirstMeetingOnTie);
+
+TEST(GRTPBellmanFordIsolatedVertices) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -732,7 +973,7 @@ TEST(BellmanFord1) {
   ASSERT_X(!Support);
 }
 
-TEST(BellmanFord2) {
+TEST(GRTPBellmanFordUnitWeightsCycle) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -797,7 +1038,7 @@ TEST(BellmanFord2) {
   ASSERT_X(!Support);
 }
 
-TEST(BellmanFord3) {
+TEST(GRTPBellmanFordDirectedDisjointComponents) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -859,7 +1100,7 @@ TEST(BellmanFord3) {
   ASSERT_X(!Support);
 }
 
-TEST(BellmanFord4) {
+TEST(GRTPBellmanFordNegativeCycle) {
   GraphWorkspace      *Workspace = NULL;
   GraphSupport        *Support   = NULL;
   GraphSupportBuilder *Builder   = NULL;
@@ -917,7 +1158,7 @@ TEST(BellmanFord4) {
 }
 
 TEST_SUITE(GRTPBellmanFordSuite,
-           BellmanFord1,
-           BellmanFord2,
-           BellmanFord3,
-           BellmanFord4);
+           GRTPBellmanFordIsolatedVertices,
+           GRTPBellmanFordUnitWeightsCycle,
+           GRTPBellmanFordDirectedDisjointComponents,
+           GRTPBellmanFordNegativeCycle);

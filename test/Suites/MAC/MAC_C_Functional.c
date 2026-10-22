@@ -1,7 +1,7 @@
 #include "src/MAC/MultidimensionalArrayContainers.h"
 #include "test/TSD/TSD.h"
 
-TEST(MACFlatToMultidimensional_1) {
+TEST(MACFlatToMultidimensionalColumnMajor) {
   MAC   *Container = NULL;
   size_t Arr[3];
 
@@ -37,7 +37,7 @@ TEST(MACFlatToMultidimensional_1) {
   ASSERT(!Container);
 }
 
-TEST(MACFlatToMultidimensional_2) {
+TEST(MACFlatToMultidimensionalRowMajor) {
   MAC   *Container = NULL;
   size_t Arr[3];
 
@@ -73,11 +73,11 @@ TEST(MACFlatToMultidimensional_2) {
   ASSERT(!Container);
 }
 
-TEST_SUITE(MACFunctionalFlatToMultidimensional,
-           MACFlatToMultidimensional_1,
-           MACFlatToMultidimensional_2);
+TEST_SUITE(MACFunctionalFlatToMultidimensionalSuite,
+           MACFlatToMultidimensionalColumnMajor,
+           MACFlatToMultidimensionalRowMajor);
 
-TEST(MACMultidimensionalToFlat_1) {
+TEST(MACMultidimensionalToFlatColumnMajor) {
   MAC   *Container = NULL;
   size_t Mem;
 
@@ -101,7 +101,7 @@ TEST(MACMultidimensionalToFlat_1) {
   ASSERT(!Container);
 }
 
-TEST(MACMultidimensionalToFlat_2) {
+TEST(MACMultidimensionalToFlatRowMajor) {
   MAC   *Container = NULL;
   size_t Mem;
 
@@ -125,6 +125,6 @@ TEST(MACMultidimensionalToFlat_2) {
   ASSERT(!Container);
 }
 
-TEST_SUITE(MACFunctionalMultidimensionalToFlat,
-           MACMultidimensionalToFlat_1,
-           MACMultidimensionalToFlat_2);
+TEST_SUITE(MACFunctionalMultidimensionalToFlatSuite,
+           MACMultidimensionalToFlatColumnMajor,
+           MACMultidimensionalToFlatRowMajor);

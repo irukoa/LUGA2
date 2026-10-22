@@ -255,7 +255,7 @@ TEST(GRTPSupportBuilder_HasEdge) {
   ASSERT(!Builder);
 }
 
-TEST_SUITE(GRTPSupportBuilder,
+TEST_SUITE(GRTPSupportBuilderSuite,
            GRTPSupportBuilder_New,
            GRTPSupportBuilder_AddEdge1,
            GRTPSupportBuilder_AddEdge2,
@@ -536,7 +536,7 @@ TEST(GRTPSupport_NoEdges) {
   ASSERT(!Support);
 }
 
-TEST_SUITE(GRTPSupport,
+TEST_SUITE(GRTPSupportSuite,
            GRTPSupport_New,
            GRTPSupport_GetVertexCount,
            GRTPSupport_GetEdgeCount,

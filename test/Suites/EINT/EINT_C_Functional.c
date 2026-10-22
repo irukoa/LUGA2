@@ -26,6 +26,30 @@ TEST(EINTNominalReference) {
   ASSERT((double)100.0 * fabs(Result - Reference) / Reference < Tolerance);
 }
 
+TEST(EINTPrimeBaseReference) {
+  const size_t Count = 3 * 3 * 3 + 1;
+  double       Array[Count];
+
+  /*27 = 3^3: base 3 unlocks three extrapolation steps, which remove the
+    h^2, h^4 and h^6 terms of the trapezoidal error, so a degree-6
+    polynomial integrates exactly. The same grid read with the default base
+    (2, and 27 is odd, so n_p = 0) is the bare trapezoidal rule and lands
+    4.8e-3 off: a silent fallback to base 2 cannot pass.*/
+  const double Reference = (double)1.0 / (double)7.0;
+
+  const double Tolerance = DBL_EPSILON * (double)1000;
+
+  double x;
+  size_t i;
+
+  for (i = 1; i <= Count; i++) {
+    x            = (double)(i - 1) / (double)(Count - 1);
+    Array[i - 1] = x * x * x * x * x * x;
+  }
+
+  ASSERT(fabs(EINT(Count, Array, 3) - Reference) < Tolerance);
+}
+
 TEST(EINTZeroCount) {
   double       Array[1];
   const double Result = EINT((size_t)0, Array, 2);
@@ -44,7 +68,8 @@ TEST(EINTFastReturn) {
 }
 
 TEST_SUITE(EINTNominalSuite,
-           EINTNominalReference);
+           EINTNominalReference,
+           EINTPrimeBaseReference);
 
 TEST_SUITE(EINTEdgeCaseSuite,
            EINTZeroCount,

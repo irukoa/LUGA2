@@ -3,7 +3,7 @@
 #include "src/GRTP/GraphUtilities.M90"
 #endif
 
-TEST_E(GRTPFortranDijkstra1)
+TEST_E(GRTPFortranDijkstraIsolatedVertices)
 #ifdef TSD_FORTRAN_IMPL
   use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
@@ -53,7 +53,7 @@ TEST_E(GRTPFortranDijkstra1)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranDijkstra2)
+TEST_E(GRTPFortranDijkstraUnitWeightsCycle)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphDijkstra, C_SIZE_T, C_DOUBLE, UnreachableVertex
@@ -119,7 +119,7 @@ TEST_E(GRTPFortranDijkstra2)
   ASSERT(.not.Support%Initialized())
 #endif
 END_TEST_E
-TEST_E(GRTPFortranDijkstra3)
+TEST_E(GRTPFortranDijkstraWeightedCycle)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphDijkstra, GraphWeightFunction, &
@@ -231,7 +231,7 @@ TEST_E(GRTPFortranDijkstra3)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranDijkstra4)
+TEST_E(GRTPFortranDijkstraWeightedSingleSource)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphDijkstra, GraphWeightFunction, &
@@ -373,7 +373,7 @@ TEST_E(GRTPFortranDijkstra4)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranDijkstra5)
+TEST_E(GRTPFortranDijkstraWeightedMultiSource)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphDijkstra, GraphWeightFunction, &
@@ -516,7 +516,7 @@ TEST_E(GRTPFortranDijkstra5)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBidirectionalDijkstra1)
+TEST_E(GRTPFortranBidirectionalIsolatedVertices)
 #ifdef TSD_FORTRAN_IMPL
   use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
@@ -595,7 +595,7 @@ TEST_E(GRTPFortranBidirectionalDijkstra1)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBidirectionalDijkstra2)
+TEST_E(GRTPFortranBidirectionalUnitWeightsCycle)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE, &
@@ -673,7 +673,7 @@ TEST_E(GRTPFortranBidirectionalDijkstra2)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBidirectionalDijkstra3)
+TEST_E(GRTPFortranBidirectionalDisjointComponents)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE, &
@@ -741,7 +741,297 @@ TEST_E(GRTPFortranBidirectionalDijkstra3)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBellmanFord1)
+TEST_E(GRTPFortranBidirectionalRejectsLongerMeeting)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: EdgeIndex
+  real(C_DOUBLE)            :: EdgeWeights(8)
+  integer(C_SIZE_T)         :: Path(4), Count, ForwardParent(4), BackwardParent(4)
+  real(C_DOUBLE)            :: ForwardDistance(4), BackwardDistance(4)
+  real(C_DOUBLE)            :: ShortestDistance
+  logical                   :: Success
+
+  !      A
+  !    / | \
+  !  3/  |3 \1
+  !  /   |   \
+  ! B -- C    D
+  !     1
+  !
+  !B is the source and A the target: the direct edge costs 3, the detour
+  !through C costs 4. D hangs off A with weight 1.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 3_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 1_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 0_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 8_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  EdgeWeights = 1.0_C_DOUBLE
+  !A.
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !B.
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !C.
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !D.
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+
+  !An undirected graph is its own transpose: one support feeds both searches.
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  !The searches first meet at A, after 3 units, and then at C, after
+  !ForwardDistance(C) + BackwardDistance(C) = 4 units. The later rendezvous is
+  !longer than the one already recorded, so it must be discarded instead of
+  !widening the answer, and the remaining frontiers must be pruned: their
+  !smallest priorities already add up to the best distance. D is therefore
+  !never reached by the forward search.
+  Weight  => EdgeTableWeight
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 1_C_SIZE_T, 0_C_SIZE_T, &
+                                       Weight, ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+  ASSERT_X(Success)
+  Weight => null()
+
+  call Forward%Distance(ForwardDistance)
+  call Forward%Parent(ForwardParent)
+  ASSERT(abs(ForwardDistance(1) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(1) == 1_C_SIZE_T)
+  ASSERT(abs(ForwardDistance(2)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(2) == UnreachableVertex)
+  ASSERT(abs(ForwardDistance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(3) == 1_C_SIZE_T)
+  ASSERT(.not.IEEE_IS_FINITE(ForwardDistance(4)))
+  ASSERT(ForwardParent(4) == UnreachableVertex)
+
+  call Backward%Distance(BackwardDistance)
+  call Backward%Parent(BackwardParent)
+  ASSERT(abs(BackwardDistance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(1) == UnreachableVertex)
+  ASSERT(abs(BackwardDistance(2) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(2) == 0_C_SIZE_T)
+  ASSERT(abs(BackwardDistance(3) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(3) == 0_C_SIZE_T)
+  ASSERT(abs(BackwardDistance(4) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(4) == 0_C_SIZE_T)
+
+  ASSERT(Count == 2_C_SIZE_T)
+  ASSERT(Path(1) == 1_C_SIZE_T)
+  ASSERT(Path(2) == 0_C_SIZE_T)
+  ASSERT(abs(ShortestDistance - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBidirectionalKeepsFirstMeetingOnTie)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: EdgeIndex
+  real(C_DOUBLE)            :: EdgeWeights(8)
+  integer(C_SIZE_T)         :: Path(4), Count, ForwardParent(4), BackwardParent(4)
+  real(C_DOUBLE)            :: ForwardDistance(4), BackwardDistance(4)
+  real(C_DOUBLE)            :: ShortestDistance
+  logical                   :: Success
+
+  !      A
+  !    / | \
+  !  3/  |2 \1
+  !  /   |   \
+  ! B -- C    D
+  !     1
+  !
+  !Two routes from B to A cost 3: the direct edge and B - C - A.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 3_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 1_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 0_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 8_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  EdgeWeights = 1.0_C_DOUBLE
+  !A.
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !B.
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !C.
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !D.
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+
+  !An undirected graph is its own transpose: one support feeds both searches.
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  !The first rendezvous is A, at 3 units, and the second one is C, at
+  !ForwardDistance(C) + BackwardDistance(C) = 3 units as well. Only a strictly
+  !shorter rendezvous may replace the recorded one, so the answer keeps the
+  !direct edge instead of switching to the equal-length detour.
+  Weight  => EdgeTableWeight
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 1_C_SIZE_T, 0_C_SIZE_T, &
+                                       Weight, ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+  ASSERT_X(Success)
+  Weight => null()
+
+  call Forward%Distance(ForwardDistance)
+  call Forward%Parent(ForwardParent)
+  ASSERT(abs(ForwardDistance(1) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(1) == 1_C_SIZE_T)
+  ASSERT(abs(ForwardDistance(2)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(2) == UnreachableVertex)
+  ASSERT(abs(ForwardDistance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(3) == 1_C_SIZE_T)
+  ASSERT(.not.IEEE_IS_FINITE(ForwardDistance(4)))
+  ASSERT(ForwardParent(4) == UnreachableVertex)
+
+  call Backward%Distance(BackwardDistance)
+  call Backward%Parent(BackwardParent)
+  ASSERT(abs(BackwardDistance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(1) == UnreachableVertex)
+  ASSERT(abs(BackwardDistance(2) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(2) == 0_C_SIZE_T)
+  ASSERT(abs(BackwardDistance(3) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(3) == 0_C_SIZE_T)
+  ASSERT(abs(BackwardDistance(4) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(4) == 0_C_SIZE_T)
+
+  ASSERT(Count == 2_C_SIZE_T)
+  ASSERT(Path(1) == 1_C_SIZE_T)
+  ASSERT(Path(2) == 0_C_SIZE_T)
+  ASSERT(abs(ShortestDistance - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+
+TEST_E(GRTPFortranBellmanFordIsolatedVertices)
 #ifdef TSD_FORTRAN_IMPL
   use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
@@ -791,7 +1081,7 @@ TEST_E(GRTPFortranBellmanFord1)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBellmanFord2)
+TEST_E(GRTPFortranBellmanFordUnitWeightsCycle)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBellmanFord, C_SIZE_T, C_DOUBLE, UnreachableVertex
@@ -864,7 +1154,7 @@ TEST_E(GRTPFortranBellmanFord2)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBellmanFord3)
+TEST_E(GRTPFortranBellmanFordDirectedDisjointComponents)
 #ifdef TSD_FORTRAN_IMPL
   use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
@@ -950,7 +1240,7 @@ TEST_E(GRTPFortranBellmanFord3)
 #endif
 END_TEST_E
 
-TEST_E(GRTPFortranBellmanFord4)
+TEST_E(GRTPFortranBellmanFordNegativeCycleDetected)
 #ifdef TSD_FORTRAN_IMPL
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBellmanFord, GraphWeightFunction, &
@@ -1028,24 +1318,26 @@ END_TEST_E
 
 #ifdef TSD_KERNEL
 TEST_SUITE(GRTPFortranDijkstraSuite,
-           GRTPFortranDijkstra1,
-           GRTPFortranDijkstra2,
-           GRTPFortranDijkstra3,
-           GRTPFortranDijkstra4,
-           GRTPFortranDijkstra5);
+           GRTPFortranDijkstraIsolatedVertices,
+           GRTPFortranDijkstraUnitWeightsCycle,
+           GRTPFortranDijkstraWeightedCycle,
+           GRTPFortranDijkstraWeightedSingleSource,
+           GRTPFortranDijkstraWeightedMultiSource);
 #endif
 
 #ifdef TSD_KERNEL
-TEST_SUITE(GRTPFortranBidirectionalDijkstraSuite,
-           GRTPFortranBidirectionalDijkstra1,
-           GRTPFortranBidirectionalDijkstra2,
-           GRTPFortranBidirectionalDijkstra3);
+TEST_SUITE(GRTPFortranBidirectionalSuite,
+           GRTPFortranBidirectionalIsolatedVertices,
+           GRTPFortranBidirectionalUnitWeightsCycle,
+           GRTPFortranBidirectionalDisjointComponents,
+           GRTPFortranBidirectionalRejectsLongerMeeting,
+           GRTPFortranBidirectionalKeepsFirstMeetingOnTie);
 #endif
 
 #ifdef TSD_KERNEL
-TEST_SUITE(GRTPFortranBellmanFordFunctionSuite,
-           GRTPFortranBellmanFord1,
-           GRTPFortranBellmanFord2,
-           GRTPFortranBellmanFord3,
-           GRTPFortranBellmanFord4);
+TEST_SUITE(GRTPFortranBellmanFordSuite,
+           GRTPFortranBellmanFordIsolatedVertices,
+           GRTPFortranBellmanFordUnitWeightsCycle,
+           GRTPFortranBellmanFordDirectedDisjointComponents,
+           GRTPFortranBellmanFordNegativeCycleDetected);
 #endif

@@ -3,7 +3,7 @@
 #include "src/MAC/MultidimensionalArrayContainers.M90"
 #endif
 
-TEST_E(MACFortranTypeCopy_1)
+TEST_E(MACFortranTypeCopyOwnership)
 #ifdef TSD_FORTRAN_IMPL
   use MultidimensionalArrayContainers
 
@@ -41,7 +41,7 @@ TEST_E(MACFortranTypeCopy_1)
 #endif
 END_TEST_E
 
-TEST_E(MACFortranNominal_1)
+TEST_E(MACFortranNominalColumnMajor)
 #ifdef TSD_FORTRAN_IMPL
   use MultidimensionalArrayContainers
 
@@ -80,7 +80,7 @@ TEST_E(MACFortranNominal_1)
 #endif
 END_TEST_E
 
-TEST_E(MACFortranNominal_2)
+TEST_E(MACFortranNominalRowMajor)
 #ifdef TSD_FORTRAN_IMPL
   use MultidimensionalArrayContainers
 
@@ -120,10 +120,12 @@ TEST_E(MACFortranNominal_2)
 END_TEST_E
 
 #ifdef TSD_KERNEL
+TEST_SUITE(MACFortranOwnershipSuite,
+           MACFortranTypeCopyOwnership);
+
 TEST_SUITE(MACFortranNominalSuite,
-           MACFortranTypeCopy_1,
-           MACFortranNominal_1,
-           MACFortranNominal_2);
+           MACFortranNominalColumnMajor,
+           MACFortranNominalRowMajor);
 #endif
 
 TEST_E(MACFortranLayoutSpecification)
