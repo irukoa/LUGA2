@@ -1,4 +1,5 @@
 #include "src/GRTP/GRTP_C_Int.M90"
+#include "src/Core/CoreFortran.M90"
 
 submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
 
@@ -6,7 +7,10 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
                                          C_ASSOCIATED, &
                                          C_FUNLOC, &
                                          C_LOC, &
-                                         C_NULL_FUNPTR
+                                         C_NULL_FUNPTR, &
+                                         C_SIZEOF
+
+  use CoreFortran, only: FortranMulOverflow, FortranMalloc, FortranFree
 
   implicit none
 
@@ -309,33 +313,142 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
 
   module procedure GraphDijkstra
     type(FortranContextWrapper), target :: FSideUserContextWrapper
+    type(C_FUNPTR)                      :: WeightFunctionPtr
+    type(C_PTR)                         :: UserContextPtr
 
+    Success = .false.
+
+    if (.not. Workspace%Initialized()) return
+
+    WeightFunctionPtr = C_NULL_FUNPTR
+    UserContextPtr    = C_NULL_PTR
     if (present(WeightFunction)) then
       if (associated(WeightFunction)) then
-
         FSideUserContextWrapper%WeightFunction => WeightFunction
         if (present(UserContext)) then
           if (associated(UserContext)) then
             FSideUserContextWrapper%Context => UserContext
           endif
         endif
-
-        Success = GraphDijkstra_C(WorkspaceHandle = Workspace%OpaqueHandle, &
-                                  SourceCount = SourceCount, &
-                                  Source = Source, &
-                                  WeightFunction = C_FUNLOC(FortranWeightCallback), &
-                                  UserContext = C_LOC(FSideUserContextWrapper))
-        return
-
+        WeightFunctionPtr = C_FUNLOC(FortranWeightCallback)
+        UserContextPtr    = C_LOC(FSideUserContextWrapper)
       endif
     endif
 
-    !No usable weight function: unit weights, as documented for a null callback.
     Success = GraphDijkstra_C(WorkspaceHandle = Workspace%OpaqueHandle, &
                               SourceCount = SourceCount, &
                               Source = Source, &
-                              WeightFunction = C_NULL_FUNPTR, &
-                              UserContext = C_NULL_PTR)
+                              WeightFunction = WeightFunctionPtr, &
+                              UserContext = UserContextPtr)
   end procedure GraphDijkstra
+
+  module procedure GraphBidirectionalDijkstra
+    type(FortranContextWrapper), target  :: FSideUserContextWrapper
+    integer(C_SIZE_T),           pointer :: LocalShortestPath(:) => null()
+    integer(C_SIZE_T)                    :: LocalShortestPathVertexCount
+    real(C_DOUBLE)                       :: LocalShortestDistance
+    type(C_PTR)                          :: ShortestPathHandle
+    type(C_FUNPTR)                       :: WeightFunctionPtr
+    type(C_PTR)                          :: UserContextPtr
+    integer(C_SIZE_T)                    :: BufferSize
+
+    Success = .false.
+
+    if (.not. ForwardWorkspace%Initialized()) return
+    if (.not. BackwardWorkspace%Initialized()) return
+
+    if (ForwardWorkspace%VertexCount /= &
+        BackwardWorkspace%VertexCount) return
+
+    ShortestPathHandle = C_NULL_PTR
+    if (present(ShortestPath)) then
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(1_C_SIZE_T), C_SIZE_T), &
+                                    B   = max(1_C_SIZE_T, ForwardWorkspace%VertexCount), &
+                                    Res = BufferSize))) return
+
+      ShortestPathHandle = FortranMalloc(BufferSize)
+      if (.not. C_ASSOCIATED(ShortestPathHandle)) return
+      call C_F_POINTER(ShortestPathHandle, &
+                      LocalShortestPath, &
+                      [max(1_C_SIZE_T, ForwardWorkspace%VertexCount)])
+    endif
+
+    WeightFunctionPtr = C_NULL_FUNPTR
+    UserContextPtr    = C_NULL_PTR
+    if (present(WeightFunction)) then
+      if (associated(WeightFunction)) then
+        FSideUserContextWrapper%WeightFunction => WeightFunction
+        if (present(UserContext)) then
+          if (associated(UserContext)) then
+            FSideUserContextWrapper%Context => UserContext
+          endif
+        endif
+        WeightFunctionPtr = C_FUNLOC(FortranWeightCallback)
+        UserContextPtr    = C_LOC(FSideUserContextWrapper)
+      endif
+    endif
+
+    Success = GraphBidirectionalDijkstra_C(ForwardHandle = ForwardWorkspace%OpaqueHandle, &
+                                           BackwardHandle = BackwardWorkspace%OpaqueHandle, &
+                                           Source = Source, &
+                                           Target = Target, &
+                                           WeightFunction = WeightFunctionPtr, &
+                                           UserContext = UserContextPtr, &
+                                           ShortestPath = ShortestPathHandle, &
+                                           ShortestPathVertexCount = LocalShortestPathVertexCount, &
+                                           ShortestDistance = LocalShortestDistance)
+
+    if (Success) then
+      if (present(ShortestPath)) ShortestPath(1_C_SIZE_T:LocalShortestPathVertexCount) = &
+                                LocalShortestPath(1_C_SIZE_T:LocalShortestPathVertexCount)
+      if (present(ShortestPathVertexCount)) ShortestPathVertexCount = LocalShortestPathVertexCount
+      if (present(ShortestDistance)) ShortestDistance = LocalShortestDistance
+    endif
+    if (C_ASSOCIATED(ShortestPathHandle)) call FortranFree(ShortestPathHandle)
+  end procedure GraphBidirectionalDijkstra
+
+  module procedure GraphBellmanFord
+    type(FortranContextWrapper), target :: FSideUserContextWrapper
+    logical(C_BOOL), target             :: LocalNegativeCycles = .false._C_BOOL
+    type(C_PTR)                         :: NegativeCyclesHandle
+    type(C_FUNPTR)                      :: WeightFunctionPtr
+    type(C_PTR)                         :: UserContextPtr
+
+    Success = .false.
+
+    if (.not. Workspace%Initialized()) return
+
+    if (present(NegativeCycles)) then
+      NegativeCyclesHandle = C_LOC(LocalNegativeCycles)
+    else
+      NegativeCyclesHandle = C_NULL_PTR
+    endif
+
+    WeightFunctionPtr = C_NULL_FUNPTR
+    UserContextPtr    = C_NULL_PTR
+    if (present(WeightFunction)) then
+      if (associated(WeightFunction)) then
+        FSideUserContextWrapper%WeightFunction => WeightFunction
+        if (present(UserContext)) then
+          if (associated(UserContext)) then
+            FSideUserContextWrapper%Context => UserContext
+          endif
+        endif
+        WeightFunctionPtr = C_FUNLOC(FortranWeightCallback)
+        UserContextPtr    = C_LOC(FSideUserContextWrapper)
+      endif
+    endif
+
+    Success = GraphBellmanFord_C(WorkspaceHandle = Workspace%OpaqueHandle, &
+                                 SourceCount = SourceCount, &
+                                 Source = Source, &
+                                 WeightFunction = WeightFunctionPtr, &
+                                 UserContext = UserContextPtr, &
+                                 NegativeCycles = NegativeCyclesHandle)
+
+    if (Success) then
+      if (present(NegativeCycles)) NegativeCycles = logical(LocalNegativeCycles)
+    endif
+  end procedure GraphBellmanFord
 
 end submodule GRTP_F_Implementation

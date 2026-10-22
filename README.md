@@ -79,6 +79,7 @@ After installation, the generated artifacts are installed as follows:
   - `MultidimensionalArrayContainers.h`, `MultidimensionalArrayContainers.F90` (MAC)
   - `ExtrapolationIntegration.h`, `ExtrapolationIntegration.F90` (EINT)
   - `LapackDeferredWrappers.h`, `LapackDeferredWrappers.F90` (LDW)
+  - `GraphUtilities.h`, `GraphUtilities.F90` (GRTP)
 
 ## Build targets
 

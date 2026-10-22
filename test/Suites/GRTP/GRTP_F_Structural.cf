@@ -1,0 +1,290 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/GRTP/GraphUtilities.M90"
+#include "test/CoreSupport/CoreSupportFortran.M90"
+#endif
+#ifdef TSD_KERNEL
+#include "src/Core/Core.h"
+#include "test/CoreSupport/CoreSupport.h"
+#endif
+
+#ifdef TSD_KERNEL
+CONTEXT_FN(StructuralSetup) {
+  (void)ContextData;
+  Core_Malloc      = FallibleMalloc;
+  Core_MulOverflow = FallibleMulOverflow;
+  ResetFallibleMalloc();
+  ResetFallibleMulOverflow();
+}
+CONTEXT_FN(StructuralTeardown) {
+  (void)ContextData;
+  RESET_FN(Core_Malloc);
+  RESET_FN(Core_MulOverflow);
+}
+CONTEXT(StructuralCtx,
+        StructuralSetup,
+        StructuralTeardown,
+        (size_t)0);
+#endif
+
+TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+
+  !> The scratch buffer of GraphBidirectionalDijkstra is sized by a checked
+  !> multiplication. A failure armed at the first multiplication must abort the
+  !> run before anything is allocated or written.
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE
+  use CoreSupportFortran, only: SetFallibleMulOverflow
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  integer(C_SIZE_T)         :: Path(4), Count
+  real(C_DOUBLE)            :: ShortestDistance
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !The undirected cycle 0 - 1 - 3 - 2 - 0: every edge is stored in both
+  !directions, so a single support serves both searches.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  Path             = 42_C_SIZE_T
+  Count            = 99_C_SIZE_T
+  ShortestDistance = -1.0_C_DOUBLE
+
+  !Sizing the buffer is the only multiplication of the run, so an injection at
+  !the first call reaches it. The allocator is deliberately left unarmed: a
+  !missing check would let the run proceed and succeed, which the assertions
+  !below report.
+  call SetFallibleMulOverflow(1_C_SIZE_T)
+
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+
+  ASSERT(.not.Success)
+
+  !Nothing was written: the failure happens before the C entry point is reached.
+  ASSERT(all(Path == 42_C_SIZE_T))
+  ASSERT(Count == 99_C_SIZE_T)
+  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMallocFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  !> A failed scratch allocation must reject the run without writing any output
+  !> and without leaving the workspaces unusable.
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE
+  use CoreSupportFortran, only: SetFallibleMalloc
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  integer(C_SIZE_T)         :: Path(4), Count
+  real(C_DOUBLE)            :: ShortestDistance
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !The undirected cycle 0 - 1 - 3 - 2 - 0.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  Path             = 42_C_SIZE_T
+  Count            = 99_C_SIZE_T
+  ShortestDistance = -1.0_C_DOUBLE
+
+  !The scratch buffer is the only allocation of the run, so a failure armed at
+  !the first call reaches it.
+  call SetFallibleMalloc(1_C_SIZE_T)
+
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+
+  ASSERT(.not.Success)
+
+  !Nothing was written either.
+  ASSERT(all(Path == 42_C_SIZE_T))
+  ASSERT(Count == 99_C_SIZE_T)
+  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+
+  !The allocator resets itself when it fires, so repeating the call now succeeds
+  !and proves that the rejected run left both workspaces in working order.
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+
+  ASSERT_X(Success)
+  ASSERT(Count == 3_C_SIZE_T)
+  ASSERT(Path(1) == 0_C_SIZE_T)
+  ASSERT(Path(3) == 3_C_SIZE_T)
+  ASSERT((Path(2) == 1_C_SIZE_T) .or. (Path(2) == 2_C_SIZE_T))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, GRTPStructuralBidirectionalNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  !> Both injection points are armed one call past their actual usage: a wrapper
+  !> that allocated or multiplied more than once per run would fail here.
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE
+  use CoreSupportFortran, only: SetFallibleMalloc, SetFallibleMulOverflow
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  integer(C_SIZE_T)         :: Path(4), Count
+  real(C_DOUBLE)            :: ShortestDistance
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !The undirected cycle 0 - 1 - 3 - 2 - 0.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  Path             = 42_C_SIZE_T
+  Count            = 99_C_SIZE_T
+  ShortestDistance = -1.0_C_DOUBLE
+
+  !Exactly one multiplication and one allocation per run, so a failure armed at
+  !the second call must never trigger.
+  call SetFallibleMulOverflow(2_C_SIZE_T)
+  call SetFallibleMalloc(2_C_SIZE_T)
+
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+
+  ASSERT_X(Success)
+
+  ASSERT(Count == 3_C_SIZE_T)
+  ASSERT(Path(1) == 0_C_SIZE_T)
+  ASSERT(Path(3) == 3_C_SIZE_T)
+  ASSERT((Path(2) == 1_C_SIZE_T) .or. (Path(2) == 2_C_SIZE_T))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  !Only the first Count entries belong to the path: the tail stays untouched.
+  ASSERT(Path(4) == 42_C_SIZE_T)
+
+  !A caller that does not ask for the path must not pay for it: the allocator is
+  !armed to fail on its next call, so an omitted ShortestPath only succeeds if
+  !the run performs no allocation at all.
+  call SetFallibleMalloc(1_C_SIZE_T)
+
+  Count            = 99_C_SIZE_T
+  ShortestDistance = -1.0_C_DOUBLE
+
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+
+  ASSERT_X(Success)
+  ASSERT(Count == 3_C_SIZE_T)
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+#endif
+END_TEST_EF
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPStructuralSuite,
+           GRTPStructuralBidirectionalMulOverflow,
+           GRTPStructuralBidirectionalMallocFailure,
+           GRTPStructuralBidirectionalNominal);
+#endif

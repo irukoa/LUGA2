@@ -318,7 +318,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
       integer(C_SIZE_T), intent(in)        :: Source(SourceCount)
       type(C_FUNPTR),    intent(in), value :: WeightFunction
       type(C_PTR),       intent(in), value :: UserContext
-      logical(C_BOOL),   intent(out)       :: NegativeCycles
+      type(C_PTR),       intent(in), value :: NegativeCycles
 
       logical(C_BOOL) :: Success
     end function GraphBellmanFord_C

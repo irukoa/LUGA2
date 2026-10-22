@@ -1,0 +1,1051 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/GRTP/GraphUtilities.M90"
+#endif
+
+TEST_E(GRTPFortranDijkstra1)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: Parent(4)
+  real(C_DOUBLE)            :: Distance(4)
+
+  !Four isolated vertices: nothing is reachable but the source itself.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  ASSERT(.not.GraphDijkstra(Workspace, 1_C_SIZE_T, [8_C_SIZE_T]))
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(2)))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(3)))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(4)))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == UnreachableVertex)
+  ASSERT(Parent(3) == UnreachableVertex)
+  ASSERT(Parent(4) == UnreachableVertex)
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranDijkstra2)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: Parent(4)
+  real(C_DOUBLE)            :: Distance(4)
+
+  !    1
+  !A ---- B
+  !|      |
+  !1     1
+  !|      |
+  !C ---- D
+  !    1
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  !No weight function: unit weights.
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == 0_C_SIZE_T)
+  ASSERT((Parent(4) == 1_C_SIZE_T) .or. (Parent(4) == 2_C_SIZE_T))
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+TEST_E(GRTPFortranDijkstra3)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: Parent(4), EdgeIndex
+  real(C_DOUBLE)            :: Distance(4), EdgeWeights(8)
+
+  !    2
+  !A ---- B
+  !|      |
+  !1     3
+  !|      |
+  !C ---- D
+  !    1
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 8_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  !One weight per edge, addressed through the edge identifiers.
+  EdgeWeights = 1.0_C_DOUBLE
+  !A.
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !B.
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  !C.
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !D.
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  Weight => EdgeTableWeight
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == 0_C_SIZE_T)
+  ASSERT(Parent(4) == 2_C_SIZE_T)
+
+  Weight => null()
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranDijkstra4)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: Parent(6), EdgeIndex
+  real(C_DOUBLE)            :: Distance(6), EdgeWeights(16)
+
+  ! - A --7-- B --2-- D --3-- F
+  ! | |       |       |
+  ! | 9       6       4
+  ! | |       |       |
+  ! | C --1-- E ------+
+  !  \----12--/
+  call Builder%New(6_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 4_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 4_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 4_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 4_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 5_C_SIZE_T))
+  !E.
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 3_C_SIZE_T))
+  !F.
+  ASSERT_X(Builder%AddEdge(5_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 16_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  EdgeWeights = 1.0_C_DOUBLE
+  !A.
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 7.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 9.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 12.0_C_DOUBLE
+  !B.
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 7.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 6.0_C_DOUBLE
+  !C.
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 9.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !D.
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 4.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 5_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  !E.
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 12.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 6.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 4.0_C_DOUBLE
+  !F.
+  ASSERT_X(Support%EdgeIndex(5_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  Weight => EdgeTableWeight
+  ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 7.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 9.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 9.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(5) - 10.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(6) - 12.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == 0_C_SIZE_T)
+  ASSERT(Parent(4) == 1_C_SIZE_T)
+  ASSERT(Parent(5) == 2_C_SIZE_T)
+  ASSERT(Parent(6) == 3_C_SIZE_T)
+
+  Weight => null()
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranDijkstra5)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphDijkstra, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: Parent(6), EdgeIndex
+  real(C_DOUBLE)            :: Distance(6), EdgeWeights(16)
+
+  !The same graph as Dijkstra4, now probed from two sources at once.
+  ! - A --7-- B --2-- D --3-- F
+  ! | |       |       |
+  ! | 9       6       4
+  ! | |       |       |
+  ! | C --1-- E ------+
+  !  \----12--/
+  call Builder%New(6_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 4_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 4_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 4_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 4_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 5_C_SIZE_T))
+  !E.
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(4_C_SIZE_T, 3_C_SIZE_T))
+  !F.
+  ASSERT_X(Builder%AddEdge(5_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 16_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  EdgeWeights = 1.0_C_DOUBLE
+  !A.
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 7.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 9.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 12.0_C_DOUBLE
+  !B.
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 7.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 6.0_C_DOUBLE
+  !C.
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 9.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  !D.
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 4_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 4.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(3_C_SIZE_T, 5_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+  !E.
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 0_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 12.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 6.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(4_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 4.0_C_DOUBLE
+  !F.
+  ASSERT_X(Support%EdgeIndex(5_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 3.0_C_DOUBLE
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  Weight => EdgeTableWeight
+  ASSERT_X(GraphDijkstra(Workspace, 2_C_SIZE_T, [0_C_SIZE_T, 3_C_SIZE_T], Weight))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 5.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(5) - 4.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(6) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 3_C_SIZE_T)
+  ASSERT(Parent(3) == 4_C_SIZE_T)
+  ASSERT(Parent(4) == UnreachableVertex)
+  ASSERT(Parent(5) == 3_C_SIZE_T)
+  ASSERT(Parent(6) == 3_C_SIZE_T)
+
+  Weight => null()
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBidirectionalDijkstra1)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE, &
+                            UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  integer(C_SIZE_T)         :: Count, ForwardParent(4), BackwardParent(4)
+  real(C_DOUBLE)            :: ShortestDistance, ForwardDistance(4), BackwardDistance(4)
+  logical                   :: Success
+
+  !Four isolated vertices.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  !Both endpoints are validated.
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 5_C_SIZE_T, 0_C_SIZE_T)
+  ASSERT(.not.Success)
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 5_C_SIZE_T)
+  ASSERT(.not.Success)
+  ASSERT_X(GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 1_C_SIZE_T))
+
+  !The forward tree is rooted at the source...
+  call Forward%Distance(ForwardDistance)
+  call Forward%Parent(ForwardParent)
+  ASSERT(abs(ForwardDistance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(1) == UnreachableVertex)
+  ASSERT(.not.IEEE_IS_FINITE(ForwardDistance(2)))
+  ASSERT(.not.IEEE_IS_FINITE(ForwardDistance(3)))
+  ASSERT(.not.IEEE_IS_FINITE(ForwardDistance(4)))
+  ASSERT(ForwardParent(2) == UnreachableVertex)
+  ASSERT(ForwardParent(3) == UnreachableVertex)
+  ASSERT(ForwardParent(4) == UnreachableVertex)
+
+  !...and the backward one at the target.
+  call Backward%Distance(BackwardDistance)
+  call Backward%Parent(BackwardParent)
+  ASSERT(abs(BackwardDistance(2)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(2) == UnreachableVertex)
+  ASSERT(.not.IEEE_IS_FINITE(BackwardDistance(1)))
+  ASSERT(.not.IEEE_IS_FINITE(BackwardDistance(3)))
+  ASSERT(.not.IEEE_IS_FINITE(BackwardDistance(4)))
+  ASSERT(BackwardParent(1) == UnreachableVertex)
+  ASSERT(BackwardParent(3) == UnreachableVertex)
+  ASSERT(BackwardParent(4) == UnreachableVertex)
+
+  !The pair is disconnected: no path and an infinite distance.
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 1_C_SIZE_T, &
+                                       ShortestPathVertexCount = Count, &
+                                       ShortestDistance = ShortestDistance)
+  ASSERT_X(Success)
+  ASSERT(Count == 0_C_SIZE_T)
+  ASSERT(.not.IEEE_IS_FINITE(ShortestDistance))
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBidirectionalDijkstra2)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE, &
+                            UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  integer(C_SIZE_T)         :: Path(4), Count, ForwardParent(4), BackwardParent(4)
+  real(C_DOUBLE)            :: ForwardDistance(4), BackwardDistance(4)
+  logical                   :: Success
+
+  !    1
+  !A ---- B
+  !|      |
+  !1     1
+  !|      |
+  !C ---- D
+  !    1
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  !An undirected graph is its own transpose: one support feeds both searches.
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPath = Path, &
+                                       ShortestPathVertexCount = Count)
+  ASSERT_X(Success)
+
+  call Forward%Distance(ForwardDistance)
+  call Forward%Parent(ForwardParent)
+  ASSERT(abs(ForwardDistance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(1) == UnreachableVertex)
+
+  call Backward%Distance(BackwardDistance)
+  call Backward%Parent(BackwardParent)
+  ASSERT(abs(BackwardDistance(4)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(4) == UnreachableVertex)
+
+  ASSERT(Count == 3_C_SIZE_T)
+  ASSERT(Path(1) == 0_C_SIZE_T)
+  ASSERT((Path(2) == 1_C_SIZE_T) .or. (Path(2) == 2_C_SIZE_T))
+  ASSERT(Path(3) == 3_C_SIZE_T)
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBidirectionalDijkstra3)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE, &
+                            UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Forward, Backward
+  integer(C_SIZE_T)         :: Count, ForwardParent(4), BackwardParent(4)
+  real(C_DOUBLE)            :: ForwardDistance(4), BackwardDistance(4)
+  logical                   :: Success
+
+  !Two disconnected components, each an oriented pair: A <-> B and C <-> D.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  call Forward%New(Support)
+  ASSERT_X(Forward%Initialized())
+  call Backward%New(Support)
+  ASSERT_X(Backward%Initialized())
+
+  Success = GraphBidirectionalDijkstra(Forward, Backward, 0_C_SIZE_T, 3_C_SIZE_T, &
+                                       ShortestPathVertexCount = Count)
+  ASSERT_X(Success)
+
+  !The forward half covers A and B, the backward half covers D and C.
+  call Forward%Distance(ForwardDistance)
+  call Forward%Parent(ForwardParent)
+  ASSERT(abs(ForwardDistance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(1) == UnreachableVertex)
+  ASSERT(abs(ForwardDistance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(ForwardParent(2) == 0_C_SIZE_T)
+
+  call Backward%Distance(BackwardDistance)
+  call Backward%Parent(BackwardParent)
+  ASSERT(abs(BackwardDistance(4)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(4) == UnreachableVertex)
+  ASSERT(abs(BackwardDistance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(BackwardParent(3) == 3_C_SIZE_T)
+
+  ASSERT(Count == 0_C_SIZE_T)
+
+  call Forward%Free()
+  ASSERT(.not.Forward%Initialized())
+  call Backward%Free()
+  ASSERT(.not.Backward%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBellmanFord1)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBellmanFord, C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: Parent(4)
+  real(C_DOUBLE)            :: Distance(4)
+
+  !Four isolated vertices.
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  ASSERT(.not.GraphBellmanFord(Workspace, 1_C_SIZE_T, [8_C_SIZE_T]))
+  ASSERT_X(GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(2)))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(3)))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(4)))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == UnreachableVertex)
+  ASSERT(Parent(3) == UnreachableVertex)
+  ASSERT(Parent(4) == UnreachableVertex)
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBellmanFord2)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBellmanFord, C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  integer(C_SIZE_T)         :: Parent(4)
+  real(C_DOUBLE)            :: Distance(4)
+  logical                   :: HasNegativeCycles, Success
+
+  !    1
+  !A ---- B
+  !|      |
+  !1     1
+  !|      |
+  !C ---- D
+  !    1
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  !A.
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  !B.
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 3_C_SIZE_T))
+  !C.
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 0_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+  !D.
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(3_C_SIZE_T, 2_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  ASSERT_X(GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == 0_C_SIZE_T)
+  ASSERT((Parent(4) == 1_C_SIZE_T) .or. (Parent(4) == 2_C_SIZE_T))
+
+  !The detection pass reports the absence of negative cycles.
+  Success = GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], &
+                             NegativeCycles = HasNegativeCycles)
+  ASSERT_X(Success)
+  ASSERT(.not.HasNegativeCycles)
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBellmanFord3)
+#ifdef TSD_FORTRAN_IMPL
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBellmanFord, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE, UnreachableVertex
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: Parent(4), EdgeIndex
+  real(C_DOUBLE)            :: Distance(4), EdgeWeights(2)
+  logical                   :: HasNegativeCycles, Success
+
+  !A --5--> B
+  !
+  !C --2--> D
+  call Builder%New(4_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 2_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  EdgeWeights = 1.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 5.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 3_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 2.0_C_DOUBLE
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  Weight => EdgeTableWeight
+  Success = GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, &
+                             NegativeCycles = HasNegativeCycles)
+  ASSERT_X(Success)
+  ASSERT(.not.HasNegativeCycles)
+
+  call Workspace%Distance(Distance)
+  call Workspace%Parent(Parent)
+
+  ASSERT(abs(Distance(1)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 5.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(3)))
+  ASSERT(.not.IEEE_IS_FINITE(Distance(4)))
+
+  ASSERT(Parent(1) == UnreachableVertex)
+  ASSERT(Parent(2) == 0_C_SIZE_T)
+  ASSERT(Parent(3) == UnreachableVertex)
+  ASSERT(Parent(4) == UnreachableVertex)
+
+  Weight => null()
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+TEST_E(GRTPFortranBellmanFord4)
+#ifdef TSD_FORTRAN_IMPL
+  use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
+                            GraphBellmanFord, GraphWeightFunction, &
+                            C_SIZE_T, C_DOUBLE
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(GraphSupportBuilder) :: Builder
+  type(GraphSupport)        :: Support
+  type(GraphWorkspace)      :: Workspace
+  procedure(GraphWeightFunction), pointer :: Weight
+  integer(C_SIZE_T)         :: EdgeIndex
+  real(C_DOUBLE)            :: EdgeWeights(3)
+  logical                   :: HasNegativeCycles, Success
+
+  !A --1--> B --(-2)--> C
+  !          ^          |
+  !          |          |
+  !          +---(-2)---+
+  call Builder%New(3_C_SIZE_T)
+  ASSERT_X(Builder%Initialized())
+  ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  ASSERT_X(Builder%AddEdge(2_C_SIZE_T, 1_C_SIZE_T))
+
+  call Support%New(Builder)
+  ASSERT_X(Support%Initialized())
+  ASSERT(Support%EdgeCount() == 3_C_SIZE_T)
+  call Builder%Free()
+  ASSERT(.not.Builder%Initialized())
+
+  EdgeWeights = 1.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(0_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = 1.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(1_C_SIZE_T, 2_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = -2.0_C_DOUBLE
+  ASSERT_X(Support%EdgeIndex(2_C_SIZE_T, 1_C_SIZE_T, EdgeIndex))
+  EdgeWeights(EdgeIndex + 1_C_SIZE_T) = -2.0_C_DOUBLE
+
+  call Workspace%New(Support)
+  ASSERT_X(Workspace%Initialized())
+
+  Weight => EdgeTableWeight
+  Success = GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, &
+                             NegativeCycles = HasNegativeCycles)
+  ASSERT_X(Success)
+  ASSERT(HasNegativeCycles)
+
+  Weight => null()
+
+  call Workspace%Free()
+  ASSERT(.not.Workspace%Initialized())
+  call Support%Free()
+  ASSERT(.not.Support%Initialized())
+
+  contains
+
+    function EdgeTableWeight(Support, Origin, Destination, UserContext) result(WeightValue)
+      type(GraphSupport), intent(in) :: Support
+      integer(C_SIZE_T),  intent(in) :: Origin
+      integer(C_SIZE_T),  intent(in) :: Destination
+      class(*), intent(inout), optional, pointer :: UserContext
+      real(C_DOUBLE) :: WeightValue
+
+      integer(C_SIZE_T) :: LocalEdgeIndex
+
+      WeightValue = 1.0_C_DOUBLE
+      if (Support%EdgeIndex(Origin, Destination, LocalEdgeIndex)) then
+        WeightValue = EdgeWeights(LocalEdgeIndex + 1_C_SIZE_T)
+      endif
+    end function EdgeTableWeight
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranDijkstraSuite,
+           GRTPFortranDijkstra1,
+           GRTPFortranDijkstra2,
+           GRTPFortranDijkstra3,
+           GRTPFortranDijkstra4,
+           GRTPFortranDijkstra5);
+#endif
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranBidirectionalDijkstraSuite,
+           GRTPFortranBidirectionalDijkstra1,
+           GRTPFortranBidirectionalDijkstra2,
+           GRTPFortranBidirectionalDijkstra3);
+#endif
+
+#ifdef TSD_KERNEL
+TEST_SUITE(GRTPFortranBellmanFordFunctionSuite,
+           GRTPFortranBellmanFord1,
+           GRTPFortranBellmanFord2,
+           GRTPFortranBellmanFord3,
+           GRTPFortranBellmanFord4);
+#endif

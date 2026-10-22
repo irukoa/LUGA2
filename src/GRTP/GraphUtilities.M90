@@ -391,6 +391,8 @@ module GraphUtilities
     !      before selecting on it, since it is absent when no context is supplied.
     !Note: RECURSIVE guarantees that each activation keeps its own bridge state,
     !      so a weight function may start another run (nested or from a thread).
+    !Note: The function returns .FALSE., when Workspace is not initialized,
+    !      when SourceCount is zero, or when a source is not a vertex of the support.
     recursive module function GraphDijkstra(Workspace, &
                                             SourceCount, &
                                             Source, &
@@ -410,7 +412,99 @@ module GraphUtilities
 
   public :: GraphDijkstra
 
-  !TODO: rest of the algorithms.
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      callbacks are invoked synchronously on the calling thread.
+    !Note: The `Support` passed to a weight function is only valid inside the callback.
+    !Note: UserContext must be declared CLASS(*), POINTER: a less polymorphic
+    !      actual is rejected by some compilers for an INTENT(INOUT) unlimited
+    !      polymorphic dummy. Weight functions must test PRESENT and ASSOCIATED
+    !      before selecting on it, since it is absent when no context is supplied.
+    !Note: RECURSIVE guarantees that each activation keeps its own bridge state,
+    !      so a weight function may start another run (nested or from a thread).
+    !Note: The two workspaces must be distinct, and BackwardWorkspace must wrap
+    !      the transpose of the graph of ForwardWorkspace, because the backward
+    !      frontier expands the edges as stored.
+    !Note: Both searches share one weight function and see the edges in the
+    !      orientation of the workspace they are given, so asymmetric weights are
+    !      read mirrored and do not yield the true shortest path: keep the
+    !      weighting symmetric (unit weights are symmetric by construction).
+    !Note: ShortestPath, ShortestPathVertexCount and ShortestDistance are only
+    !      assigned when the function returns .TRUE.; on failure they are left
+    !      untouched. An unreachable target is a success reporting a zero vertex
+    !      count and an infinite distance, and writes no vertex at all, so only
+    !      the entries [1, ShortestPathVertexCount] of ShortestPath are modified.
+    !Note: The function returns .FALSE., writing no output, when either
+    !      workspace is not initialized, when the two workspaces are the same
+    !      object or wrap supports with different vertex or edge counts, when
+    !      Source or Target is not a vertex of the support, or when the scratch
+    !      buffer cannot be sized or allocated.
+    recursive module function GraphBidirectionalDijkstra(ForwardWorkspace, &
+                                                         BackwardWorkspace, &
+                                                         Source, &
+                                                         Target, &
+                                                         WeightFunction, &
+                                                         UserContext, &
+                                                         ShortestPath, &
+                                                         ShortestPathVertexCount, &
+                                                         ShortestDistance) &
+      result(Success)
+      class(GraphWorkspace), intent(inout) :: ForwardWorkspace
+      class(GraphWorkspace), intent(inout) :: BackwardWorkspace
+      integer(C_SIZE_T),     intent(in)    :: Source
+      integer(C_SIZE_T),     intent(in)    :: Target
+
+      procedure(GraphWeightFunction), optional, pointer :: WeightFunction
+      class(*), intent(inout),        optional, pointer :: UserContext
+
+      integer(C_SIZE_T), intent(inout), optional :: ShortestPath(ForwardWorkspace%VertexCount)
+      integer(C_SIZE_T), intent(inout), optional :: ShortestPathVertexCount
+      real(C_DOUBLE),    intent(inout), optional :: ShortestDistance
+
+      logical :: Success
+    end function GraphBidirectionalDijkstra
+  end interface
+
+  public :: GraphBidirectionalDijkstra
+
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      callbacks are invoked synchronously on the calling thread.
+    !Note: The `Support` passed to a weight function is only valid inside the callback.
+    !Note: UserContext must be declared CLASS(*), POINTER: a less polymorphic
+    !      actual is rejected by some compilers for an INTENT(INOUT) unlimited
+    !      polymorphic dummy. Weight functions must test PRESENT and ASSOCIATED
+    !      before selecting on it, since it is absent when no context is supplied.
+    !Note: RECURSIVE guarantees that each activation keeps its own bridge state,
+    !      so a weight function may start another run (nested or from a thread).
+    !Note: NegativeCycles is only assigned when the function returns .TRUE.; a
+    !      true value reports a negative cycle reachable from the sources, in
+    !      which case no shortest-path tree exists and the workspace distances
+    !      and parents must not be used.
+    !Note: The function returns .FALSE. when Workspace is not initialized, when
+    !      SourceCount is zero, or when a source is not a vertex of the support;
+    !      in the last case the workspace distances and parents are left in an
+    !      unspecified state.
+    recursive module function GraphBellmanFord(Workspace, &
+                                               SourceCount, &
+                                               Source, &
+                                               WeightFunction, &
+                                               UserContext, &
+                                               NegativeCycles) &
+      result(Success)
+      class(GraphWorkspace), intent(inout) :: Workspace
+      integer(C_SIZE_T),     intent(in)    :: SourceCount
+      integer(C_SIZE_T),     intent(in)    :: Source(SourceCount)
+
+      procedure(GraphWeightFunction), optional, pointer :: WeightFunction
+      class(*), intent(inout),        optional, pointer :: UserContext
+      logical,  intent(inout),        optional          :: NegativeCycles
+
+      logical :: Success
+    end function GraphBellmanFord
+  end interface
+
+  public :: GraphBellmanFord
 
 end module GraphUtilities
 
