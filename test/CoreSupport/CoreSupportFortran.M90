@@ -9,82 +9,86 @@ module CoreSupportFortran
 
   implicit none
 
-  !Interfaces from CoreSupport.h translated to Fortran
+  !< Interfaces from CoreSupport.h translated to Fortran.
 
   interface
 
-    ! Malloc.
+    !< Malloc.
     subroutine ResetFallibleMalloc() &
       bind(C, name="ResetFallibleMalloc")
     end subroutine ResetFallibleMalloc
 
     subroutine SetFallibleMalloc(FailAt) &
       bind(C, name="SetFallibleMalloc")
-      import :: C_SIZE_T
+      import C_SIZE_T
       integer(C_SIZE_T), value :: FailAt
     end subroutine SetFallibleMalloc
 
     function FallibleMalloc(Size) result(Ptr) &
       bind(C, name="FallibleMalloc")
-      import :: C_SIZE_T, C_PTR
+      import C_SIZE_T, C_PTR
       integer(C_SIZE_T), value :: Size
+
       type(C_PTR) :: Ptr
     end function FallibleMalloc
 
-    ! Realloc.
+    !< Realloc.
     subroutine ResetFallibleRealloc() &
       bind(C, name="ResetFallibleRealloc")
     end subroutine ResetFallibleRealloc
 
     subroutine SetFallibleRealloc(FailAt) &
       bind(C, name="SetFallibleRealloc")
-      import :: C_SIZE_T
+      import C_SIZE_T
       integer(C_SIZE_T), value :: FailAt
     end subroutine SetFallibleRealloc
 
     function FallibleRealloc(Ptr, NewSize) result(NewPtr) &
       bind(C, name="FallibleRealloc")
-      import :: C_PTR, C_SIZE_T
-      type(C_PTR), value :: Ptr
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       value :: Ptr
       integer(C_SIZE_T), value :: NewSize
+
       type(C_PTR) :: NewPtr
     end function FallibleRealloc
 
-    ! AddOverflow.
+    !< AddOverflow.
     subroutine ResetFallibleAddOverflow() &
       bind(C, name="ResetFallibleAddOverflow")
     end subroutine ResetFallibleAddOverflow
 
     subroutine SetFallibleAddOverflow(FailAt) &
       bind(C, name="SetFallibleAddOverflow")
-      import :: C_SIZE_T
+      import C_SIZE_T
       integer(C_SIZE_T), value :: FailAt
     end subroutine SetFallibleAddOverflow
 
     function FallibleAddOverflow(A, B, Res) result(Overflow) &
       bind(C, name="FallibleAddOverflow")
-      import :: C_SIZE_T, C_BOOL
-      integer(C_SIZE_T), value :: A, B
+      import C_SIZE_T, C_BOOL
+      integer(C_SIZE_T), value       :: A, B
       integer(C_SIZE_T), intent(out) :: Res
+
       logical(C_BOOL) :: Overflow
     end function FallibleAddOverflow
 
-    ! MulOverflow.
+    !< MulOverflow.
     subroutine ResetFallibleMulOverflow() &
       bind(C, name="ResetFallibleMulOverflow")
     end subroutine ResetFallibleMulOverflow
 
     subroutine SetFallibleMulOverflow(FailAt) &
       bind(C, name="SetFallibleMulOverflow")
-      import :: C_SIZE_T
+      import C_SIZE_T
       integer(C_SIZE_T), value :: FailAt
     end subroutine SetFallibleMulOverflow
 
     function FallibleMulOverflow(A, B, Res) result(Overflow) &
       bind(C, name="FallibleMulOverflow")
-      import :: C_SIZE_T, C_BOOL
-      integer(C_SIZE_T), value :: A, B
+      import C_SIZE_T, C_BOOL
+      integer(C_SIZE_T), value       :: A, B
       integer(C_SIZE_T), intent(out) :: Res
+
       logical(C_BOOL) :: Overflow
     end function FallibleMulOverflow
 

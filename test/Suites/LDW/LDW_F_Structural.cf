@@ -29,16 +29,16 @@ CONTEXT(StructuralCtx,
 
 #ifdef TSD_FORTRAN_IMPL
 
-!> Deterministic ZHEEVD stand-in for the LDW structural tests.
-!>
-!> The workspace query reports fixed sizes (LWORK=5, LRWORK=7, LIWORK=9)
-!> so that a mix-up between the element sizes of the three workspace
-!> buffers is observable. The computational call writes every output
-!> buffer, which also verifies that the buffers are large enough.
-!>
-!> StubMode selects the failure to inject. Each Run... helper assigns it
-!> immediately before calling DiagHermitian, so tests do not depend on the
-!> state left behind by another test.
+!< Deterministic ZHEEVD stand-in for the LDW structural tests.
+!<
+!< The workspace query reports fixed sizes (LWORK=5, LRWORK=7, LIWORK=9)
+!< so that a mix-up between the element sizes of the three workspace
+!< buffers is observable. The computational call writes every output
+!< buffer, which also verifies that the buffers are large enough.
+!<
+!< StubMode selects the failure to inject. Each Run... helper assigns it
+!< immediately before calling DiagHermitian, so tests do not depend on the
+!< state left behind by another test.
 module LDWStructuralZHEEVDStubs
 
   use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_QUIET_NAN, IEEE_VALUE
@@ -49,7 +49,7 @@ module LDWStructuralZHEEVDStubs
   implicit none
   private
 
-  ! Stub behaviour selectors.
+  !Stub behaviour selectors.
   integer(INT32), parameter, public :: &
     ZHEEVDNominal       = 0_INT32, &
     ZHEEVDFailQuery     = 1_INT32, &
@@ -62,12 +62,12 @@ module LDWStructuralZHEEVDStubs
     ZHEEVDHugeRWork     = 8_INT32, &
     ZHEEVDZeroIWork     = 9_INT32
 
-  ! Status codes reported by the failing stubs.
+  !Status codes reported by the failing stubs.
   integer(INT32), parameter, public :: &
     ZHEEVDQueryStatus   = 7_INT32, &
     ZHEEVDComputeStatus = -6_INT32
 
-  ! Nominal workspace sizes.
+  !Nominal workspace sizes.
   integer(INT32), parameter :: &
     NominalLWork  = 5_INT32, &
     NominalLRWork = 7_INT32, &
@@ -81,7 +81,7 @@ module LDWStructuralZHEEVDStubs
 
 contains
 
-  !> Runs DiagHermitian on a 3x3 matrix with the requested stub behaviour.
+  !< Runs DiagHermitian on a 3x3 matrix with the requested stub behaviour.
   subroutine RunDiagHermitian(Mode, Info)
     integer(INT32), intent(in)  :: Mode
     integer(C_INT), intent(out) :: Info
@@ -100,8 +100,8 @@ contains
                        Info = Info)
   end subroutine RunDiagHermitian
 
-  !> Runs DiagHermitian with an arbitrary dimension and the nominal stub.
-  !> The 1x1 buffers are only dereferenced when Dimension is 1.
+  !< Runs DiagHermitian with an arbitrary dimension and the nominal stub.
+  !< The 1x1 buffers are only dereferenced when Dimension is 1.
   subroutine RunDiagHermitianAtDimension(Dimension, Info)
     integer(C_SIZE_T), intent(in)  :: Dimension
     integer(C_INT),    intent(out) :: Info
@@ -120,7 +120,7 @@ contains
                        Info = Info)
   end subroutine RunDiagHermitianAtDimension
 
-  !> Runs DiagHermitian on a 3x3 matrix and returns its outputs.
+  !< Runs DiagHermitian on a 3x3 matrix and returns its outputs.
   subroutine RunDiagHermitianResults(Mode, Unitary, Eigenvalues, Info)
     integer(INT32),  intent(in)  :: Mode
     complex(REAL64), intent(out) :: Unitary(3, 3)
@@ -140,9 +140,9 @@ contains
                        Info = Info)
   end subroutine RunDiagHermitianResults
 
-  !> ZHEEVD stand-in. The workspace query reports NominalLWork/LRWork/LIWork
-  !> or an invalid value, depending on StubMode. The computational call
-  !> returns U = I and W = [1, 2, ...] so that the copy-back can be checked.
+  !< ZHEEVD stand-in. The workspace query reports NominalLWork/LRWork/LIWork
+  !< or an invalid value, depending on StubMode. The computational call
+  !< returns U = I and W = [1, 2, ...] so that the copy-back can be checked.
   subroutine ZHEEVDStub(JOBZ, UPLO, &
                         N, A, LDA, &
                         W, &
@@ -171,7 +171,7 @@ contains
       return
     endif
 
-    ! Workspace query.
+    !Workspace query.
     if (LWORK == -1_INT32) then
       select case (StubMode)
       case (ZHEEVDFailQuery)
@@ -214,8 +214,8 @@ contains
       return
     endif
 
-    ! Computational call. Every output is defined so that the implementation
-    ! never copies uninitialized data back to the caller, even on failure.
+    !Computational call. Every output is defined so that the implementation
+    !never copies uninitialized data back to the caller, even on failure.
     do j = 1, N
       do i = 1, N
         if (i == j) then

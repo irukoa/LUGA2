@@ -26,7 +26,7 @@ TEST_E(EINTFortranNominalReference)
 
   Array(1) = 1.0_rk
   do i = 2, Count
-    x = UpperBound * real(i - 1_sk, rk) / real(Count - 1_sk, rk)
+    x        = UpperBound * real(i - 1_sk, rk) / real(Count - 1_sk, rk)
     Array(i) = sin(x) / x
   enddo
 
@@ -124,7 +124,7 @@ TEST_E(EINT_PFortranNominalReference)
 
   Array(1) = 1.0_rk
   do i = 2, Count
-    x = UpperBound * real(i - 1_sk, rk) / real(Count - 1_sk, rk)
+    x        = UpperBound * real(i - 1_sk, rk) / real(Count - 1_sk, rk)
     Array(i) = sin(x) / x
   enddo
 

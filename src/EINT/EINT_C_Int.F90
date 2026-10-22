@@ -18,7 +18,7 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
 
     real(C_DOUBLE), pointer :: ArrayFPtr(:)
 
-    if(C_ASSOCIATED(Array)) then
+    if (C_ASSOCIATED(Array)) then
       call C_F_POINTER(Array, &
                        ArrayFPtr, &
                        [Count])
@@ -30,7 +30,7 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
     if (Count == 0_C_SIZE_T) then
       EINT_C = 0.0_C_DOUBLE
       return
-    end if
+    endif
 
     EINT_C = EINT(Array = ArrayFPtr, &
                   Base  = Base)
@@ -44,7 +44,7 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
 
     real(C_DOUBLE), pointer :: ArrayFPtr(:)
 
-    if(C_ASSOCIATED(Array)) then
+    if (C_ASSOCIATED(Array)) then
       call C_F_POINTER(Array, &
                        ArrayFPtr, &
                        [Count])
@@ -56,7 +56,7 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
     if (Count == 0_C_SIZE_T) then
       EINT_PC = 0.0_C_DOUBLE
       return
-    end if
+    endif
 
     EINT_PC = EINT_P(Array = ArrayFPtr, &
                      Base  = Base)

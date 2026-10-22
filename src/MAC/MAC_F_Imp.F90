@@ -41,10 +41,10 @@ submodule (MultidimensionalArrayContainers:MAC_C_Interfaces) MAC_F_Implementatio
         LocalLayout = Layout
       else
         LocalLayout = COLUMN_MAJOR
-      end if
+      endif
     else
       LocalLayout = COLUMN_MAJOR
-    end if
+    endif
 
     if (C_ASSOCIATED(Container%OpaqueHandle)) call FortranFreeMAC(Container)
 

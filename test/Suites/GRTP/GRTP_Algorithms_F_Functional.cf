@@ -218,7 +218,9 @@ TEST_E(GRTPFortranDijkstraWeightedCycle)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex
@@ -360,7 +362,9 @@ TEST_E(GRTPFortranDijkstraWeightedSingleSource)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex
@@ -503,7 +507,9 @@ TEST_E(GRTPFortranDijkstraWeightedMultiSource)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex
@@ -874,7 +880,9 @@ TEST_E(GRTPFortranBidirectionalRejectsLongerMeeting)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex
@@ -1017,7 +1025,9 @@ TEST_E(GRTPFortranBidirectionalKeepsFirstMeetingOnTie)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex
@@ -1029,7 +1039,6 @@ TEST_E(GRTPFortranBidirectionalKeepsFirstMeetingOnTie)
     end function EdgeTableWeight
 #endif
 END_TEST_E
-
 
 TEST_E(GRTPFortranBellmanFordIsolatedVertices)
 #ifdef TSD_FORTRAN_IMPL
@@ -1195,7 +1204,7 @@ TEST_E(GRTPFortranBellmanFordDirectedDisjointComponents)
   call Workspace%New(Support)
   ASSERT_X(Workspace%Initialized())
 
-  Weight => EdgeTableWeight
+  Weight  => EdgeTableWeight
   Success = GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, &
                              NegativeCycles = HasNegativeCycles)
   ASSERT_X(Success)
@@ -1227,7 +1236,9 @@ TEST_E(GRTPFortranBellmanFordDirectedDisjointComponents)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex
@@ -1284,7 +1295,7 @@ TEST_E(GRTPFortranBellmanFordNegativeCycleDetected)
   call Workspace%New(Support)
   ASSERT_X(Workspace%Initialized())
 
-  Weight => EdgeTableWeight
+  Weight  => EdgeTableWeight
   Success = GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, &
                              NegativeCycles = HasNegativeCycles)
   ASSERT_X(Success)
@@ -1303,7 +1314,9 @@ TEST_E(GRTPFortranBellmanFordNegativeCycleDetected)
       type(GraphSupport), intent(in) :: Support
       integer(C_SIZE_T),  intent(in) :: Origin
       integer(C_SIZE_T),  intent(in) :: Destination
+
       class(*), intent(inout), optional, pointer :: UserContext
+
       real(C_DOUBLE) :: WeightValue
 
       integer(C_SIZE_T) :: LocalEdgeIndex

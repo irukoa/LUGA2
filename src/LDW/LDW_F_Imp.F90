@@ -3,7 +3,11 @@
 
 submodule (LapackDeferredWrappers) LDW_F_Implementation
 
-  use ISO_C_BINDING, only: C_PTR, C_NULL_PTR, C_SIZEOF, C_ASSOCIATED, C_F_POINTER
+  use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
+                                         C_NULL_PTR, &
+                                         C_SIZEOF, &
+                                         C_ASSOCIATED, &
+                                         C_F_POINTER
   use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_FINITE
   use CoreFortran, only: FortranMulOverflow, FortranMalloc, FortranFree
 
@@ -62,11 +66,11 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                                      Res = BufferSize))) exit Body
 
       MatrixCopyHandle = FortranMalloc(BufferSize)
-      if (.not. C_ASSOCIATED(MatrixCopyHandle)) exit Body
+      if (.not.C_ASSOCIATED(MatrixCopyHandle)) exit Body
       call C_F_POINTER(MatrixCopyHandle, &
                        MatrixCopy, &
                        [Dimension, Dimension])
-      MatrixCopy = cmplx(Matrix, KIND=REAL64)
+      MatrixCopy = cmplx(Matrix, KIND = REAL64)
 
       !Eigenvalue buffer.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(1.0_REAL64), C_SIZE_T), &
@@ -74,7 +78,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                                      Res = BufferSize))) exit Body
 
       EigHandle = FortranMalloc(BufferSize)
-      if (.not. C_ASSOCIATED(EigHandle)) exit Body
+      if (.not.C_ASSOCIATED(EigHandle)) exit Body
       call C_F_POINTER(EigHandle, &
                        Eig, &
                        [Dimension])
@@ -110,8 +114,8 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
       !computational call succeeds.
       Info = int(huge(1_INT32), C_INT)
 
-      if (.not. IEEE_IS_FINITE(real(QueryWORK(1), REAL64)) .or. &
-          .not. IEEE_IS_FINITE(QueryRWORK(1)) .or. &
+      if (.not.IEEE_IS_FINITE(real(QueryWORK(1), REAL64)) .or. &
+          .not.IEEE_IS_FINITE(QueryRWORK(1)) .or. &
           real(QueryWORK(1), REAL64) < 0.0_REAL64 .or. &
           real(QueryWORK(1), REAL64) > real(huge(1_INT32), REAL64) .or. &
           QueryRWORK(1) < 0.0_REAL64 .or. &
@@ -128,7 +132,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                                      Res = BufferSize))) exit Body
 
       WORKHandle = FortranMalloc(BufferSize)
-      if (.not. C_ASSOCIATED(WORKHandle)) exit Body
+      if (.not.C_ASSOCIATED(WORKHandle)) exit Body
       call C_F_POINTER(WORKHandle, &
                        WORK, &
                        [LWORK])
@@ -139,7 +143,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                                      Res = BufferSize))) exit Body
 
       RWORKHandle = FortranMalloc(BufferSize)
-      if (.not. C_ASSOCIATED(RWORKHandle)) exit Body
+      if (.not.C_ASSOCIATED(RWORKHandle)) exit Body
       call C_F_POINTER(RWORKHandle, &
                        RWORK, &
                        [LRWORK])
@@ -150,7 +154,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                                      Res = BufferSize))) exit Body
 
       IWORKHandle = FortranMalloc(BufferSize)
-      if (.not. C_ASSOCIATED(IWORKHandle)) exit Body
+      if (.not.C_ASSOCIATED(IWORKHandle)) exit Body
       call C_F_POINTER(IWORKHandle, &
                        IWORK, &
                        [LIWORK])
@@ -171,7 +175,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                            CalculationStatus)
 
       if (present(Eigenvalues)) Eigenvalues = real(Eig, C_DOUBLE)
-      Unitary = cmplx(MatrixCopy, KIND=C_DOUBLE_COMPLEX)
+      Unitary = cmplx(MatrixCopy, KIND = C_DOUBLE_COMPLEX)
       Info    = int(CalculationStatus, C_INT)
 
     end block Body
@@ -208,7 +212,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
       enddo
 
       Degeneracies(i) = j - i + 1_C_SIZE_T
-      i = j + 1_C_SIZE_T
+      i               = j + 1_C_SIZE_T
 
     enddo
 

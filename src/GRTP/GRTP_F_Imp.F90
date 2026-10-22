@@ -318,7 +318,7 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
 
     Success = .false.
 
-    if (.not. Workspace%Initialized()) return
+    if (.not.Workspace%Initialized()) return
 
     WeightFunctionPtr = C_NULL_FUNPTR
     UserContextPtr    = C_NULL_PTR
@@ -354,8 +354,8 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
 
     Success = .false.
 
-    if (.not. ForwardWorkspace%Initialized()) return
-    if (.not. BackwardWorkspace%Initialized()) return
+    if (.not.ForwardWorkspace%Initialized()) return
+    if (.not.BackwardWorkspace%Initialized()) return
 
     if (ForwardWorkspace%VertexCount /= &
         BackwardWorkspace%VertexCount) return
@@ -363,14 +363,14 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
     ShortestPathHandle = C_NULL_PTR
     if (present(ShortestPath)) then
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(1_C_SIZE_T), C_SIZE_T), &
-                                    B   = max(1_C_SIZE_T, ForwardWorkspace%VertexCount), &
-                                    Res = BufferSize))) return
+                                     B   = max(1_C_SIZE_T, ForwardWorkspace%VertexCount), &
+                                     Res = BufferSize))) return
 
       ShortestPathHandle = FortranMalloc(BufferSize)
-      if (.not. C_ASSOCIATED(ShortestPathHandle)) return
+      if (.not.C_ASSOCIATED(ShortestPathHandle)) return
       call C_F_POINTER(ShortestPathHandle, &
-                      LocalShortestPath, &
-                      [max(1_C_SIZE_T, ForwardWorkspace%VertexCount)])
+                       LocalShortestPath, &
+                       [max(1_C_SIZE_T, ForwardWorkspace%VertexCount)])
     endif
 
     WeightFunctionPtr = C_NULL_FUNPTR
@@ -400,7 +400,7 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
 
     if (Success) then
       if (present(ShortestPath)) ShortestPath(1_C_SIZE_T:LocalShortestPathVertexCount) = &
-                                LocalShortestPath(1_C_SIZE_T:LocalShortestPathVertexCount)
+        LocalShortestPath(1_C_SIZE_T:LocalShortestPathVertexCount)
       if (present(ShortestPathVertexCount)) ShortestPathVertexCount = LocalShortestPathVertexCount
       if (present(ShortestDistance)) ShortestDistance = LocalShortestDistance
     endif
@@ -409,14 +409,14 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
 
   module procedure GraphBellmanFord
     type(FortranContextWrapper), target :: FSideUserContextWrapper
-    logical(C_BOOL), target             :: LocalNegativeCycles = .false._C_BOOL
+    logical(C_BOOL),             target :: LocalNegativeCycles = .false._C_BOOL
     type(C_PTR)                         :: NegativeCyclesHandle
     type(C_FUNPTR)                      :: WeightFunctionPtr
     type(C_PTR)                         :: UserContextPtr
 
     Success = .false.
 
-    if (.not. Workspace%Initialized()) return
+    if (.not.Workspace%Initialized()) return
 
     if (present(NegativeCycles)) then
       NegativeCyclesHandle = C_LOC(LocalNegativeCycles)

@@ -36,7 +36,7 @@ module MultidimensionalArrayContainers
     procedure, public, pass(Container) :: Multidimensional => FortranMACFlatToMultidimensional
     procedure, public, pass(Container) :: Flat             => FortranMACMultidimensionalToFlat
     procedure                          :: FortranCopyMAC
-    generic,   public                  :: assignment(=) => FortranCopyMAC
+    generic,   public                  :: assignment(=)    => FortranCopyMAC
     final                              :: FortranFreeMAC_Final
   end type MAC
 
@@ -64,7 +64,7 @@ module MultidimensionalArrayContainers
       class(MAC),        intent(inout) :: Container
       integer(C_SIZE_T), intent(in)    :: Shape(:)
 
-      integer(MACLayout), intent(in),  optional :: Layout
+      integer(MACLayout), intent(in), optional :: Layout
     end subroutine FortranNewMAC
   end interface
 

@@ -10,7 +10,7 @@ submodule (ExtrapolationIntegration) EINT_F_Implementation
 
   !Largest power of 2 of the largest number of the model of the type sk.
   integer(sk), parameter :: MaxPowerOfTwo = &
-    int(ceiling(log(real(huge(1_sk), rk))/log(2.0_rk)), sk)
+    int(ceiling(log(real(huge(1_sk), rk)) / log(2.0_rk)), sk)
 
   contains
 
@@ -24,7 +24,7 @@ submodule (ExtrapolationIntegration) EINT_F_Implementation
 
     do i = 2_sk, floor(sqrt(real(Number, rk)), sk)
       if (modulo(Number, i) == 0_sk) return
-    end do
+    enddo
 
     IsPrime = .true.
   end function IsPrime
@@ -40,9 +40,9 @@ submodule (ExtrapolationIntegration) EINT_F_Implementation
 
     Aux = Number
     do while (modulo(Aux, PrimeFactor) == 0_sk)
-      Aux = Aux/PrimeFactor
+      Aux         = Aux / PrimeFactor
       PowerFactor = PowerFactor + 1_sk
-    end do
+    enddo
   end function PowerFactor
 
   module procedure EINT
@@ -66,39 +66,39 @@ submodule (ExtrapolationIntegration) EINT_F_Implementation
       if (ArraySize == 1_sk) EINT = Array(1_sk)
       if (ArraySize == 0_sk) EINT = 0.0_rk
       return
-    end if
+    endif
 
     if (present(Base)) then
       if (IsPrime(Base)) then
         LocalBase = Base
       else
         LocalBase = 2_sk
-      end if
+      endif
     else
       LocalBase = 2_sk
-    end if
+    endif
 
     Power = PowerFactor(ArraySize - 1_sk, LocalBase)
 
     !Compute the trapezoidal sums.
     do i = 1_sk, Power + 1_sk
-      SummandCount = &
+      SummandCount   = &
         ((ArraySize - 1_sk) / LocalBase**(i - 1_sk)) + 1_sk
       TrapezoidalSum = 0.5_rk * (Array(1) + Array(ArraySize))
       do j = 2_sk, SummandCount - 1_sk
-        Index = (LocalBase**(i - 1_sk)) * (j-1_sk) + 1_sk
+        Index          = (LocalBase**(i - 1_sk)) * (j - 1_sk) + 1_sk
         TrapezoidalSum = TrapezoidalSum + Array(Index)
-      end do
+      enddo
       Work(Power + 2_sk - i) = TrapezoidalSum / real(SummandCount - 1_sk, rk)
-    end do
+    enddo
 
     !Apply the extrapolation scheme.
     do i = 2_sk, (Power + 1_sk)
       do j = 1_sk, (Power + 1_sk) - i + 1_sk
         Work(j) = &
-        ((real(LocalBase, rk)**2_sk)**(i - 1_sk)) * Work(j + 1_sk) - Work(j)
+          ((real(LocalBase, rk)**2_sk)**(i - 1_sk)) * Work(j + 1_sk) - Work(j)
         Work(j) = &
-        Work(j) / (-1.0_rk + (real(LocalBase, rk)**2_sk)**(i - 1_sk))
+          Work(j) / (-1.0_rk + (real(LocalBase, rk)**2_sk)**(i - 1_sk))
       enddo
     enddo
 
@@ -126,43 +126,43 @@ submodule (ExtrapolationIntegration) EINT_F_Implementation
       if (ArraySize == 1_sk) EINT_P = Array(1_sk)
       if (ArraySize == 0_sk) EINT_P = 0.0_rk
       return
-    end if
+    endif
 
     if (present(Base)) then
       if (IsPrime(Base)) then
         LocalBase = Base
       else
         LocalBase = 2_sk
-      end if
+      endif
     else
       LocalBase = 2_sk
-    end if
+    endif
 
     Power = PowerFactor(ArraySize - 1_sk, LocalBase)
 
     !Compute the trapezoidal sums.
     do i = 1_sk, Power + 1_sk
-      SummandCount = &
+      SummandCount   = &
         ((ArraySize - 1_sk) / LocalBase**(i - 1_sk)) + 1_sk
       TrapezoidalSum = 0.5_rk * (Array(1) + Array(ArraySize))
       !$OMP PARALLEL DO SIMD PRIVATE(j, Index) &
       !$OMP SHARED(SummandCount, LocalBase, i, Array) &
-      !$OMP REDUCTION(+: TrapezoidalSum) if(.not. omp_in_parallel())
+      !$OMP REDUCTION(+: TrapezoidalSum) if (.not.omp_in_parallel())
       do j = 2_sk, SummandCount - 1_sk
-        Index = (LocalBase**(i - 1_sk)) * (j-1_sk) + 1_sk
+        Index          = (LocalBase**(i - 1_sk)) * (j - 1_sk) + 1_sk
         TrapezoidalSum = TrapezoidalSum + Array(Index)
-      end do
+      enddo
       !$OMP END PARALLEL DO SIMD
       Work(Power + 2_sk - i) = TrapezoidalSum / real(SummandCount - 1_sk, rk)
-    end do
+    enddo
 
     !Apply the extrapolation scheme.
     do i = 2_sk, (Power + 1_sk)
       do j = 1_sk, (Power + 1_sk) - i + 1_sk
         Work(j) = &
-        ((real(LocalBase, rk)**2_sk)**(i - 1_sk)) * Work(j + 1_sk) - Work(j)
+          ((real(LocalBase, rk)**2_sk)**(i - 1_sk)) * Work(j + 1_sk) - Work(j)
         Work(j) = &
-        Work(j) / (-1.0_rk + (real(LocalBase, rk)**2_sk)**(i - 1_sk))
+          Work(j) / (-1.0_rk + (real(LocalBase, rk)**2_sk)**(i - 1_sk))
       enddo
     enddo
 

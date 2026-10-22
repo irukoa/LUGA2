@@ -30,9 +30,9 @@ CONTEXT(StructuralCtx,
 TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
 
-  !> The scratch buffer of GraphBidirectionalDijkstra is sized by a checked
-  !> multiplication. A failure armed at the first multiplication must abort the
-  !> run before anything is allocated or written.
+  !< The scratch buffer of GraphBidirectionalDijkstra is sized by a checked
+  !< multiplication. A failure armed at the first multiplication must abort the
+  !< run before anything is allocated or written.
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE
   use CoreSupportFortran, only: SetFallibleMulOverflow
@@ -106,8 +106,8 @@ END_TEST_EF
 TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMallocFailure)
 #ifdef TSD_FORTRAN_IMPL
 
-  !> A failed scratch allocation must reject the run without writing any output
-  !> and without leaving the workspaces unusable.
+  !< A failed scratch allocation must reject the run without writing any output
+  !< and without leaving the workspaces unusable.
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE
   use CoreSupportFortran, only: SetFallibleMalloc
@@ -192,8 +192,8 @@ END_TEST_EF
 TEST_EF(StructuralCtx, GRTPStructuralBidirectionalNominal)
 #ifdef TSD_FORTRAN_IMPL
 
-  !> Both injection points are armed one call past their actual usage: a wrapper
-  !> that allocated or multiplied more than once per run would fail here.
+  !< Both injection points are armed one call past their actual usage: a wrapper
+  !< that allocated or multiplied more than once per run would fail here.
   use GraphUtilities, only: GraphSupportBuilder, GraphSupport, GraphWorkspace, &
                             GraphBidirectionalDijkstra, C_SIZE_T, C_DOUBLE
   use CoreSupportFortran, only: SetFallibleMalloc, SetFallibleMulOverflow

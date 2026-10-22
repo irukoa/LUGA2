@@ -31,6 +31,7 @@ module CoreFortran
       result(CPointer)
       import C_SIZE_T, C_PTR
       integer(C_SIZE_T), intent(in), value :: Size
+
       type(C_PTR) :: CPointer
     end function FortranMalloc
   end interface
@@ -42,8 +43,9 @@ module CoreFortran
       bind(C, name="FortranRealloc") &
       result(CPointer)
       import C_SIZE_T, C_PTR
-      type(C_PTR), intent(in), value :: Ptr
+      type(C_PTR),       intent(in), value :: Ptr
       integer(C_SIZE_T), intent(in), value :: NewSize
+
       type(C_PTR) :: CPointer
     end function FortranRealloc
   end interface

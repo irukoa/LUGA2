@@ -78,7 +78,7 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
                        ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
                        Info = InfoFPtr)
 
-  end subroutine
+  end subroutine DiagHermitian_C
 
   subroutine DegeneracyGroup_C(Dimension, Eigenvalues, DegeneracyThreshold, Degeneracies) &
     bind(C, name="DegeneracyGroup")

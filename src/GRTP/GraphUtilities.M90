@@ -320,11 +320,11 @@ module GraphUtilities
     logical           :: Init              = .false.
     logical           :: Owner             = .true.
     contains
-    procedure, public, pass(Workspace) :: Free        => FortranFreeGraphWorkspace
-    procedure, public, pass(Workspace) :: New         => FortranNewGraphWorkspace
-    procedure, public, pass(Workspace) :: Initialized => FortranGraphWorkspaceInitialized
-    procedure, public, pass(Workspace) :: Distance    => FortranGraphWorkspaceDistance
-    procedure, public, pass(Workspace) :: Parent      => FortranGraphWorkspaceParent
+    procedure, public, pass(Workspace) :: Free          => FortranFreeGraphWorkspace
+    procedure, public, pass(Workspace) :: New           => FortranNewGraphWorkspace
+    procedure, public, pass(Workspace) :: Initialized   => FortranGraphWorkspaceInitialized
+    procedure, public, pass(Workspace) :: Distance      => FortranGraphWorkspaceDistance
+    procedure, public, pass(Workspace) :: Parent        => FortranGraphWorkspaceParent
     procedure                          :: FortranCopyGraphWorkspace
     generic,   public                  :: assignment(=) => FortranCopyGraphWorkspace
     final                              :: FortranFreeGraphWorkspace_Final

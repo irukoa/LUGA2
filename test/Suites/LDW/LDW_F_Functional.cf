@@ -2,13 +2,13 @@
 #ifdef TSD_FORTRAN_IMPL
 #include "src/LDW/LapackDeferredWrappers.M90"
 
-!> Deterministic ZHEEVD stand-in and numerical helpers for the LDW
-!> functional tests.
-!>
-!> The stub reports a workspace query of N elements per workspace buffer
-!> and records how many times the query and the computational call were
-!> made. This keeps the fast-return and failure-propagation tests
-!> independent of a real LAPACK build.
+!< Deterministic ZHEEVD stand-in and numerical helpers for the LDW
+!< functional tests.
+!<
+!< The stub reports a workspace query of N elements per workspace buffer
+!< and records how many times the query and the computational call were
+!< made. This keeps the fast-return and failure-propagation tests
+!< independent of a real LAPACK build.
 module LDWFortranFunctionalSupport
 
   use LapackDeferredWrappers, only: INT32, REAL64
@@ -36,7 +36,7 @@ module LDWFortranFunctionalSupport
 
 contains
 
-  !> Restores the nominal stub behaviour and clears the call counters.
+  !< Restores the nominal stub behaviour and clears the call counters.
   subroutine ResetZHEEVDStub()
     QueryStatus   = 0_INT32
     ComputeStatus = 0_INT32
@@ -44,8 +44,8 @@ contains
     ComputeCalls  = 0_INT32
   end subroutine ResetZHEEVDStub
 
-  !> Selects the statuses returned by the workspace query and by the
-  !> computational call.
+  !< Selects the statuses returned by the workspace query and by the
+  !< computational call.
   subroutine SetZHEEVDStubStatus(NewQueryStatus, NewComputeStatus)
     integer(INT32), intent(in) :: NewQueryStatus
     integer(INT32), intent(in) :: NewComputeStatus
@@ -54,7 +54,7 @@ contains
     ComputeStatus = NewComputeStatus
   end subroutine SetZHEEVDStubStatus
 
-  !> Returns how many workspace queries and computational calls were made.
+  !< Returns how many workspace queries and computational calls were made.
   subroutine GetZHEEVDStubCalls(Queries, Computations)
     integer(INT32), intent(out) :: Queries
     integer(INT32), intent(out) :: Computations
@@ -63,8 +63,8 @@ contains
     Computations = ComputeCalls
   end subroutine GetZHEEVDStubCalls
 
-  !> Minimal ZHEEVD stand-in. The query reports N workspace elements; the
-  !> computational call overwrites the matrix and the eigenvalue buffers.
+  !< Minimal ZHEEVD stand-in. The query reports N workspace elements; the
+  !< computational call overwrites the matrix and the eigenvalue buffers.
   subroutine ZHEEVDStub(JOBZ, UPLO, &
                         N, A, LDA, &
                         W, &
@@ -108,7 +108,7 @@ contains
     endif
   end subroutine ZHEEVDStub
 
-  !> Maximum deviation of U from unitarity (U^H U = I).
+  !< Maximum deviation of U from unitarity (U^H U = I).
   pure function OrthonormalityError(U, N) result(Error)
     integer,         intent(in) :: N
     complex(REAL64), intent(in) :: U(N, N)
@@ -131,7 +131,7 @@ contains
     enddo
   end function OrthonormalityError
 
-  !> Maximum deviation of U^H H U from diag(E).
+  !< Maximum deviation of U^H H U from diag(E).
   pure function ResidualError(H, U, E, N) result(Error)
     integer,         intent(in) :: N
     complex(REAL64), intent(in) :: H(N, N)
@@ -156,8 +156,8 @@ contains
     enddo
   end function ResidualError
 
-  !> Fills Unitary with the normalized N-point Fourier matrix. Its columns
-  !> are orthonormal and are the eigenvectors of every circulant matrix.
+  !< Fills Unitary with the normalized N-point Fourier matrix. Its columns
+  !< are orthonormal and are the eigenvectors of every circulant matrix.
   pure subroutine FourierUnitary(Unitary, N)
     integer,         intent(in)  :: N
     complex(REAL64), intent(out) :: Unitary(N, N)
@@ -176,9 +176,9 @@ contains
     enddo
   end subroutine FourierUnitary
 
-  !> Builds Matrix = Fourier diag(Eigenvalues) Fourier^H, a Hermitian matrix
-  !> whose eigenvalues are Eigenvalues and whose eigenvectors are the columns
-  !> of Fourier (the columns of a degenerate eigenvalue span its eigenspace).
+  !< Builds Matrix = Fourier diag(Eigenvalues) Fourier^H, a Hermitian matrix
+  !< whose eigenvalues are Eigenvalues and whose eigenvectors are the columns
+  !< of Fourier (the columns of a degenerate eigenvalue span its eigenspace).
   pure subroutine SpectralHermitian(Eigenvalues, Fourier, Matrix, N)
     integer,         intent(in)  :: N
     real(REAL64),    intent(in)  :: Eigenvalues(N)
@@ -189,8 +189,8 @@ contains
                     conjg(transpose(Fourier)))
   end subroutine SpectralHermitian
 
-  !> Absolute overlap |U(:, i)^H V(:, j)| between two unit columns. It is one
-  !> when the columns are equal up to an arbitrary phase factor.
+  !< Absolute overlap |U(:, i)^H V(:, j)| between two unit columns. It is one
+  !< when the columns are equal up to an arbitrary phase factor.
   pure function EigenvectorOverlap(U, V, N, i, j) result(Overlap)
     integer,         intent(in) :: N
     integer,         intent(in) :: i
@@ -223,9 +223,9 @@ TEST_E(LDWFortranDHNominal)
   real(C_DOUBLE)            :: E(3)
   integer(C_INT)            :: Info
 
-  H(1, :) = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
-  H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
-  H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
+  H(1, :)   = [ 3*Cmplx1,  1*CmplxI, 1*Cmplx1]
+  H(2, :)   = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
+  H(3, :)   = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
   HOriginal = H
 
   call DiagHermitian(Dimension = 3_C_SIZE_T, &
@@ -282,7 +282,6 @@ TEST_E(LDWFortranDHNominalNoEigenvalues)
 
 #endif
 END_TEST_E
-
 
 TEST_E(LDWFortranDHNominal1x1)
 #ifdef TSD_FORTRAN_IMPL
@@ -355,7 +354,6 @@ TEST_E(LDWFortranDHNominal2x2)
 
 #endif
 END_TEST_E
-
 
 TEST_E(LDWFortranDHNominal8x8)
 #ifdef TSD_FORTRAN_IMPL
@@ -463,7 +461,6 @@ TEST_E(LDWFortranDHNominal16x16)
 
 #endif
 END_TEST_E
-
 
 TEST_E(LDWFortranDHFastReturn)
 #ifdef TSD_FORTRAN_IMPL
@@ -701,7 +698,6 @@ TEST_E(LDWFortranDegenThresholdBoundary)
 #endif
 END_TEST_E
 
-
 TEST_E(LDWFortranDegenNegativeThr)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
@@ -851,8 +847,8 @@ TEST_E(LDWFortranDiagHermitianReference)
   external :: zheevd
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
-  real(C_DOUBLE) :: E(3)
-  integer(C_INT) :: Info
+  real(C_DOUBLE)            :: E(3)
+  integer(C_INT)            :: Info
 
   integer :: i, j
 

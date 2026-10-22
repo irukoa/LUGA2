@@ -9,10 +9,10 @@ submodule (GraphUtilities) GRTP_C_Interfaces
 
   implicit none
 
-  ! GRAPH TOPOLOGY - MUTABLE SUPPORT.
+  !< GRAPH TOPOLOGY - MUTABLE SUPPORT.
 
   interface
-   pure subroutine FreeGraphSupportBuilder(OpaqueHandle) &
+    pure subroutine FreeGraphSupportBuilder(OpaqueHandle) &
       bind(C, name="FreeGraphSupportBuilder")
       import C_PTR
       type(C_PTR), intent(inout) :: OpaqueHandle
@@ -20,7 +20,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function NewGraphSupportBuilder(VertexCount) &
+    pure function NewGraphSupportBuilder(VertexCount) &
       bind(C, name="NewGraphSupportBuilder") &
       result(OpaqueHandle)
       import C_SIZE_T, C_PTR
@@ -31,7 +31,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   function GraphSupportBuilderAddEdge(OpaqueHandle, Origin, Destination) &
+    function GraphSupportBuilderAddEdge(OpaqueHandle, Origin, Destination) &
       bind(C, name="GraphSupportBuilderAddEdge") &
       result(Added)
       import C_PTR, C_SIZE_T, C_BOOL
@@ -44,7 +44,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   function GraphSupportBuilderRemoveEdge(OpaqueHandle, Origin, Destination) &
+    function GraphSupportBuilderRemoveEdge(OpaqueHandle, Origin, Destination) &
       bind(C, name="GraphSupportBuilderRemoveEdge") &
       result(Removed)
       import C_PTR, C_SIZE_T, C_BOOL
@@ -57,7 +57,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportBuilderGetVertexCount(OpaqueHandle) &
+    pure function GraphSupportBuilderGetVertexCount(OpaqueHandle) &
       bind(C, name="GraphSupportBuilderGetVertexCount") &
       result(VertexCount)
       import C_PTR, C_SIZE_T
@@ -68,7 +68,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportBuilderGetEdgeCount(OpaqueHandle) &
+    pure function GraphSupportBuilderGetEdgeCount(OpaqueHandle) &
       bind(C, name="GraphSupportBuilderGetEdgeCount") &
       result(EdgeCount)
       import C_PTR, C_SIZE_T
@@ -79,7 +79,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportBuilderGetNeighborCount(OpaqueHandle, Vertex) &
+    pure function GraphSupportBuilderGetNeighborCount(OpaqueHandle, Vertex) &
       bind(C, name="GraphSupportBuilderGetNeighborCount") &
       result(NeighborCount)
       import C_PTR, C_SIZE_T
@@ -91,7 +91,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportBuilderGetNeighbors(OpaqueHandle, Vertex) &
+    pure function GraphSupportBuilderGetNeighbors(OpaqueHandle, Vertex) &
       bind(C, name="GraphSupportBuilderGetNeighbors") &
       result(Neighbors)
       import C_PTR, C_SIZE_T
@@ -103,7 +103,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportBuilderHasEdge(OpaqueHandle, Origin, Destination) &
+    pure function GraphSupportBuilderHasEdge(OpaqueHandle, Origin, Destination) &
       bind(C, name="GraphSupportBuilderHasEdge") &
       result(HasEdge)
       import C_PTR, C_SIZE_T, C_BOOL
@@ -115,10 +115,10 @@ submodule (GraphUtilities) GRTP_C_Interfaces
     end function GraphSupportBuilderHasEdge
   end interface
 
-  ! GRAPH TOPOLOGY - IMMUTABLE SUPPORT.
+  !< GRAPH TOPOLOGY - IMMUTABLE SUPPORT.
 
   interface
-   pure subroutine FreeGraphSupport(OpaqueHandle) &
+    pure subroutine FreeGraphSupport(OpaqueHandle) &
       bind(C, name="FreeGraphSupport")
       import C_PTR
       type(C_PTR), intent(inout) :: OpaqueHandle
@@ -126,7 +126,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function NewGraphSupport(BuilderHandle) &
+    pure function NewGraphSupport(BuilderHandle) &
       bind(C, name="NewGraphSupport") &
       result(OpaqueHandle)
       import C_PTR
@@ -137,7 +137,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportGetVertexCount(OpaqueHandle) &
+    pure function GraphSupportGetVertexCount(OpaqueHandle) &
       bind(C, name="GraphSupportGetVertexCount") &
       result(VertexCount)
       import C_PTR, C_SIZE_T
@@ -148,7 +148,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportGetEdgeCount(OpaqueHandle) &
+    pure function GraphSupportGetEdgeCount(OpaqueHandle) &
       bind(C, name="GraphSupportGetEdgeCount") &
       result(EdgeCount)
       import C_PTR, C_SIZE_T
@@ -159,7 +159,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportGetNeighborCount(OpaqueHandle, Vertex) &
+    pure function GraphSupportGetNeighborCount(OpaqueHandle, Vertex) &
       bind(C, name="GraphSupportGetNeighborCount") &
       result(NeighborCount)
       import C_PTR, C_SIZE_T
@@ -171,7 +171,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportGetNeighbors(OpaqueHandle, Vertex) &
+    pure function GraphSupportGetNeighbors(OpaqueHandle, Vertex) &
       bind(C, name="GraphSupportGetNeighbors") &
       result(Neighbors)
       import C_PTR, C_SIZE_T
@@ -183,7 +183,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   function GraphSupportGetEdgeIndex(OpaqueHandle, Origin, Destination, EdgeIndex) &
+    function GraphSupportGetEdgeIndex(OpaqueHandle, Origin, Destination, EdgeIndex) &
       bind(C, name="GraphSupportGetEdgeIndex") &
       result(HasEdge)
       import C_PTR, C_SIZE_T, C_BOOL
@@ -197,7 +197,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   function GraphSupportGetEdgeVertices(OpaqueHandle, EdgeIndex, Origin, Destination) &
+    function GraphSupportGetEdgeVertices(OpaqueHandle, EdgeIndex, Origin, Destination) &
       bind(C, name="GraphSupportGetEdgeVertices") &
       result(HasEdge)
       import C_PTR, C_SIZE_T, C_BOOL
@@ -211,7 +211,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphSupportHasEdge(OpaqueHandle, Origin, Destination) &
+    pure function GraphSupportHasEdge(OpaqueHandle, Origin, Destination) &
       bind(C, name="GraphSupportHasEdge") &
       result(HasEdge)
       import C_PTR, C_SIZE_T, C_BOOL
@@ -223,10 +223,10 @@ submodule (GraphUtilities) GRTP_C_Interfaces
     end function GraphSupportHasEdge
   end interface
 
-  ! GRAPH ALGORITHMS - WORKSPACE.
+  !< GRAPH ALGORITHMS - WORKSPACE.
 
   interface
-   pure subroutine FreeGraphWorkspace(OpaqueHandle) &
+    pure subroutine FreeGraphWorkspace(OpaqueHandle) &
       bind(C, name="FreeGraphWorkspace")
       import C_PTR
       type(C_PTR), intent(inout) :: OpaqueHandle
@@ -234,7 +234,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function NewGraphWorkspace(SupportHandle) &
+    pure function NewGraphWorkspace(SupportHandle) &
       bind(C, name="NewGraphWorkspace") &
       result(OpaqueHandle)
       import C_PTR
@@ -245,7 +245,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphWorkspaceGetDistance(OpaqueHandle) &
+    pure function GraphWorkspaceGetDistance(OpaqueHandle) &
       bind(C, name="GraphWorkspaceGetDistance") &
       result(Distance)
       import C_PTR
@@ -256,7 +256,7 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   pure function GraphWorkspaceGetParent(OpaqueHandle) &
+    pure function GraphWorkspaceGetParent(OpaqueHandle) &
       bind(C, name="GraphWorkspaceGetParent") &
       result(Parent)
       import C_PTR
@@ -266,11 +266,11 @@ submodule (GraphUtilities) GRTP_C_Interfaces
     end function GraphWorkspaceGetParent
   end interface
 
-  ! GRAPH ALGORITHMS - SHORTEST PATHS.
+  !< GRAPH ALGORITHMS - SHORTEST PATHS.
 
   interface
-   function GraphDijkstra_C(WorkspaceHandle, SourceCount, Source, &
-                            WeightFunction, UserContext) &
+    function GraphDijkstra_C(WorkspaceHandle, SourceCount, Source, &
+                             WeightFunction, UserContext) &
       bind(C, name="GraphDijkstra") &
       result(Success)
       import C_PTR, C_SIZE_T, C_FUNPTR, C_BOOL
@@ -285,11 +285,11 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   function GraphBidirectionalDijkstra_C(ForwardHandle, BackwardHandle, &
-                                         Source, Target, WeightFunction, &
-                                         UserContext, ShortestPath, &
-                                         ShortestPathVertexCount, &
-                                         ShortestDistance) &
+    function GraphBidirectionalDijkstra_C(ForwardHandle, BackwardHandle, &
+                                          Source, Target, WeightFunction, &
+                                          UserContext, ShortestPath, &
+                                          ShortestPathVertexCount, &
+                                          ShortestDistance) &
       bind(C, name="GraphBidirectionalDijkstra") &
       result(Success)
       import C_PTR, C_SIZE_T, C_FUNPTR, C_BOOL, C_DOUBLE
@@ -308,8 +308,8 @@ submodule (GraphUtilities) GRTP_C_Interfaces
   end interface
 
   interface
-   function GraphBellmanFord_C(WorkspaceHandle, SourceCount, Source, &
-                               WeightFunction, UserContext, NegativeCycles) &
+    function GraphBellmanFord_C(WorkspaceHandle, SourceCount, Source, &
+                                WeightFunction, UserContext, NegativeCycles) &
       bind(C, name="GraphBellmanFord") &
       result(Success)
       import C_PTR, C_SIZE_T, C_FUNPTR, C_BOOL
