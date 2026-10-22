@@ -1,6 +1,7 @@
 #include "test/TSD/TSD_Fortran.h"
 #ifdef TSD_FORTRAN_IMPL
 #include "src/LDW/LapackDeferredWrappers.M90"
+#include "test/CoreSupport/CoreSupportFortran.M90"
 #endif
 #ifdef TSD_KERNEL
 #include "src/Core/Core.h"
@@ -19,8 +20,6 @@ CONTEXT_FN(StructuralTeardown) {
   (void)ContextData;
   RESET_FN(Core_Malloc);
   RESET_FN(Core_MulOverflow);
-  ResetFallibleMalloc();
-  ResetFallibleMulOverflow();
 }
 CONTEXT(StructuralCtx,
         StructuralSetup,
@@ -285,10 +284,10 @@ TEST_EF(StructuralCtx, LDWStructuralMatrixCopyColumnBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -307,10 +306,10 @@ TEST_EF(StructuralCtx, LDWStructuralMatrixCopyTotalBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -329,10 +328,10 @@ TEST_EF(StructuralCtx, LDWStructuralEigenvaluesBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -351,10 +350,10 @@ TEST_EF(StructuralCtx, LDWStructuralWorkBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -373,10 +372,10 @@ TEST_EF(StructuralCtx, LDWStructuralRWorkBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -395,10 +394,10 @@ TEST_EF(StructuralCtx, LDWStructuralIWorkBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -417,10 +416,10 @@ TEST_EF(StructuralCtx, LDWStructuralMatrixCopyAllocFail)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -439,10 +438,10 @@ TEST_EF(StructuralCtx, LDWStructuralEigenvaluesAllocFail)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -461,10 +460,10 @@ TEST_EF(StructuralCtx, LDWStructuralWorkAllocFail)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -483,10 +482,10 @@ TEST_EF(StructuralCtx, LDWStructuralRWorkAllocFail)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -505,10 +504,10 @@ TEST_EF(StructuralCtx, LDWStructuralIWorkAllocFail)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -710,10 +709,10 @@ TEST_EF(StructuralCtx, LDWStructuralAllocatorCallsExhausted)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -733,10 +732,10 @@ TEST_EF(StructuralCtx, LDWStructuralMultiplierCallsExhausted)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
   use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDNominal
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   integer(C_INT) :: Info
   type(C_PTR)    :: CCtx
@@ -790,10 +789,10 @@ END_TEST_EF
 TEST_EF(StructuralCtx, LDWStructuralDegeneracyNoAllocator)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use CoreSupportFortran
 
   implicit none
   TSD_TEST_EF_INTERFACES
-#include "test/CoreSupport/CoreSupportFortran.inc"
 
   real(C_DOUBLE)    :: E(3)
   integer(C_SIZE_T) :: D(3)

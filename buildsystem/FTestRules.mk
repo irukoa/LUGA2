@@ -2,7 +2,7 @@
 TESTSRCS += $(wildcard $(DIR)/*.cf)
 TESTOBJS += $(patsubst $(DIR)/%.cf,$(TESTOBJ)/%.o,$(wildcard $(DIR)/*.cf))
 
-$(TESTOBJ)/%.o: $(DIR)/%.cf $(FMODDEFS) | $(TESTOBJ) $(DSC)
+$(TESTOBJ)/%.o: $(DIR)/%.cf $(FMODDEFS) $(FTESTMODDEFS) | $(TESTOBJ) $(DSC)
 		$(info $(call cls,Fortran Test Object: $<)) $(MKDIR) $(DSC)/$* ; \
 		ConvertedSource="$(addsuffix .f90, $(DSC)/$*/$(notdir $<))"; \
 		CObjectFile="$(TESTOBJ)/$(notdir $(basename $<)).co"; \
@@ -12,6 +12,7 @@ $(TESTOBJ)/%.o: $(DIR)/%.cf $(FMODDEFS) | $(TESTOBJ) $(DSC)
 		$(FC) $(FFLAGS) $(INC) $(TESTINC) $(DEFS) -J$(DSC)/$* -c $$ConvertedSource -o $$FObjectFile; \
 		$(CC) -r $$CObjectFile $$FObjectFile -o $@; \
 		$(OBJCOPY) $(WEAKEN_SYMBOLS) $@
+		$(OBJCOPY) $(WEAKEN_TEST_SYMBOLS) $@
 
 $(TESTOBJ)/%.d: $(DIR)/%.cf | $(TESTOBJ)
 		$(info $(call cls,Dependency: $<)) $(DEPSCRIPT) $< $(TESTOBJ) -DTSD_KERNEL > $@ || $(RM) $@
