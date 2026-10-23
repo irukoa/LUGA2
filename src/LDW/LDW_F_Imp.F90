@@ -194,6 +194,215 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
   end procedure DiagHermitian
 
+  !< SELECT callback for ZGEES. LDW always requests SORT = 'N', so LAPACK
+  !< never references this procedure; the comparison only keeps the dummy
+  !< argument used.
+  pure logical(LOGICAL32) function SelectUnused(C) result(Selected)
+    complex(REAL64), intent(in) :: C
+
+    Selected = .false.
+    associate(dummy => C)
+    end associate
+
+  end function SelectUnused
+
+  module procedure SchurDecomposition
+    integer(C_SIZE_T)           :: BufferSize, BufferCopy
+    complex(REAL64),    pointer :: MatrixCopy(:, :)
+    complex(REAL64),    pointer :: Eig(:)
+    complex(REAL64),    pointer :: LocalUnitary(:, :)
+    complex(REAL64),    pointer :: WORK(:)
+    real(REAL64),       pointer :: RWORK(:)
+    logical(LOGICAL32), pointer :: BWORK(:)
+
+    type(C_PTR) :: MatrixCopyHandle, &
+                   EigHandle, &
+                   UnitaryHandle, &
+                   WORKHandle, &
+                   RWORKHandle, &
+                   BWORKHandle
+
+    complex(REAL64)    :: QueryWORK(1)
+    real(REAL64)       :: QueryRWORK(1)
+    logical(LOGICAL32) :: QueryBWORK(1)
+
+    integer(INT32) :: IntDim, SDim
+    integer(INT32) :: LWORK
+    integer(INT32) :: WorkspaceQueryStatus, &
+                      CalculationStatus
+
+    nullify(MatrixCopy, Eig, LocalUnitary, WORK, RWORK, BWORK)
+
+    MatrixCopyHandle = C_NULL_PTR
+    EigHandle        = C_NULL_PTR
+    UnitaryHandle    = C_NULL_PTR
+    WORKHandle       = C_NULL_PTR
+    RWORKHandle      = C_NULL_PTR
+    BWORKHandle      = C_NULL_PTR
+
+    Info = 0_INT32
+
+    if (Dimension == 0_C_SIZE_T) return
+
+    Info = int(huge(1_INT32), C_INT)
+
+    if (Dimension > int(huge(1_INT32), C_SIZE_T)) return
+
+    Body: block
+
+      !Matrix copy buffer.
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+      BufferCopy = BufferSize
+      if (logical(FortranMulOverflow(A   = BufferCopy, &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+
+      MatrixCopyHandle = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(MatrixCopyHandle)) exit Body
+      call C_F_POINTER(MatrixCopyHandle, &
+                       MatrixCopy, &
+                       [Dimension, Dimension])
+      MatrixCopy = cmplx(Matrix, KIND = REAL64)
+
+      !Eigenvalue buffer.
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+
+      EigHandle = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(EigHandle)) exit Body
+      call C_F_POINTER(EigHandle, &
+                       Eig, &
+                       [Dimension])
+
+      !Unitary matrix buffer.
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+      BufferCopy = BufferSize
+      if (logical(FortranMulOverflow(A   = BufferCopy, &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+
+      UnitaryHandle = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(UnitaryHandle)) exit Body
+      call C_F_POINTER(UnitaryHandle, &
+                       LocalUnitary, &
+                       [Dimension, Dimension])
+
+      IntDim = int(Dimension, INT32)
+
+      !Workspace query. Initialize the query buffers so that a callback
+      !which fails to fill them is detected by the validation below.
+      QueryWORK  = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      QueryRWORK = 0.0_REAL64
+      QueryBWORK = .false._LOGICAL32
+
+      call ZGEESProcedure('V', &
+                          'N', &
+                          SelectUnused, &
+                          IntDim, &
+                          MatrixCopy, &
+                          IntDim, &
+                          SDim, &
+                          Eig, &
+                          LocalUnitary, &
+                          IntDim, &
+                          QueryWORK, &
+                          -1_INT32, &
+                          QueryRWORK, &
+                          QueryBWORK, &
+                          WorkspaceQueryStatus)
+
+      if (WorkspaceQueryStatus /= 0_C_INT) then
+        Info = int(WorkspaceQueryStatus, C_INT)
+        exit Body
+      endif
+
+      !From here on Info stays at the failure sentinel until the
+      !computational call succeeds.
+      Info = int(huge(1_INT32), C_INT)
+
+      if (.not.IEEE_IS_FINITE(real(QueryWORK(1), REAL64)) .or. &
+          real(QueryWORK(1), REAL64) < 0.0_REAL64 .or. &
+          real(QueryWORK(1), REAL64) > real(huge(1_INT32), REAL64)) exit Body
+
+      LWORK = int(nint(real(QueryWORK(1), REAL64)), INT32)
+
+      !Complex workspace.
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
+                                     B   = int(LWORK, C_SIZE_T), &
+                                     Res = BufferSize))) exit Body
+
+      WORKHandle = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(WORKHandle)) exit Body
+      call C_F_POINTER(WORKHandle, &
+                       WORK, &
+                       [LWORK])
+
+      !Real workspace.
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(1.0_REAL64), C_SIZE_T), &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+
+      RWORKHandle = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(RWORKHandle)) exit Body
+      call C_F_POINTER(RWORKHandle, &
+                       RWORK, &
+                       [Dimension])
+
+      !Logical workspace.
+      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(.false._LOGICAL32), C_SIZE_T), &
+                                     B   = Dimension, &
+                                     Res = BufferSize))) exit Body
+
+      BWORKHandle = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(BWORKHandle)) exit Body
+      call C_F_POINTER(BWORKHandle, &
+                       BWORK, &
+                       [Dimension])
+
+      !Actual Schur decomposition.
+      call ZGEESProcedure('V', &
+                          'N', &
+                          SelectUnused, &
+                          IntDim, &
+                          MatrixCopy, &
+                          IntDim, &
+                          SDim, &
+                          Eig, &
+                          LocalUnitary, &
+                          IntDim, &
+                          WORK, &
+                          LWORK, &
+                          RWORK, &
+                          BWORK, &
+                          CalculationStatus)
+
+      Unitary = cmplx(LocalUnitary, KIND = C_DOUBLE_COMPLEX)
+      if (present(SchurForm)) SchurForm = cmplx(MatrixCopy, KIND = C_DOUBLE_COMPLEX)
+      Info = int(CalculationStatus, C_INT)
+
+    end block Body
+
+    if (associated(BWORK)) BWORK => null()
+    if (associated(RWORK)) RWORK => null()
+    if (associated(WORK)) WORK => null()
+    if (associated(Eig)) Eig => null()
+    if (associated(LocalUnitary)) LocalUnitary => null()
+    if (associated(MatrixCopy)) MatrixCopy => null()
+
+    call FortranFree(BWORKHandle)
+    call FortranFree(RWORKHandle)
+    call FortranFree(WORKHandle)
+    call FortranFree(EigHandle)
+    call FortranFree(UnitaryHandle)
+    call FortranFree(MatrixCopyHandle)
+
+  end procedure SchurDecomposition
+
   module procedure DegeneracyGroup
     integer(C_SIZE_T) :: i, j
 

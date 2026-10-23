@@ -11,6 +11,7 @@
 !< independent of a real LAPACK build.
 module LDWFortranFunctionalSupport
 
+  use, intrinsic :: ISO_FORTRAN_ENV, only: LOGICAL32
   use LapackDeferredWrappers, only: INT32, REAL64
 
   implicit none
@@ -24,15 +25,31 @@ module LDWFortranFunctionalSupport
   integer(INT32) :: QueryCalls    = 0_INT32
   integer(INT32) :: ComputeCalls  = 0_INT32
 
+  !ZGEES stub state. It is tracked separately so that the DiagHermitian and
+  !SchurDecomposition tests never interfere.
+  integer(INT32) :: ZGEESQueryStatus   = 0_INT32
+  integer(INT32) :: ZGEESComputeStatus = 0_INT32
+  integer(INT32) :: ZGEESQueryCalls    = 0_INT32
+  integer(INT32) :: ZGEESComputeCalls  = 0_INT32
+
   public :: ResetZHEEVDStub
   public :: SetZHEEVDStubStatus
   public :: GetZHEEVDStubCalls
   public :: ZHEEVDStub
+  public :: ResetZGEESStub
+  public :: SetZGEESStubStatus
+  public :: GetZGEESStubCalls
+  public :: ZGEESStub
   public :: FourierUnitary
   public :: SpectralHermitian
   public :: EigenvectorOverlap
   public :: OrthonormalityError
   public :: ResidualError
+  public :: UpperTriangularError
+  public :: DiagonalError
+  public :: StrictUpperNorm
+  public :: SchurResidualError
+  public :: SpectrumError
 
 contains
 
@@ -108,7 +125,101 @@ contains
     endif
   end subroutine ZHEEVDStub
 
-  !< Maximum deviation of U from unitarity (U^H U = I).
+  !< Restores the nominal ZGEES stub behaviour and clears the call counters.
+  subroutine ResetZGEESStub()
+    ZGEESQueryStatus   = 0_INT32
+    ZGEESComputeStatus = 0_INT32
+    ZGEESQueryCalls    = 0_INT32
+    ZGEESComputeCalls  = 0_INT32
+  end subroutine ResetZGEESStub
+
+  !< Selects the statuses returned by the ZGEES workspace query and by the
+  !< computational call.
+  subroutine SetZGEESStubStatus(NewQueryStatus, NewComputeStatus)
+    integer(INT32), intent(in) :: NewQueryStatus
+    integer(INT32), intent(in) :: NewComputeStatus
+
+    ZGEESQueryStatus   = NewQueryStatus
+    ZGEESComputeStatus = NewComputeStatus
+  end subroutine SetZGEESStubStatus
+
+  !< Returns how many ZGEES workspace queries and computational calls were
+  !< made.
+  subroutine GetZGEESStubCalls(Queries, Computations)
+    integer(INT32), intent(out) :: Queries
+    integer(INT32), intent(out) :: Computations
+
+    Queries      = ZGEESQueryCalls
+    Computations = ZGEESComputeCalls
+  end subroutine GetZGEESStubCalls
+
+  !< Minimal ZGEES stand-in. The query reports N workspace elements; the
+  !< computational call overwrites every output buffer. The argument checks
+  !< fail the call when LDW does not use the documented JOBVS/SORT contract
+  !< or when the SELECT callback accepts an eigenvalue.
+  subroutine ZGEESStub(JOBVS, SORT, SELECT, &
+                       N, A, LDA, &
+                       SDIM, W, &
+                       VS, LDVS, WORK, LWORK, RWORK, BWORK, &
+                       INFO)
+    character,          intent(in)    :: JOBVS
+    character,          intent(in)    :: SORT
+    interface
+      logical(LOGICAL32) function SELECT(C)
+        import REAL64, LOGICAL32
+        complex(REAL64), intent(in) :: C
+      end function SELECT
+    end interface
+    integer(INT32),     intent(in)    :: N
+    integer(INT32),     intent(in)    :: LDA
+    complex(REAL64),    intent(inout) :: A(LDA, N)
+    integer(INT32),     intent(out)   :: SDIM
+    complex(REAL64),    intent(out)   :: W(N)
+    integer(INT32),     intent(in)    :: LDVS
+    complex(REAL64),    intent(out)   :: VS(LDVS, N)
+    integer(INT32),     intent(in)    :: LWORK
+    complex(REAL64),    intent(out)   :: WORK(max(1, LWORK))
+    real(REAL64),       intent(out)   :: RWORK(N)
+    logical(LOGICAL32), intent(out)   :: BWORK(N)
+    integer(INT32),     intent(out)   :: INFO
+
+    integer(INT32)     :: i
+    logical(LOGICAL32) :: Selected
+
+    INFO     = 0_INT32
+    SDIM     = 0_INT32
+    Selected = SELECT(cmplx(0.0_REAL64, 0.0_REAL64, REAL64))
+
+    if (JOBVS /= 'V' .or. SORT /= 'N' .or. LDA < N .or. LDVS < N .or. Selected) then
+      INFO = -1_INT32
+      return
+    endif
+
+    if (LWORK < 0_INT32) then
+      ZGEESQueryCalls = ZGEESQueryCalls + 1_INT32
+      !A single element is enough for the workspace validation.
+      WORK(1)  = cmplx(real(N, REAL64), 0.0_REAL64, REAL64)
+      RWORK(1) = 0.0_REAL64
+      BWORK(1) = .false.
+      INFO     = ZGEESQueryStatus
+    else
+      ZGEESComputeCalls = ZGEESComputeCalls + 1_INT32
+      !Make every written output buffer distinguishable.
+      A    = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      VS   = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      WORK = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      W    = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      do i = 1, N
+        A(i, i) = cmplx(real(len(JOBVS) + len(SORT) + LDA + LDVS + i, REAL64), &
+                        0.0_REAL64, REAL64)
+      enddo
+      RWORK = 0.0_REAL64
+      BWORK = .false.
+      INFO  = ZGEESComputeStatus
+    endif
+
+  end subroutine ZGEESStub
+
   pure function OrthonormalityError(U, N) result(Error)
     integer,         intent(in) :: N
     complex(REAL64), intent(in) :: U(N, N)
@@ -202,6 +313,97 @@ contains
     Overlap = abs(sum(conjg(U(:, i))*V(:, j)))
   end function EigenvectorOverlap
 
+  !< Maximum absolute entry below the diagonal of S.
+  pure function UpperTriangularError(S, N) result(Error)
+    integer,         intent(in) :: N
+    complex(REAL64), intent(in) :: S(N, N)
+    real(REAL64)                :: Error
+    integer                     :: i, j
+
+    Error = 0.0_REAL64
+    do j = 1, N
+      do i = j + 1, N
+        Error = max(Error, abs(S(i, j)))
+      enddo
+    enddo
+  end function UpperTriangularError
+
+  !< Maximum absolute entry outside the diagonal of S. It is zero when S is
+  !< diagonal, which is the Schur form of a normal matrix.
+  pure function DiagonalError(S, N) result(Error)
+    integer,         intent(in) :: N
+    complex(REAL64), intent(in) :: S(N, N)
+    real(REAL64)                :: Error
+    integer                     :: i, j
+
+    Error = 0.0_REAL64
+    do j = 1, N
+      do i = 1, N
+        if (i /= j) Error = max(Error, abs(S(i, j)))
+      enddo
+    enddo
+  end function DiagonalError
+
+  !< Frobenius norm of the strictly upper triangle of S. Unitary similarity
+  !< preserves ||S|| and the diagonal of a Schur form holds the eigenvalues,
+  !< so this norm equals sqrt(||A||^2 - sum |lambda|^2): it is independent of
+  !< the choice of Schur vectors and vanishes only when S is diagonal.
+  pure function StrictUpperNorm(S, N) result(Norm)
+    integer,         intent(in) :: N
+    complex(REAL64), intent(in) :: S(N, N)
+    real(REAL64)                :: Norm
+    integer                     :: i, j
+
+    Norm = 0.0_REAL64
+    do j = 1, N
+      do i = 1, j - 1
+        Norm = Norm + abs(S(i, j))**2
+      enddo
+    enddo
+    Norm = sqrt(Norm)
+  end function StrictUpperNorm
+
+  !< Maximum absolute entry of A*U - U*S.
+  pure function SchurResidualError(A, U, S, N) result(Error)
+    integer,         intent(in) :: N
+    complex(REAL64), intent(in) :: A(N, N)
+    complex(REAL64), intent(in) :: U(N, N)
+    complex(REAL64), intent(in) :: S(N, N)
+    real(REAL64)                :: Error
+
+    Error = maxval(abs(matmul(A, U) - matmul(U, S)))
+  end function SchurResidualError
+
+  !< Maximum distance between the diagonal of S and the expected spectrum.
+  !< The order of the eigenvalues is implementation-defined, so each
+  !< expected value is matched to the closest unused diagonal entry.
+  pure function SpectrumError(S, Expected, N) result(Error)
+    integer,         intent(in) :: N
+    complex(REAL64), intent(in) :: S(N, N)
+    complex(REAL64), intent(in) :: Expected(N)
+    real(REAL64)                :: Error, Best
+    logical                     :: Used(N)
+    integer                     :: i, j, BestIndex
+
+    Used  = .false.
+    Error = 0.0_REAL64
+
+    do i = 1, N
+      Best      = huge(1.0_REAL64)
+      BestIndex = 0
+      do j = 1, N
+        if (.not.Used(j)) then
+          if (abs(S(j, j) - Expected(i)) < Best) then
+            Best      = abs(S(j, j) - Expected(i))
+            BestIndex = j
+          endif
+        endif
+      enddo
+      Used(BestIndex) = .true.
+      Error           = max(Error, Best)
+    enddo
+  end function SpectrumError
+
 end module LDWFortranFunctionalSupport
 #endif
 
@@ -217,7 +419,7 @@ TEST_E(LDWFortranDHNominal)
   external :: zheevd
 
   real(C_DOUBLE), parameter :: &
-    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+    Tolerance = 10.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), HOriginal(3, 3), U(3, 3)
   real(C_DOUBLE)            :: E(3)
@@ -257,7 +459,7 @@ TEST_E(LDWFortranDHNominalNoEigenvalues)
   external :: zheevd
 
   real(C_DOUBLE), parameter :: &
-    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+    Tolerance = 10.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
 
   complex(C_DOUBLE_COMPLEX) :: H(3, 3), U(3, 3)
   real(C_DOUBLE)            :: KnownE(3)
@@ -295,7 +497,7 @@ TEST_E(LDWFortranDHNominal1x1)
   external :: zheevd
 
   real(C_DOUBLE), parameter :: &
-    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+    Tolerance = 10.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
 
   complex(C_DOUBLE_COMPLEX) :: H(1, 1), U(1, 1)
   real(C_DOUBLE)            :: E(1)
@@ -331,7 +533,7 @@ TEST_E(LDWFortranDHNominal2x2)
   external :: zheevd
 
   real(C_DOUBLE), parameter :: &
-    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+    Tolerance = 10.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
 
   complex(C_DOUBLE_COMPLEX) :: H(2, 2), U(2, 2)
   real(C_DOUBLE)            :: E(2)
@@ -373,7 +575,7 @@ TEST_E(LDWFortranDHNominal8x8)
   !Tolerance grows with the order because the residual and the orthonormality
   !sums accumulate O(N) rounding errors.
   real(C_DOUBLE), parameter :: &
-    Tolerance = 100.0_C_DOUBLE*real(N, C_DOUBLE)*epsilon(1.0_C_DOUBLE)
+    Tolerance = 10.0_C_DOUBLE*real(N, C_DOUBLE)*epsilon(1.0_C_DOUBLE)
 
   !Partially degenerate spectrum: twofold at 1 and threefold at 3.
   real(C_DOUBLE), parameter :: KnownE(N) = &
@@ -425,7 +627,7 @@ TEST_E(LDWFortranDHNominal16x16)
   integer, parameter :: N = 16
 
   real(C_DOUBLE), parameter :: &
-    Tolerance = 100.0_C_DOUBLE*real(N, C_DOUBLE)*epsilon(1.0_C_DOUBLE)
+    Tolerance = 10.0_C_DOUBLE*real(N, C_DOUBLE)*epsilon(1.0_C_DOUBLE)
 
   !Partially degenerate spectrum: threefold at 1, twofold at 3 and fourfold
   !at 7, which stresses the workspace sizing of a non-trivial order.
@@ -632,6 +834,508 @@ TEST_SUITE(LDWFortranDHNominalSuite,
            LDWFortranDHTooLarge,
            LDWFortranDHFailWorkspaceQuery,
            LDWFortranDHFailComputation);
+#endif
+
+TEST_E(LDWFortranZGEESNominal1x1)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: UpperTriangularError, &
+                                         SchurResidualError, SpectrumError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 10.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX), parameter :: &
+    KnownE(1) = [-3.5_C_DOUBLE*Cmplx1]
+
+  complex(C_DOUBLE_COMPLEX) :: A(1, 1), U(1, 1), S(1, 1)
+  integer(C_INT)            :: Info
+
+  A(1, 1) = -3.5_C_DOUBLE*Cmplx1
+
+  !Smallest dimension: the workspace query returns the minimum size.
+  call SchurDecomposition(Dimension = 1_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(UpperTriangularError(S, 1) < Tolerance)
+  ASSERT(SchurResidualError(A, U, S, 1) < Tolerance)
+  ASSERT(SpectrumError(S, KnownE, 1) < Tolerance)
+  ASSERT(abs(abs(U(1, 1)) - 1.0_C_DOUBLE) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESNominal2x2)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, CmplxI, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: DiagonalError, &
+                                         OrthonormalityError, &
+                                         SchurResidualError, SpectrumError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX), parameter :: &
+    KnownE(2) = [Cmplx1, -Cmplx1]
+
+  complex(C_DOUBLE_COMPLEX) :: A(2, 2), AOriginal(2, 2), U(2, 2), S(2, 2)
+  integer(C_INT)            :: Info
+  integer                   :: i
+
+  !Second Pauli matrix: Hermitian and unitary, hence normal. Its eigenvalues
+  !are +1 and -1 and its Schur form is diagonal.
+  A(1, :)   = [Cmplx0, -CmplxI]
+  A(2, :)   = [CmplxI,  Cmplx0]
+  AOriginal = A
+
+  call SchurDecomposition(Dimension = 2_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  !Matrix is an input-only argument and must not be overwritten.
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+  ASSERT(OrthonormalityError(U, 2) < Tolerance)
+
+  !A normal matrix has a diagonal Schur form, so this is a diagonalization.
+  ASSERT(DiagonalError(S, 2) < Tolerance)
+  do i = 1, 2
+    ASSERT(abs(abs(S(i, i)) - 1.0_C_DOUBLE) < Tolerance)
+  enddo
+
+  ASSERT(SchurResidualError(AOriginal, U, S, 2) < Tolerance)
+  ASSERT(SpectrumError(S, KnownE, 2) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESNominal4x4)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, CmplxI, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: DiagonalError, &
+                                         OrthonormalityError, &
+                                         SchurResidualError, SpectrumError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  integer, parameter :: N = 4
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX), parameter :: &
+    KnownE(N) = [Cmplx1, CmplxI, -Cmplx1, -CmplxI]
+
+  complex(C_DOUBLE_COMPLEX) :: A(N, N), AOriginal(N, N), U(N, N), S(N, N)
+  integer(C_INT)            :: Info
+  integer                   :: i
+
+  !Four-cycle permutation matrix: unitary, hence normal, with the fourth
+  !roots of unity as eigenvalues.
+  A         = Cmplx0
+  A(2, 1)   = Cmplx1
+  A(3, 2)   = Cmplx1
+  A(4, 3)   = Cmplx1
+  A(1, 4)   = Cmplx1
+  AOriginal = A
+
+  call SchurDecomposition(Dimension = int(N, C_SIZE_T), &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+  ASSERT(OrthonormalityError(U, N) < Tolerance)
+
+  !A normal matrix has a diagonal Schur form, so this is a diagonalization.
+  ASSERT(DiagonalError(S, N) < Tolerance)
+  do i = 1, N
+    ASSERT(abs(abs(S(i, i)) - 1.0_C_DOUBLE) < Tolerance)
+  enddo
+
+  ASSERT(SchurResidualError(AOriginal, U, S, N) < Tolerance)
+  ASSERT(SpectrumError(S, KnownE, N) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESNominalComplex)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, CmplxI, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: FourierUnitary, &
+                                         OrthonormalityError, &
+                                         StrictUpperNorm, &
+                                         UpperTriangularError, &
+                                         SchurResidualError, SpectrumError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  integer, parameter :: N = 3
+
+  complex(C_DOUBLE_COMPLEX), parameter :: &
+    KnownE(N) = [Cmplx1, -Cmplx1, CmplxI]
+
+  complex(C_DOUBLE_COMPLEX) :: Triangular(N, N), Fourier(N, N), A(N, N), &
+                               U(N, N), S(N, N)
+
+  real(C_DOUBLE) :: Tolerance
+  integer(C_INT) :: Info
+
+  !Triangular is complex, non-normal and well conditioned: its eigenvalues
+  !(1, -1 and i) are separated and its entries are of order one.
+  Triangular       = Cmplx0
+  Triangular(1, 1) = Cmplx1
+  Triangular(2, 2) = -Cmplx1
+  Triangular(3, 3) = CmplxI
+  Triangular(1, 2) = 2.0_C_DOUBLE*CmplxI
+  Triangular(2, 3) = Cmplx1
+
+  !A = Fourier * Triangular * Fourier^H is a unitary similarity, so A is a
+  !dense complex non-normal matrix with the same eigenvalues. Unlike a normal
+  !matrix, it has no diagonal Schur form.
+  call FourierUnitary(Fourier, N)
+  A = matmul(Fourier, matmul(Triangular, conjg(transpose(Fourier))))
+
+  !The Schur decomposition is backward stable, so the residual is a small
+  !multiple of eps times the norm of the matrix.
+  Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)* &
+    max(1.0_C_DOUBLE, maxval(abs(A)))
+
+  call SchurDecomposition(Dimension = int(N, C_SIZE_T), &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(OrthonormalityError(U, N) < Tolerance)
+  ASSERT(UpperTriangularError(S, N) < Tolerance)
+
+  !Because A is not normal, no Schur form of it can be diagonal: the Frobenius
+  !norm of the strictly upper triangle is sqrt(||A||^2 - sum |lambda|^2),
+  !which is about 2.2 here, so it cannot be a rounding artifact.
+  ASSERT(StrictUpperNorm(S, N) > 2.0_C_DOUBLE)
+
+  ASSERT(SchurResidualError(A, U, S, N) < Tolerance)
+  ASSERT(SpectrumError(S, KnownE, N) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESNominalCongruence)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    C_SIZE_T, Cmplx1, CmplxI, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: OrthonormalityError, &
+                                         SchurResidualError, SpectrumError, &
+                                         StrictUpperNorm, UpperTriangularError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  integer, parameter :: N = 3
+
+  complex(C_DOUBLE_COMPLEX), parameter :: &
+    KnownE(N) = [Cmplx1 - 2*CmplxI, 3*Cmplx1 + 3*CmplxI, 2*CmplxI]
+
+  complex(C_DOUBLE_COMPLEX) :: A(N, N), AOriginal(N, N), U(N, N), S(N, N)
+
+  real(C_DOUBLE) :: CongruenceError, Tolerance
+  integer(C_INT) :: Info
+
+  !An arbitrary dense matrix with a well-separated spectrum: it is neither
+  !normal, nor unitary, nor triangular, so its Schur form is triangular
+  !without being diagonal. Its eigenvalues are 1 - 2i, 3 + 3i and 2i.
+  A(1, :) = [ Cmplx1 + 2*CmplxI, 3*Cmplx1 - CmplxI, Cmplx1]
+  A(2, :) = [-2*Cmplx1 + CmplxI, 4*Cmplx1, Cmplx1 + 3*CmplxI]
+  A(3, :) = [ Cmplx1 - CmplxI, 2*CmplxI, -Cmplx1 + CmplxI]
+  AOriginal = A
+
+  !The Schur decomposition is backward stable, so the residual is a small
+  !multiple of eps times the norm of the matrix.
+  Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)* &
+    max(1.0_C_DOUBLE, maxval(abs(A)))
+
+  call SchurDecomposition(Dimension = int(N, C_SIZE_T), &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  !Matrix is an input-only argument and must not be overwritten.
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+  ASSERT(OrthonormalityError(U, N) < Tolerance)
+
+  !Every Schur form is upper triangular, and A is not normal here, so the
+  !strictly upper triangle has a Frobenius norm of about 5.3.
+  ASSERT(UpperTriangularError(S, N) < Tolerance)
+  ASSERT(StrictUpperNorm(S, N) > 5.0_C_DOUBLE)
+
+  !S = U^H*A*U and, equivalently, A*U = U*S, entry by entry.
+  CongruenceError = maxval(abs(matmul(conjg(transpose(U)), &
+                                      matmul(AOriginal, U)) - S))
+  ASSERT(CongruenceError < Tolerance)
+  ASSERT(SchurResidualError(AOriginal, U, S, N) < Tolerance)
+
+  !The diagonal of S holds the spectrum of A.
+  ASSERT(SpectrumError(S, KnownE, N) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESNominalNoSchurForm)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, CmplxI, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: DiagonalError, &
+                                         OrthonormalityError, SpectrumError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX), parameter :: &
+    KnownE(2) = [Cmplx1, -Cmplx1]
+
+  complex(C_DOUBLE_COMPLEX) :: A(2, 2), U(2, 2), S(2, 2)
+  integer(C_INT)            :: Info
+
+  !The unitary Pauli matrix of Nominal2x2.
+  A(1, :) = [Cmplx0, -CmplxI]
+  A(2, :) = [CmplxI,  Cmplx0]
+
+  !SchurForm is optional: it can be reconstructed from Matrix and Unitary,
+  !so omitting it must not change the unitary transformation.
+  call SchurDecomposition(Dimension = 2_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(OrthonormalityError(U, 2) < Tolerance)
+
+  S = matmul(conjg(transpose(U)), matmul(A, U))
+  ASSERT(DiagonalError(S, 2) < Tolerance)
+  ASSERT(SpectrumError(S, KnownE, 2) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESFastReturn)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: ResetZGEESStub, &
+                                         GetZGEESStubCalls, ZGEESStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: A(1, 1), U(1, 1), S(1, 1)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A = 42*Cmplx1
+  U = 42*Cmplx1
+  S = 42*Cmplx1
+
+  call ResetZGEESStub()
+
+  !Dimension zero is a fast return: the deferred procedure is never called
+  !and the output arguments are left untouched.
+  call SchurDecomposition(Dimension = 0_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = ZGEESStub, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(U - 42*Cmplx1) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(S - 42*Cmplx1) <= 0.0_C_DOUBLE))
+
+  call GetZGEESStubCalls(Queries, Computations)
+  ASSERT(Queries == 0_INT32)
+  ASSERT(Computations == 0_INT32)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESTooLarge)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: ResetZGEESStub, &
+                                         GetZGEESStubCalls, ZGEESStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: A(1, 1), U(1, 1), S(1, 1)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A = 42*Cmplx1
+  U = 42*Cmplx1
+  S = 42*Cmplx1
+
+  call ResetZGEESStub()
+
+  !Dimensions beyond the LAPACK integer range are rejected before any buffer
+  !is allocated or the deferred procedure is called.
+  call SchurDecomposition(Dimension = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = ZGEESStub, &
+                          Info = Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+  ASSERT(all(abs(U - 42*Cmplx1) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(S - 42*Cmplx1) <= 0.0_C_DOUBLE))
+
+  call GetZGEESStubCalls(Queries, Computations)
+  ASSERT(Queries == 0_INT32)
+  ASSERT(Computations == 0_INT32)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESFailWorkspaceQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: &
+    LDWStubFailingQuery, ResetZGEESStub, SetZGEESStubStatus, &
+    GetZGEESStubCalls, ZGEESStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), U(3, 3), S(3, 3)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A = 0*Cmplx1
+
+  U = 42*Cmplx1
+  S = 42*Cmplx1
+
+  call ResetZGEESStub()
+  call SetZGEESStubStatus(LDWStubFailingQuery, 0_INT32)
+
+  !A failing workspace query is propagated unchanged and the computational
+  !call is never made. The outputs are left untouched.
+  call SchurDecomposition(Dimension = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = ZGEESStub, &
+                          Info = Info)
+
+  ASSERT(Info == int(LDWStubFailingQuery, C_INT))
+  ASSERT(all(abs(U - 42*Cmplx1) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(S - 42*Cmplx1) <= 0.0_C_DOUBLE))
+
+  call GetZGEESStubCalls(Queries, Computations)
+  ASSERT(Queries == 1_INT32)
+  ASSERT(Computations == 0_INT32)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranZGEESFailComputation)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: ResetZGEESStub, &
+                                         SetZGEESStubStatus, &
+                                         GetZGEESStubCalls, ZGEESStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  integer(INT32), parameter :: ComputeStatus = -6_INT32
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), U(3, 3), S(3, 3)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A = 0*Cmplx1
+
+  call ResetZGEESStub()
+  call SetZGEESStubStatus(0_INT32, ComputeStatus)
+
+  !A nonzero status from the computational call is propagated unchanged.
+  call SchurDecomposition(Dimension = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = ZGEESStub, &
+                          Info = Info)
+
+  ASSERT(Info == int(ComputeStatus, C_INT))
+
+  call GetZGEESStubCalls(Queries, Computations)
+  ASSERT(Queries == 1_INT32)
+  ASSERT(Computations == 1_INT32)
+
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(LDWFortranZGEESNominalSuite,
+           LDWFortranZGEESNominal1x1,
+           LDWFortranZGEESNominal2x2,
+           LDWFortranZGEESNominal4x4,
+           LDWFortranZGEESNominalComplex,
+           LDWFortranZGEESNominalCongruence,
+           LDWFortranZGEESNominalNoSchurForm,
+           LDWFortranZGEESFastReturn,
+           LDWFortranZGEESTooLarge,
+           LDWFortranZGEESFailWorkspaceQuery,
+           LDWFortranZGEESFailComputation);
 #endif
 
 TEST_E(LDWFortranDegenFastReturn)
@@ -893,6 +1597,69 @@ TEST_E(LDWFortranDiagHermitianReference)
 #endif
 END_TEST_E
 
+TEST_E(LDWFortranZGEESReference)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, CmplxI, SchurDecomposition
+  use LDWFortranFunctionalSupport, only: DiagonalError, OrthonormalityError, &
+                                         SchurResidualError, SpectrumError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgees
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), AOriginal(3, 3), U(3, 3), S(3, 3)
+  complex(C_DOUBLE_COMPLEX) :: KnownE(3)
+
+  real(C_DOUBLE) :: CongruenceError
+  integer(C_INT) :: Info
+  integer        :: i
+
+  !Cyclic permutation matrix. It is unitary (hence normal), so its Schur
+  !form is diagonal: the diagonal holds the cube roots of unity.
+  A         = Cmplx0
+  A(2, 1)   = Cmplx1
+  A(3, 2)   = Cmplx1
+  A(1, 3)   = Cmplx1
+  AOriginal = A
+
+  KnownE(1) = Cmplx1
+  KnownE(2) = -0.5_C_DOUBLE*Cmplx1 + 0.5_C_DOUBLE*sqrt(3.0_C_DOUBLE)*CmplxI
+  KnownE(3) = -0.5_C_DOUBLE*Cmplx1 - 0.5_C_DOUBLE*sqrt(3.0_C_DOUBLE)*CmplxI
+
+  call SchurDecomposition(Dimension = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          Unitary = U, &
+                          SchurForm = S, &
+                          ZGEESProcedure = zgees, &
+                          Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+  ASSERT(OrthonormalityError(U, 3) < Tolerance)
+
+  !A normal matrix has a diagonal Schur form, so this decomposition is a
+  !diagonalization: every eigenvalue has modulus one.
+  ASSERT(DiagonalError(S, 3) < Tolerance)
+  do i = 1, 3
+    ASSERT(abs(abs(S(i, i)) - 1.0_C_DOUBLE) < Tolerance)
+  enddo
+
+  !A*U = U*S and U^H*A*U = S.
+  ASSERT(SchurResidualError(AOriginal, U, S, 3) < Tolerance)
+  CongruenceError = maxval(abs(matmul(conjg(transpose(U)), &
+                                      matmul(AOriginal, U)) - S))
+  ASSERT(CongruenceError < Tolerance)
+
+  ASSERT(SpectrumError(S, KnownE, 3) < Tolerance)
+
+#endif
+END_TEST_E
+
 TEST_E(LDWFortranDegeneracyGroupReference)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, &
@@ -916,5 +1683,6 @@ END_TEST_E
 #ifdef TSD_KERNEL
 TEST_SUITE(LDWFortranReferenceSuite,
            LDWFortranDiagHermitianReference,
+           LDWFortranZGEESReference,
            LDWFortranDegeneracyGroupReference);
 #endif

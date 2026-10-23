@@ -80,6 +80,74 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
   end subroutine DiagHermitian_C
 
+  subroutine SchurDecomposition_C(Dimension, Matrix, Unitary, SchurForm, ZGEESProcedure, Info) &
+    bind(C, name="SchurDecomposition")
+    integer(C_SIZE_T), intent(in), value :: Dimension
+    type(C_PTR),       intent(in), value :: Matrix
+    type(C_PTR),       intent(in), value :: Unitary
+    type(C_PTR),       intent(in), value :: SchurForm
+    type(C_FUNPTR),    intent(in), value :: ZGEESProcedure
+    type(C_PTR),       intent(in), value :: Info
+
+    complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
+    complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryFPtr(:, :)
+    complex(C_DOUBLE_COMPLEX),  pointer :: SchurFormFPtr(:, :)
+    procedure(ZGEESInterface),  pointer :: ZGEESProcedureFPtr
+    integer(C_INT),             pointer :: InfoFPtr
+
+    if (C_ASSOCIATED(Info)) then
+      call C_F_POINTER(Info, &
+                       InfoFPtr)
+      if (Dimension > int(huge(1_INT32), C_SIZE_T)) then
+        InfoFPtr = int(huge(1_INT32), C_INT)
+        return
+      endif
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(Matrix)) then
+      call C_F_POINTER(Matrix, &
+                       MatrixFPtr, &
+                       [Dimension, Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(Unitary)) then
+      call C_F_POINTER(Unitary, &
+                       UnitaryFPtr, &
+                       [Dimension, Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(SchurForm)) then
+      call C_F_POINTER(SchurForm, &
+                       SchurFormFPtr, &
+                       [Dimension, Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(ZGEESProcedure)) then
+      call C_F_PROCPOINTER(ZGEESProcedure, &
+                           ZGEESProcedureFPtr)
+    else
+      return
+    endif
+
+    InfoFPtr = 0_C_INT
+
+    call SchurDecomposition(Dimension = Dimension, &
+                            Matrix = MatrixFPtr, &
+                            Unitary = UnitaryFPtr, &
+                            SchurForm = SchurFormFPtr, &
+                            ZGEESProcedure = ZGEESProcedureFPtr, &
+                            Info = InfoFPtr)
+
+  end subroutine SchurDecomposition_C
+
   subroutine DegeneracyGroup_C(Dimension, Eigenvalues, DegeneracyThreshold, Degeneracies) &
     bind(C, name="DegeneracyGroup")
     integer(C_SIZE_T), intent(in), value :: Dimension

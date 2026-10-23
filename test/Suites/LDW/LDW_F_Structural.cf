@@ -239,6 +239,229 @@ end module LDWStructuralZHEEVDStubs
 
 #endif
 
+#ifdef TSD_FORTRAN_IMPL
+
+!< Deterministic ZGEES stand-in for the LDW structural tests.
+!<
+!< The workspace query reports a fixed complex workspace size (LWORK=5) so
+!< that mistakes in the element size of the buffer are observable. The
+!< computational call writes every output buffer, which also verifies that
+!< the buffers are large enough.
+!<
+!< StubMode selects the failure to inject. Each Run... helper assigns it
+!< immediately before calling SchurDecomposition, so tests do not depend on
+!< the state left behind by another test.
+module LDWStructuralZGEESStubs
+
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_QUIET_NAN, IEEE_VALUE
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, C_DOUBLE_COMPLEX
+  use, intrinsic :: ISO_FORTRAN_ENV, only: LOGICAL32
+  use LapackDeferredWrappers, only: INT32, REAL64, C_INT, C_SIZE_T, &
+                                    SchurDecomposition
+
+  implicit none
+  private
+
+  !Stub behaviour selectors.
+  integer(INT32), parameter, public :: &
+    ZGEESNominal      = 0_INT32, &
+    ZGEESFailQuery    = 1_INT32, &
+    ZGEESFailCompute  = 2_INT32, &
+    ZGEESNegativeWork = 3_INT32, &
+    ZGEESNaNWork      = 4_INT32, &
+    ZGEESHugeWork     = 5_INT32
+
+  !Status codes reported by the failing stubs.
+  integer(INT32), parameter, public :: &
+    ZGEESQueryStatus   = 7_INT32, &
+    ZGEESComputeStatus = -6_INT32
+
+  !Nominal workspace size.
+  integer(INT32), parameter :: NominalLWork = 5_INT32
+
+  integer(INT32) :: StubMode = ZGEESNominal
+
+  public :: RunSchurDecomposition
+  public :: RunSchurDecompositionNoSchurForm
+  public :: RunSchurDecompositionAtDimension
+  public :: RunSchurDecompositionResults
+
+contains
+
+  !< Runs SchurDecomposition on a 3x3 matrix with the requested stub
+  !< behaviour.
+  subroutine RunSchurDecomposition(Mode, Info)
+    integer(INT32), intent(in)  :: Mode
+    integer(C_INT), intent(out) :: Info
+
+    complex(REAL64) :: A(3, 3), U(3, 3), S(3, 3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SchurDecomposition(Dimension = 3_C_SIZE_T, &
+                            Matrix = A, &
+                            Unitary = U, &
+                            SchurForm = S, &
+                            ZGEESProcedure = ZGEESStub, &
+                            Info = Info)
+  end subroutine RunSchurDecomposition
+
+  !< Runs SchurDecomposition without the optional SchurForm argument.
+  subroutine RunSchurDecompositionNoSchurForm(Mode, Unitary, Info)
+    integer(INT32),  intent(in)  :: Mode
+    complex(REAL64), intent(out) :: Unitary(3, 3)
+    integer(C_INT),  intent(out) :: Info
+
+    complex(REAL64) :: A(3, 3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SchurDecomposition(Dimension = 3_C_SIZE_T, &
+                            Matrix = A, &
+                            Unitary = Unitary, &
+                            ZGEESProcedure = ZGEESStub, &
+                            Info = Info)
+  end subroutine RunSchurDecompositionNoSchurForm
+
+  !< Runs SchurDecomposition with an arbitrary dimension and the nominal
+  !< stub. The 1x1 buffers are only dereferenced when Dimension is 1.
+  subroutine RunSchurDecompositionAtDimension(Dimension, Info)
+    integer(C_SIZE_T), intent(in)  :: Dimension
+    integer(C_INT),    intent(out) :: Info
+
+    complex(REAL64) :: A(1, 1), U(1, 1), S(1, 1)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = ZGEESNominal
+
+    call SchurDecomposition(Dimension = Dimension, &
+                            Matrix = A, &
+                            Unitary = U, &
+                            SchurForm = S, &
+                            ZGEESProcedure = ZGEESStub, &
+                            Info = Info)
+  end subroutine RunSchurDecompositionAtDimension
+
+  !< Runs SchurDecomposition on a 3x3 matrix and returns its outputs.
+  subroutine RunSchurDecompositionResults(Mode, Unitary, SchurForm, Info)
+    integer(INT32),  intent(in)  :: Mode
+    complex(REAL64), intent(out) :: Unitary(3, 3)
+    complex(REAL64), intent(out) :: SchurForm(3, 3)
+    integer(C_INT),  intent(out) :: Info
+
+    complex(REAL64) :: A(3, 3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SchurDecomposition(Dimension = 3_C_SIZE_T, &
+                            Matrix = A, &
+                            Unitary = Unitary, &
+                            SchurForm = SchurForm, &
+                            ZGEESProcedure = ZGEESStub, &
+                            Info = Info)
+  end subroutine RunSchurDecompositionResults
+
+  !< ZGEES stand-in. The workspace query reports NominalLWork elements or an
+  !< invalid value, depending on StubMode. The computational call returns
+  !< S upper triangular (S(i, j) = 10*i + j for i <= j) and U = I so that
+  !< the copy-back can be checked.
+  subroutine ZGEESStub(JOBVS, SORT, SELECT, &
+                       N, A, LDA, &
+                       SDIM, W, &
+                       VS, LDVS, WORK, LWORK, RWORK, BWORK, &
+                       INFO)
+    character,          intent(in)    :: JOBVS
+    character,          intent(in)    :: SORT
+    interface
+      logical(LOGICAL32) function SELECT(C)
+        import REAL64, LOGICAL32
+        complex(REAL64), intent(in) :: C
+      end function SELECT
+    end interface
+    integer(INT32),     intent(in)    :: N
+    integer(INT32),     intent(in)    :: LDA
+    complex(REAL64),    intent(inout) :: A(LDA, N)
+    integer(INT32),     intent(out)   :: SDIM
+    complex(REAL64),    intent(out)   :: W(N)
+    integer(INT32),     intent(in)    :: LDVS
+    complex(REAL64),    intent(out)   :: VS(LDVS, N)
+    integer(INT32),     intent(in)    :: LWORK
+    complex(REAL64),    intent(out)   :: WORK(max(1, LWORK))
+    real(REAL64),       intent(out)   :: RWORK(N)
+    logical(LOGICAL32), intent(out)   :: BWORK(N)
+    integer(INT32),     intent(out)   :: INFO
+
+    integer(INT32)     :: i, j
+    logical(LOGICAL32) :: Selected
+
+    INFO = 0_INT32
+
+    if (JOBVS /= 'V' .or. SORT /= 'N' .or. LDA < N .or. LDVS < N) then
+      INFO = -1_INT32
+      return
+    endif
+
+    !The callback must be callable and must reject every value: LDW never
+    !requests eigenvalue sorting.
+    Selected = SELECT(cmplx(0.0_REAL64, 0.0_REAL64, REAL64))
+    if (Selected) then
+      INFO = -2_INT32
+      return
+    endif
+
+    !Workspace query.
+    if (LWORK == -1_INT32) then
+      select case (StubMode)
+      case (ZGEESFailQuery)
+        INFO = ZGEESQueryStatus
+      case (ZGEESNegativeWork)
+        WORK(1) = cmplx(-1.0_REAL64, 0.0_REAL64, REAL64)
+      case (ZGEESNaNWork)
+        WORK(1) = cmplx(IEEE_VALUE(0.0_REAL64, IEEE_QUIET_NAN), &
+                        0.0_REAL64, REAL64)
+      case (ZGEESHugeWork)
+        WORK(1) = cmplx(2.0_REAL64 * real(huge(1_INT32), REAL64), &
+                        0.0_REAL64, REAL64)
+      case default
+        WORK(1) = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+      end select
+      RWORK(1) = 0.0_REAL64
+      BWORK(1) = .false.
+      return
+    endif
+
+    !Computational call. Every output is defined so that the implementation
+    !never copies uninitialized data back to the caller, even on failure.
+    SDIM = 0_INT32
+
+    A = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    do j = 1, N
+      do i = 1, j
+        A(i, j) = cmplx(real(10*i + j, REAL64), 0.0_REAL64, REAL64)
+      enddo
+      W(j) = cmplx(real(j, REAL64), 0.0_REAL64, REAL64)
+    enddo
+
+    VS = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    do j = 1, N
+      VS(j, j) = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+    enddo
+
+    WORK  = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    RWORK = 0.0_REAL64
+    BWORK = .false.
+
+    if (StubMode == ZGEESFailCompute) INFO = ZGEESComputeStatus
+
+  end subroutine ZGEESStub
+
+end module LDWStructuralZGEESStubs
+
+#endif
+
 TEST_EF(StructuralCtx, LDWStructuralZeroDimension)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
@@ -813,6 +1036,585 @@ TEST_EF(StructuralCtx, LDWStructuralDegeneracyNoAllocator)
 #endif
 END_TEST_EF
 
+TEST_EF(StructuralCtx, LDWStructuralZGEESZeroDimension)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecompositionAtDimension
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !No workspace is needed: the routine must return before any allocation.
+  call RunSchurDecompositionAtDimension(0_C_SIZE_T, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESTooLargeDimension)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecompositionAtDimension
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Dimension exceeds huge(1_INT32): reject before any allocation.
+  call RunSchurDecompositionAtDimension(int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                                        Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESMatrixCopyColumnBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First multiplication: bytes per matrix column (16 * Dimension).
+  call SetFallibleMulOverflow(1_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESMatrixCopyTotalBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second multiplication: total matrix bytes (16 * Dimension * Dimension).
+  call SetFallibleMulOverflow(2_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESEigenvaluesBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third multiplication: eigenvalue bytes (16 * Dimension), before the query.
+  call SetFallibleMulOverflow(3_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESUnitaryColumnBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourth multiplication: bytes per Schur-vector column (16 * Dimension).
+  call SetFallibleMulOverflow(4_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESUnitaryTotalBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifth multiplication: total Schur-vector bytes
+  !(16 * Dimension * Dimension).
+  call SetFallibleMulOverflow(5_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Sixth multiplication: WORK bytes (16 * LWORK), after the query.
+  call SetFallibleMulOverflow(6_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESRWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Seventh multiplication: RWORK bytes (8 * Dimension), after the query.
+  call SetFallibleMulOverflow(7_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESBWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Eighth multiplication: BWORK bytes (4 * Dimension), after the query.
+  call SetFallibleMulOverflow(8_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESMatrixCopyAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First allocation: the matrix copy buffer.
+  call SetFallibleMalloc(1_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESEigenvaluesAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second allocation: the eigenvalue buffer.
+  call SetFallibleMalloc(2_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESUnitaryAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third allocation: the Schur-vector buffer.
+  call SetFallibleMalloc(3_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourth allocation: the complex workspace.
+  call SetFallibleMalloc(4_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESRWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifth allocation: the real workspace.
+  call SetFallibleMalloc(5_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESBWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Sixth allocation: the logical workspace. All previously allocated
+  !buffers must be released on this path (checked by the valgrind run).
+  call SetFallibleMalloc(6_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESQueryStatusFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESFailQuery, &
+                                     ZGEESQueryStatus
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A nonzero workspace-query status is propagated unchanged.
+  call RunSchurDecomposition(ZGEESFailQuery, Info)
+
+  ASSERT(Info == int(ZGEESQueryStatus, C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESNegativeWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, &
+                                     ZGEESNegativeWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A negative LWORK must be rejected after the query.
+  call RunSchurDecomposition(ZGEESNegativeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESNaNWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNaNWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A non-finite LWORK must be rejected after the query.
+  call RunSchurDecomposition(ZGEESNaNWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESHugeWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESHugeWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !An LWORK which does not fit in INT32 must be rejected after the query.
+  call RunSchurDecomposition(ZGEESHugeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESComputeStatusFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, &
+                                     ZGEESFailCompute, ZGEESComputeStatus
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A nonzero status from the computational call is propagated unchanged.
+  call RunSchurDecomposition(ZGEESFailCompute, Info)
+
+  ASSERT(Info == int(ZGEESComputeStatus, C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESAllocatorCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly six allocations, so a failure armed at the seventh
+  !call must never trigger. This pins the indices used above.
+  call SetFallibleMalloc(7_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESMultiplierCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly eight multiplications, so a failure armed at the ninth
+  !call must never trigger. This pins the indices used above.
+  call SetFallibleMulOverflow(9_C_SIZE_T)
+  call RunSchurDecomposition(ZGEESNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESNominal)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecompositionResults, &
+                                     ZGEESNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: U(3, 3), S(3, 3)
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !The stub writes LWORK/RWORK/BWORK elements, so this also verifies that
+  !the workspace buffers were sized with the right element sizes.
+  call RunSchurDecompositionResults(ZGEESNominal, U, S, Info)
+
+  ASSERT(Info == 0_C_INT)
+
+  !U is the stub identity.
+  do j = 1, 3
+    do i = 1, 3
+      if (i == j) then
+        ASSERT(abs(U(i, j) - cmplx(1.0_C_DOUBLE, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)) < 10*epsilon(1.0_C_DOUBLE))
+      else
+        ASSERT(abs(U(i, j)) < 10*epsilon(1.0_C_DOUBLE))
+      endif
+    enddo
+  enddo
+
+  !S is the stub upper triangular matrix.
+  do j = 1, 3
+    do i = 1, 3
+      if (i <= j) then
+        ASSERT(abs(S(i, j) - cmplx(real(10*i + j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)) < 10*epsilon(1.0_C_DOUBLE))
+      else
+        ASSERT(abs(S(i, j)) < 10*epsilon(1.0_C_DOUBLE))
+      endif
+    enddo
+  enddo
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESNominalNoSchurForm)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecompositionNoSchurForm, &
+                                     ZGEESNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: U(3, 3)
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Omitting the optional SchurForm must not change the computation.
+  call RunSchurDecompositionNoSchurForm(ZGEESNominal, U, Info)
+
+  ASSERT(Info == 0_C_INT)
+
+  do j = 1, 3
+    do i = 1, 3
+      if (i == j) then
+        ASSERT(abs(U(i, j) - cmplx(1.0_C_DOUBLE, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)) < 10*epsilon(1.0_C_DOUBLE))
+      else
+        ASSERT(abs(U(i, j)) < 10*epsilon(1.0_C_DOUBLE))
+      endif
+    enddo
+  enddo
+#endif
+END_TEST_EF
+
 #ifdef TSD_KERNEL
 TEST_SUITE(LDWStructuralSuite,
            LDWStructuralZeroDimension,
@@ -840,5 +1642,30 @@ TEST_SUITE(LDWStructuralSuite,
            LDWStructuralAllocatorCallsExhausted,
            LDWStructuralMultiplierCallsExhausted,
            LDWStructuralNominal,
+           LDWStructuralZGEESZeroDimension,
+           LDWStructuralZGEESTooLargeDimension,
+           LDWStructuralZGEESMatrixCopyColumnBytesMulOverflow,
+           LDWStructuralZGEESMatrixCopyTotalBytesMulOverflow,
+           LDWStructuralZGEESEigenvaluesBytesMulOverflow,
+           LDWStructuralZGEESUnitaryColumnBytesMulOverflow,
+           LDWStructuralZGEESUnitaryTotalBytesMulOverflow,
+           LDWStructuralZGEESWorkBytesMulOverflow,
+           LDWStructuralZGEESRWorkBytesMulOverflow,
+           LDWStructuralZGEESBWorkBytesMulOverflow,
+           LDWStructuralZGEESMatrixCopyAllocFail,
+           LDWStructuralZGEESEigenvaluesAllocFail,
+           LDWStructuralZGEESUnitaryAllocFail,
+           LDWStructuralZGEESWorkAllocFail,
+           LDWStructuralZGEESRWorkAllocFail,
+           LDWStructuralZGEESBWorkAllocFail,
+           LDWStructuralZGEESQueryStatusFail,
+           LDWStructuralZGEESNegativeWorkQuery,
+           LDWStructuralZGEESNaNWorkQuery,
+           LDWStructuralZGEESHugeWorkQuery,
+           LDWStructuralZGEESComputeStatusFail,
+           LDWStructuralZGEESAllocatorCallsExhausted,
+           LDWStructuralZGEESMultiplierCallsExhausted,
+           LDWStructuralZGEESNominal,
+           LDWStructuralZGEESNominalNoSchurForm,
            LDWStructuralDegeneracyNoAllocator);
 #endif

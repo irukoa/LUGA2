@@ -4,7 +4,8 @@
 module LapackDeferredWrappers
 
   use, intrinsic :: ISO_FORTRAN_ENV, only: INT32, &
-                                           REAL64
+                                           REAL64, &
+                                           LOGICAL32
 
   use, intrinsic :: ISO_C_BINDING, only: C_INT, &
                                          C_SIZE_T, &
@@ -22,6 +23,7 @@ module LapackDeferredWrappers
 
   public :: INT32
   public :: REAL64
+  public :: LOGICAL32
   public :: C_INT
   public :: C_SIZE_T
   public :: C_DOUBLE
@@ -116,6 +118,100 @@ module LapackDeferredWrappers
 
   public :: ZHEEVDInterface
   public :: DiagHermitian
+
+  abstract interface
+    !< Abstract interface for the reference LAPACK ZGEES routine.
+    !<
+    !< Type mapping (reference LAPACK, LP64):
+    !<   COMPLEX*16       -> complex(REAL64)
+    !<   DOUBLE PRECISION -> real(REAL64)
+    !<   INTEGER          -> integer(INT32)
+    !<   LOGICAL          -> logical(LOGICAL32)
+    !<
+    !< ILP64 LAPACK is not compatible with this interface.
+    !<
+    !< Reference documentation:
+    !< https://netlib.org/lapack/explore-html/d5/d38/group__gees_gac426d99ddc8ac986de2a17e7ad3f2512.html
+    subroutine ZGEESInterface(JOBVS, SORT, SELECT, &
+                              N, A, LDA, &
+                              SDIM, W, &
+                              VS, LDVS, WORK, LWORK, RWORK, BWORK, &
+                              INFO)
+      import INT32, REAL64, LOGICAL32
+      character,           intent(in)    :: JOBVS
+      character,           intent(in)    :: SORT
+      interface
+        logical(LOGICAL32) function SELECT(C)
+          import REAL64, LOGICAL32
+          complex(REAL64), intent(in)    :: C
+        end function SELECT
+      end interface
+      integer(INT32),      intent(in)    :: N
+      complex(REAL64),     intent(inout) :: A(LDA, N)
+      integer(INT32),      intent(in)    :: LDA
+      integer(INT32),      intent(out)   :: SDIM
+      complex(REAL64),     intent(out)   :: W(N)
+      complex(REAL64),     intent(out)   :: VS(LDVS, N)
+      integer(INT32),      intent(in)    :: LDVS
+      complex(REAL64),     intent(out)   :: WORK(max(1, LWORK))
+      integer(INT32),      intent(in)    :: LWORK
+      real(REAL64),        intent(out)   :: RWORK(N)
+      logical(LOGICAL32),  intent(out)   :: BWORK(N)
+      integer(INT32),      intent(out)   :: INFO
+    end subroutine ZGEESInterface
+  end interface
+
+  !< SchurDecomposition computes the Schur form and orthonormal eigenvectors
+  !< of a complex matrix. The LAPACK ZGEES implementation is
+  !< supplied by the caller at run time.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< For a complex matrix A of order N, the routine computes
+  !<
+  !<     U^H * A * U = S,   U^H * U = I,
+  !<
+  !< where S is the upper triangular Schur form, and the columns
+  !< of U are the corresponding orthonormal eigenvectors.
+  !<
+  !< The working set is O(Dimension^2).
+  !<
+  !< -------------------------------------------------------------------------
+  !< DEFERRED LAPACK BINDING AND ABI CONTRACT
+  !< -------------------------------------------------------------------------
+  !<
+  !< The caller supplies ZGEESProcedure, a procedure with the interface
+  !< ZGEESInterface.
+  !<
+  !< -------------------------------------------------------------------------
+  !< Info
+  !< -------------------------------------------------------------------------
+  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
+  !< query or from the computational call is propagated unchanged.
+  !< If Dimension > huge(1_INT32), Info is set to huge(1_INT32).
+  !< If Dimension == 0, Info is 0.
+  !<
+  !< NOTES
+  !< -----
+  !< - Unitary and SchurForm are valid only when Info == 0.
+  !< - The routine has no global state. Concurrent calls are safe provided
+  !<   the supplied ZGEES implementation is thread-safe.
+  !<
+  interface
+    module subroutine SchurDecomposition(Dimension, Matrix, Unitary, SchurForm, ZGEESProcedure, Info)
+      integer(C_SIZE_T),          intent(in)            :: Dimension
+      complex(C_DOUBLE_COMPLEX),  intent(in)            :: Matrix(Dimension, Dimension)
+      complex(C_DOUBLE_COMPLEX),  intent(out)           :: Unitary(Dimension, Dimension)
+      complex(C_DOUBLE_COMPLEX),  intent(out), optional :: SchurForm(Dimension, Dimension)
+      procedure(ZGEESInterface)                         :: ZGEESProcedure
+      integer(C_INT),             intent(out)           :: Info
+    end subroutine SchurDecomposition
+  end interface
+
+  public :: ZGEESInterface
+  public :: SchurDecomposition
 
   !< Identifies degenerate levels in an ascending list of eigenvalues.
   !< Consecutive levels belong to the same group if their difference is
