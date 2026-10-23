@@ -32,6 +32,13 @@ module LDWFortranFunctionalSupport
   integer(INT32) :: ZGEESQueryCalls    = 0_INT32
   integer(INT32) :: ZGEESComputeCalls  = 0_INT32
 
+  !ZGESDD stub state. It is tracked separately so that the other drivers
+  !never interfere.
+  integer(INT32) :: ZGESDDQueryStatus   = 0_INT32
+  integer(INT32) :: ZGESDDComputeStatus = 0_INT32
+  integer(INT32) :: ZGESDDQueryCalls    = 0_INT32
+  integer(INT32) :: ZGESDDComputeCalls  = 0_INT32
+
   public :: ResetZHEEVDStub
   public :: SetZHEEVDStubStatus
   public :: GetZHEEVDStubCalls
@@ -40,11 +47,16 @@ module LDWFortranFunctionalSupport
   public :: SetZGEESStubStatus
   public :: GetZGEESStubCalls
   public :: ZGEESStub
+  public :: ResetZGESDDStub
+  public :: SetZGESDDStubStatus
+  public :: GetZGESDDStubCalls
+  public :: ZGESDDStub
   public :: FourierUnitary
   public :: SpectralHermitian
   public :: EigenvectorOverlap
   public :: OrthonormalityError
   public :: ResidualError
+  public :: SVResidualError
   public :: UpperTriangularError
   public :: DiagonalError
   public :: StrictUpperNorm
@@ -220,6 +232,100 @@ contains
 
   end subroutine ZGEESStub
 
+  !< Restores the nominal ZGESDD stub behaviour and clears the call counters.
+  subroutine ResetZGESDDStub()
+    ZGESDDQueryStatus   = 0_INT32
+    ZGESDDComputeStatus = 0_INT32
+    ZGESDDQueryCalls    = 0_INT32
+    ZGESDDComputeCalls  = 0_INT32
+  end subroutine ResetZGESDDStub
+
+  !< Selects the statuses returned by the ZGESDD workspace query and by the
+  !< computational call.
+  subroutine SetZGESDDStubStatus(NewQueryStatus, NewComputeStatus)
+    integer(INT32), intent(in) :: NewQueryStatus
+    integer(INT32), intent(in) :: NewComputeStatus
+
+    ZGESDDQueryStatus   = NewQueryStatus
+    ZGESDDComputeStatus = NewComputeStatus
+  end subroutine SetZGESDDStubStatus
+
+  !< Returns how many ZGESDD workspace queries and computational calls were
+  !< made.
+  subroutine GetZGESDDStubCalls(Queries, Computations)
+    integer(INT32), intent(out) :: Queries
+    integer(INT32), intent(out) :: Computations
+
+    Queries      = ZGESDDQueryCalls
+    Computations = ZGESDDComputeCalls
+  end subroutine GetZGESDDStubCalls
+
+  !< Minimal ZGESDD stand-in. The query reports max(M, N) workspace elements;
+  !< the computational call overwrites every output buffer. The argument
+  !< checks fail the call when LDW does not request the full factor shapes.
+  subroutine ZGESDDStub(JOBZ, M, N, A, LDA, S, U, LDU, VT, LDVT, &
+                        WORK, LWORK, RWORK, IWORK, INFO)
+    character,       intent(in)    :: JOBZ
+    integer(INT32),  intent(in)    :: M
+    integer(INT32),  intent(in)    :: N
+    integer(INT32),  intent(in)    :: LDA
+    integer(INT32),  intent(in)    :: LDU
+    integer(INT32),  intent(in)    :: LDVT
+    integer(INT32),  intent(in)    :: LWORK
+    complex(REAL64), intent(inout) :: A(LDA, N)
+    real(REAL64),    intent(out)   :: S(min(M, N))
+    complex(REAL64), intent(out)   :: U(LDU, *)
+    complex(REAL64), intent(out)   :: VT(LDVT, N)
+    complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+    real(REAL64),    intent(out)   :: RWORK(*)
+    integer(INT32),  intent(out)   :: IWORK(*)
+    integer(INT32),  intent(out)   :: INFO
+
+    integer(INT32) :: i, j, MinMN
+
+    INFO  = 0_INT32
+    MinMN = min(M, N)
+
+    if (JOBZ /= 'A' .or. LDA < M .or. LDU < M .or. LDVT < N) then
+      INFO = -1_INT32
+      return
+    endif
+
+    if (LWORK < 0_INT32) then
+      ZGESDDQueryCalls = ZGESDDQueryCalls + 1_INT32
+      !A single element is enough for the workspace validation.
+      WORK(1)  = cmplx(real(max(M, N), REAL64), 0.0_REAL64, REAL64)
+      RWORK(1) = 0.0_REAL64
+      IWORK(1) = 0_INT32
+      INFO     = ZGESDDQueryStatus
+    else
+      ZGESDDComputeCalls = ZGESDDComputeCalls + 1_INT32
+      !Make every written output buffer distinguishable.
+      A    = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      S    = 0.0_REAL64
+      VT   = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      WORK = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+
+      do j = 1, M
+        do i = 1, M
+          U(i, j) = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+        enddo
+      enddo
+
+      do i = 1, MinMN
+        A(i, i)  = cmplx(real(len(JOBZ) + LDA + LDU + LDVT + i, REAL64), &
+                         0.0_REAL64, REAL64)
+        U(i, i)  = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+        VT(i, i) = cmplx(1.0_REAL64, 0.0_REAL64, REAL64)
+      enddo
+
+      RWORK(1) = 0.0_REAL64
+      IWORK(1) = 0_INT32
+      INFO     = ZGESDDComputeStatus
+    endif
+
+  end subroutine ZGESDDStub
+
   pure function OrthonormalityError(U, N) result(Error)
     integer,         intent(in) :: N
     complex(REAL64), intent(in) :: U(N, N)
@@ -266,6 +372,33 @@ contains
       enddo
     enddo
   end function ResidualError
+
+  !< Maximum absolute entry of A - U*diag(DiagSigma)*VH for an M-by-N matrix
+  !< A. The product uses the first min(M, N) columns of U and rows of VH, so
+  !< it is the defining identity of the decomposition for any shape.
+  pure function SVResidualError(A, U, DiagSigma, VH, M, N) result(Error)
+    integer,         intent(in) :: M
+    integer,         intent(in) :: N
+    complex(REAL64), intent(in) :: A(M, N)
+    complex(REAL64), intent(in) :: U(M, M)
+    real(REAL64),    intent(in) :: DiagSigma(min(M, N))
+    complex(REAL64), intent(in) :: VH(N, N)
+    real(REAL64)                :: Error
+    complex(REAL64)             :: Entry
+    integer                     :: i, j, k
+
+    Error = 0.0_REAL64
+    do j = 1, N
+      do i = 1, M
+        Entry = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+        do k = 1, min(M, N)
+          Entry = Entry &
+            + U(i, k)*cmplx(DiagSigma(k), 0.0_REAL64, REAL64)*VH(k, j)
+        enddo
+        Error = max(Error, abs(Entry - A(i, j)))
+      enddo
+    enddo
+  end function SVResidualError
 
   !< Fills Unitary with the normalized N-point Fourier matrix. Its columns
   !< are orthonormal and are the eigenvectors of every circulant matrix.
@@ -1338,6 +1471,499 @@ TEST_SUITE(LDWFortranZGEESNominalSuite,
            LDWFortranZGEESFailComputation);
 #endif
 
+TEST_E(LDWFortranSVDNominal1x1)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, CmplxI, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: SVResidualError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(1, 1), U(1, 1), VH(1, 1)
+  real(C_DOUBLE)            :: S(1)
+  integer(C_INT)            :: Info
+
+  !Smallest dimension: the workspace query returns the minimum size and the
+  !single singular value is the modulus of the entry.
+  A(1, 1) = -3.5_C_DOUBLE*Cmplx1 + 2.0_C_DOUBLE*CmplxI
+
+  call SVDDecomposition(DimensionR = 1_C_SIZE_T, &
+                        DimensionC = 1_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(abs(S(1) - sqrt(16.25_C_DOUBLE)) < Tolerance)
+  ASSERT(abs(abs(U(1, 1)) - 1.0_C_DOUBLE) < Tolerance)
+  ASSERT(abs(abs(VH(1, 1)) - 1.0_C_DOUBLE) < Tolerance)
+  ASSERT(SVResidualError(A, U, S, VH, 1, 1) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDNominal2x2)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: OrthonormalityError, SVResidualError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(2, 2), AOriginal(2, 2), U(2, 2), VH(2, 2)
+  real(C_DOUBLE)            :: S(2)
+  integer(C_INT)            :: Info
+
+  !The singular values are 3 and 4. ZGESDD reports them descending, so this
+  !only holds when the wrapper reverses the sequence.
+  A(1, :)   = [3.0_C_DOUBLE*Cmplx1, Cmplx0]
+  A(2, :)   = [Cmplx0, -4.0_C_DOUBLE*Cmplx1]
+  AOriginal = A
+
+  call SVDDecomposition(DimensionR = 2_C_SIZE_T, &
+                        DimensionC = 2_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  !Matrix is an input-only argument and must not be overwritten.
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+
+  ASSERT(abs(S(1) - 3.0_C_DOUBLE) < Tolerance)
+  ASSERT(abs(S(2) - 4.0_C_DOUBLE) < Tolerance)
+
+  !Both factors are unitary: the columns of U and the rows of VH are
+  !orthonormal.
+  ASSERT(OrthonormalityError(U, 2) < Tolerance)
+  ASSERT(OrthonormalityError(conjg(transpose(VH)), 2) < Tolerance)
+
+  ASSERT(SVResidualError(AOriginal, U, S, VH, 2, 2) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDNominalRankDeficient)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: SVResidualError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), AOriginal(3, 3), U(3, 3), VH(3, 3)
+  real(C_DOUBLE)            :: S(3)
+  integer(C_INT)            :: Info
+
+  !Rank one: A = u*v^H with u = [1, 2, 3] and v = [1, 1, 1], so the singular
+  !values are 0, 0 and sqrt(14*3) = sqrt(42). The ascending order puts the
+  !zeros first.
+  A(1, :)   = [Cmplx1, Cmplx1, Cmplx1]
+  A(2, :)   = [2.0_C_DOUBLE*Cmplx1, 2.0_C_DOUBLE*Cmplx1, 2.0_C_DOUBLE*Cmplx1]
+  A(3, :)   = [3.0_C_DOUBLE*Cmplx1, 3.0_C_DOUBLE*Cmplx1, 3.0_C_DOUBLE*Cmplx1]
+  AOriginal = A
+
+  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                        DimensionC = 3_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+
+  ASSERT(abs(S(1)) < Tolerance)
+  ASSERT(abs(S(2)) < Tolerance)
+  ASSERT(abs(S(3) - sqrt(42.0_C_DOUBLE)) < Tolerance)
+
+  !The factors of a rank-deficient matrix are still unitary, so the
+  !decomposition remains exact up to rounding.
+  ASSERT(SVResidualError(AOriginal, U, S, VH, 3, 3) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDNominalTall)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: OrthonormalityError, SVResidualError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(4, 2), AOriginal(4, 2), U(4, 4), VH(2, 2)
+  real(C_DOUBLE)            :: S(2)
+  integer(C_INT)            :: Info
+
+  !Orthogonal columns with squared norms 10 and 20, so the singular values
+  !are sqrt(10) and sqrt(20) in ascending order.
+  A(1, :)   = [Cmplx1, Cmplx0]
+  A(2, :)   = [Cmplx0, 2.0_C_DOUBLE*Cmplx1]
+  A(3, :)   = [3.0_C_DOUBLE*Cmplx1, Cmplx0]
+  A(4, :)   = [Cmplx0, 4.0_C_DOUBLE*Cmplx1]
+  AOriginal = A
+
+  call SVDDecomposition(DimensionR = 4_C_SIZE_T, &
+                        DimensionC = 2_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+
+  ASSERT(abs(S(1) - sqrt(10.0_C_DOUBLE)) < Tolerance)
+  ASSERT(abs(S(2) - sqrt(20.0_C_DOUBLE)) < Tolerance)
+
+  !U is 4x4 and VH is 2x2: both are unitary, including the two columns of U
+  !which do not take part in the product.
+  ASSERT(OrthonormalityError(U, 4) < Tolerance)
+  ASSERT(OrthonormalityError(conjg(transpose(VH)), 2) < Tolerance)
+
+  ASSERT(SVResidualError(AOriginal, U, S, VH, 4, 2) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDNominalWide)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx0, Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: OrthonormalityError, SVResidualError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(2, 4), AOriginal(2, 4), U(2, 2), VH(4, 4)
+  real(C_DOUBLE)            :: S(2)
+  integer(C_INT)            :: Info
+
+  !The transposed counterpart of the tall case: the rows are orthogonal and
+  !the singular values are sqrt(10) and sqrt(20).
+  A(1, :)   = [Cmplx1, Cmplx0, 3.0_C_DOUBLE*Cmplx1, Cmplx0]
+  A(2, :)   = [Cmplx0, 2.0_C_DOUBLE*Cmplx1, Cmplx0, 4.0_C_DOUBLE*Cmplx1]
+  AOriginal = A
+
+  call SVDDecomposition(DimensionR = 2_C_SIZE_T, &
+                        DimensionC = 4_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+
+  ASSERT(abs(S(1) - sqrt(10.0_C_DOUBLE)) < Tolerance)
+  ASSERT(abs(S(2) - sqrt(20.0_C_DOUBLE)) < Tolerance)
+
+  !U is 2x2 and VH is 4x4: both are unitary, including the two rows of VH
+  !which do not take part in the product.
+  ASSERT(OrthonormalityError(U, 2) < Tolerance)
+  ASSERT(OrthonormalityError(conjg(transpose(VH)), 4) < Tolerance)
+
+  ASSERT(SVResidualError(AOriginal, U, S, VH, 2, 4) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDNominalNoDiagSigma)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, CmplxI, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: OrthonormalityError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), AOriginal(3, 3), U(3, 3), VH(3, 3)
+  complex(C_DOUBLE_COMPLEX) :: Sigma(3, 3)
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+
+  !Omitting the optional DiagSigma must not change the computation. The
+  !matrix is the one used by the reference test.
+  A(1, :)   = [ 2*Cmplx1 + CmplxI, CmplxI, Cmplx1 - CmplxI]
+  A(2, :)   = [-CmplxI, 3*Cmplx1, Cmplx1 + 2*CmplxI]
+  A(3, :)   = [ CmplxI, 2*Cmplx1 - CmplxI, -2*Cmplx1]
+  AOriginal = A
+
+  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                        DimensionC = 3_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+
+  !Without DiagSigma the singular values are not returned, but U^H*A*V must
+  !still be diagonal, non-negative and ascending. V is the adjoint of VH.
+  Sigma = matmul(conjg(transpose(U)), &
+                 matmul(AOriginal, conjg(transpose(VH))))
+
+  do j = 1, 3
+    do i = 1, 3
+      if (i == j) then
+        ASSERT(real(Sigma(i, j), C_DOUBLE) >= -Tolerance)
+      else
+        ASSERT(abs(Sigma(i, j)) < Tolerance)
+      endif
+    enddo
+  enddo
+
+  ASSERT(real(Sigma(1, 1), C_DOUBLE) <= real(Sigma(2, 2), C_DOUBLE))
+  ASSERT(real(Sigma(2, 2), C_DOUBLE) <= real(Sigma(3, 3), C_DOUBLE))
+
+  ASSERT(OrthonormalityError(U, 3) < Tolerance)
+  ASSERT(OrthonormalityError(conjg(transpose(VH)), 3) < Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDFastReturn)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: ResetZGESDDStub, &
+                                         GetZGESDDStubCalls, ZGESDDStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: A(1, 1), U(1, 1), VH(1, 1)
+  real(C_DOUBLE)            :: S(1)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A  = 42*Cmplx1
+  U  = 42*Cmplx1
+  S  = 42.0_C_DOUBLE
+  VH = 42*Cmplx1
+
+  call ResetZGESDDStub()
+
+  !Dimension zero is a fast return: the deferred procedure is never called
+  !and the output arguments are left untouched.
+  call SVDDecomposition(DimensionR = 0_C_SIZE_T, &
+                        DimensionC = 0_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = ZGESDDStub, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  ASSERT(all(abs(U - 42*Cmplx1) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(S - 42.0_C_DOUBLE) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(VH - 42*Cmplx1) <= 0.0_C_DOUBLE))
+
+  call GetZGESDDStubCalls(Queries, Computations)
+  ASSERT(Queries == 0_INT32)
+  ASSERT(Computations == 0_INT32)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDTooLarge)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: ResetZGESDDStub, &
+                                         GetZGESDDStubCalls, ZGESDDStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: A(1, 1), U(1, 1), VH(1, 1)
+  real(C_DOUBLE)            :: S(1)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A  = 42*Cmplx1
+  U  = 42*Cmplx1
+  S  = 42.0_C_DOUBLE
+  VH = 42*Cmplx1
+
+  call ResetZGESDDStub()
+
+  !Dimensions beyond the LAPACK integer range are rejected before any buffer
+  !is allocated or the deferred procedure is called.
+  call SVDDecomposition(DimensionR = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                        DimensionC = 1_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = ZGESDDStub, &
+                        Info = Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+  ASSERT(all(abs(U - 42*Cmplx1) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(S - 42.0_C_DOUBLE) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(VH - 42*Cmplx1) <= 0.0_C_DOUBLE))
+
+  call GetZGESDDStubCalls(Queries, Computations)
+  ASSERT(Queries == 0_INT32)
+  ASSERT(Computations == 0_INT32)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDFailWorkspaceQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: &
+    LDWStubFailingQuery, ResetZGESDDStub, SetZGESDDStubStatus, &
+    GetZGESDDStubCalls, ZGESDDStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), U(3, 3), VH(3, 3)
+  real(C_DOUBLE)            :: S(3)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A  = 0*Cmplx1
+  U  = 42*Cmplx1
+  S  = 42.0_C_DOUBLE
+  VH = 42*Cmplx1
+
+  call ResetZGESDDStub()
+  call SetZGESDDStubStatus(LDWStubFailingQuery, 0_INT32)
+
+  !A failing workspace query is propagated unchanged and the computational
+  !call is never made. The outputs are left untouched.
+  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                        DimensionC = 3_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = ZGESDDStub, &
+                        Info = Info)
+
+  ASSERT(Info == int(LDWStubFailingQuery, C_INT))
+  ASSERT(all(abs(U - 42*Cmplx1) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(S - 42.0_C_DOUBLE) <= 0.0_C_DOUBLE))
+  ASSERT(all(abs(VH - 42*Cmplx1) <= 0.0_C_DOUBLE))
+
+  call GetZGESDDStubCalls(Queries, Computations)
+  ASSERT(Queries == 1_INT32)
+  ASSERT(Computations == 0_INT32)
+
+#endif
+END_TEST_E
+
+TEST_E(LDWFortranSVDFailComputation)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: ResetZGESDDStub, &
+                                         SetZGESDDStubStatus, &
+                                         GetZGESDDStubCalls, ZGESDDStub
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  integer(INT32), parameter :: ComputeStatus = -6_INT32
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), U(3, 3), VH(3, 3)
+  real(C_DOUBLE)            :: S(3)
+  integer(C_INT)            :: Info
+  integer(INT32)            :: Queries, Computations
+
+  A = 0*Cmplx1
+
+  call ResetZGESDDStub()
+  call SetZGESDDStubStatus(0_INT32, ComputeStatus)
+
+  !A nonzero status from the computational call is propagated unchanged.
+  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                        DimensionC = 3_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = ZGESDDStub, &
+                        Info = Info)
+
+  ASSERT(Info == int(ComputeStatus, C_INT))
+
+  call GetZGESDDStubCalls(Queries, Computations)
+  ASSERT(Queries == 1_INT32)
+  ASSERT(Computations == 1_INT32)
+
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(LDWFortranSVDNominalSuite,
+           LDWFortranSVDNominal1x1,
+           LDWFortranSVDNominal2x2,
+           LDWFortranSVDNominalRankDeficient,
+           LDWFortranSVDNominalTall,
+           LDWFortranSVDNominalWide,
+           LDWFortranSVDNominalNoDiagSigma,
+           LDWFortranSVDFastReturn,
+           LDWFortranSVDTooLarge,
+           LDWFortranSVDFailWorkspaceQuery,
+           LDWFortranSVDFailComputation);
+#endif
+
 TEST_E(LDWFortranDegenFastReturn)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
@@ -1660,6 +2286,65 @@ TEST_E(LDWFortranZGEESReference)
 #endif
 END_TEST_E
 
+TEST_E(LDWFortranSVDReference)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
+                                    Cmplx1, CmplxI, SVDDecomposition
+  use LDWFortranFunctionalSupport, only: OrthonormalityError
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  external :: zgesdd
+
+  real(C_DOUBLE), parameter :: &
+    Tolerance = 100.0_C_DOUBLE*epsilon(1.0_C_DOUBLE)
+
+  complex(C_DOUBLE_COMPLEX) :: A(3, 3), AOriginal(3, 3), U(3, 3), VH(3, 3)
+  real(C_DOUBLE)            :: S(3)
+
+  real(C_DOUBLE) :: CongruenceError
+  integer(C_INT) :: Info
+
+  !Dense and neither Hermitian nor normal: the factors can only come from
+  !ZGESDD, not from a structural shortcut.
+  A(1, :)   = [ 2*Cmplx1 + CmplxI, CmplxI, Cmplx1 - CmplxI]
+  A(2, :)   = [-CmplxI, 3*Cmplx1, Cmplx1 + 2*CmplxI]
+  A(3, :)   = [ CmplxI, 2*Cmplx1 - CmplxI, -2*Cmplx1]
+  AOriginal = A
+
+  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                        DimensionC = 3_C_SIZE_T, &
+                        Matrix = A, &
+                        UnitaryU = U, &
+                        DiagSigma = S, &
+                        UnitaryVH = VH, &
+                        ZGESDDProcedure = zgesdd, &
+                        Info = Info)
+
+  ASSERT(Info == 0_C_INT)
+  !Matrix is an input-only argument and must not be overwritten.
+  ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
+
+  !Both factors are unitary: the columns of U and the rows of VH are
+  !orthonormal.
+  ASSERT(OrthonormalityError(U, 3) < Tolerance)
+  ASSERT(OrthonormalityError(conjg(transpose(VH)), 3) < Tolerance)
+
+  !The singular values are real, non-negative and in ascending order
+  !The matrix is non-singular, so no singular value vanishes.
+  ASSERT(S(1) > 0.0_C_DOUBLE)
+  ASSERT(S(1) <= S(2) .and. S(2) <= S(3))
+
+  !Congruence: A = U*diag(S)*VH. Because S is reversed relative to the order
+  !ZGESDD produces, this also checks that column j of U and row j of VH moved
+  !with S(j).
+  CongruenceError = maxval(abs(matmul(U*spread(S, 1, 3), VH) - AOriginal))
+  ASSERT(CongruenceError < Tolerance)
+
+#endif
+END_TEST_E
+
 TEST_E(LDWFortranDegeneracyGroupReference)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, &
@@ -1684,5 +2369,6 @@ END_TEST_E
 TEST_SUITE(LDWFortranReferenceSuite,
            LDWFortranDiagHermitianReference,
            LDWFortranZGEESReference,
+           LDWFortranSVDReference,
            LDWFortranDegeneracyGroupReference);
 #endif

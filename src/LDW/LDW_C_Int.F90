@@ -27,6 +27,8 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     procedure(ZHEEVDInterface), pointer :: ZHEEVDProcedureFPtr
     integer(C_INT),             pointer :: InfoFPtr
 
+    logical :: StoreValues
+
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
                        InfoFPtr)
@@ -58,8 +60,9 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
       call C_F_POINTER(Eigenvalues, &
                        EigenvaluesFPtr, &
                        [Dimension])
+      StoreValues = .true.
     else
-      return
+      StoreValues = .false.
     endif
 
     if (C_ASSOCIATED(ZHEEVDProcedure)) then
@@ -71,12 +74,20 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
     InfoFPtr = 0_C_INT
 
-    call DiagHermitian(Dimension = Dimension, &
-                       Matrix = MatrixFPtr, &
-                       Unitary = UnitaryFPtr, &
-                       Eigenvalues = EigenvaluesFPtr, &
-                       ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
-                       Info = InfoFPtr)
+    if (StoreValues) then
+      call DiagHermitian(Dimension = Dimension, &
+                         Matrix = MatrixFPtr, &
+                         Unitary = UnitaryFPtr, &
+                         Eigenvalues = EigenvaluesFPtr, &
+                         ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
+                         Info = InfoFPtr)
+    else
+      call DiagHermitian(Dimension = Dimension, &
+                         Matrix = MatrixFPtr, &
+                         Unitary = UnitaryFPtr, &
+                         ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
+                         Info = InfoFPtr)
+    endif
 
   end subroutine DiagHermitian_C
 
@@ -89,11 +100,13 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     type(C_FUNPTR),    intent(in), value :: ZGEESProcedure
     type(C_PTR),       intent(in), value :: Info
 
-    complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
-    complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryFPtr(:, :)
-    complex(C_DOUBLE_COMPLEX),  pointer :: SchurFormFPtr(:, :)
-    procedure(ZGEESInterface),  pointer :: ZGEESProcedureFPtr
-    integer(C_INT),             pointer :: InfoFPtr
+    complex(C_DOUBLE_COMPLEX), pointer :: MatrixFPtr(:, :)
+    complex(C_DOUBLE_COMPLEX), pointer :: UnitaryFPtr(:, :)
+    complex(C_DOUBLE_COMPLEX), pointer :: SchurFormFPtr(:, :)
+    procedure(ZGEESInterface), pointer :: ZGEESProcedureFPtr
+    integer(C_INT),            pointer :: InfoFPtr
+
+    logical :: StoreValues
 
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
@@ -126,8 +139,9 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
       call C_F_POINTER(SchurForm, &
                        SchurFormFPtr, &
                        [Dimension, Dimension])
+      StoreValues = .true.
     else
-      return
+      StoreValues = .false.
     endif
 
     if (C_ASSOCIATED(ZGEESProcedure)) then
@@ -139,14 +153,117 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
     InfoFPtr = 0_C_INT
 
-    call SchurDecomposition(Dimension = Dimension, &
-                            Matrix = MatrixFPtr, &
-                            Unitary = UnitaryFPtr, &
-                            SchurForm = SchurFormFPtr, &
-                            ZGEESProcedure = ZGEESProcedureFPtr, &
-                            Info = InfoFPtr)
+    if (StoreValues) then
+      call SchurDecomposition(Dimension = Dimension, &
+                              Matrix = MatrixFPtr, &
+                              Unitary = UnitaryFPtr, &
+                              SchurForm = SchurFormFPtr, &
+                              ZGEESProcedure = ZGEESProcedureFPtr, &
+                              Info = InfoFPtr)
+    else
+      call SchurDecomposition(Dimension = Dimension, &
+                              Matrix = MatrixFPtr, &
+                              Unitary = UnitaryFPtr, &
+                              ZGEESProcedure = ZGEESProcedureFPtr, &
+                              Info = InfoFPtr)
+    endif
 
   end subroutine SchurDecomposition_C
+
+  subroutine SVDDecomposition_C(DimensionR, DimensionC, Matrix, UnitaryU, DiagSigma, UnitaryVH, ZGESDDProcedure, Info) &
+    bind(C, name="SVDDecomposition")
+    integer(C_SIZE_T), intent(in), value :: DimensionR
+    integer(C_SIZE_T), intent(in), value :: DimensionC
+    type(C_PTR),       intent(in), value :: Matrix
+    type(C_PTR),       intent(in), value :: UnitaryU
+    type(C_PTR),       intent(in), value :: DiagSigma
+    type(C_PTR),       intent(in), value :: UnitaryVH
+    type(C_FUNPTR),    intent(in), value :: ZGESDDProcedure
+    type(C_PTR),       intent(in), value :: Info
+
+    complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
+    complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryUFPtr(:, :)
+    real(C_DOUBLE),             pointer :: DiagSigmaFPtr(:)
+    complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryVHFPtr(:, :)
+    procedure(ZGESDDInterface), pointer :: ZGESDDProcedureFPtr
+    integer(C_INT),             pointer :: InfoFPtr
+
+    logical :: StoreValues
+
+    if (C_ASSOCIATED(Info)) then
+      call C_F_POINTER(Info, &
+                       InfoFPtr)
+      if ((DimensionR > int(huge(1_INT32), C_SIZE_T)) .or. &
+          (DimensionC > int(huge(1_INT32), C_SIZE_T))) then
+        InfoFPtr = int(huge(1_INT32), C_INT)
+        return
+      endif
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(Matrix)) then
+      call C_F_POINTER(Matrix, &
+                       MatrixFPtr, &
+                       [DimensionR, DimensionC])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(UnitaryU)) then
+      call C_F_POINTER(UnitaryU, &
+                       UnitaryUFPtr, &
+                       [DimensionR, DimensionR])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(DiagSigma)) then
+      call C_F_POINTER(DiagSigma, &
+                       DiagSigmaFPtr, &
+                       [min(DimensionR, DimensionC)])
+      StoreValues = .true.
+    else
+      StoreValues = .false.
+    endif
+
+    if (C_ASSOCIATED(UnitaryVH)) then
+      call C_F_POINTER(UnitaryVH, &
+                       UnitaryVHFPtr, &
+                       [DimensionC, DimensionC])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(ZGESDDProcedure)) then
+      call C_F_PROCPOINTER(ZGESDDProcedure, &
+                           ZGESDDProcedureFPtr)
+    else
+      return
+    endif
+
+    InfoFPtr = 0_C_INT
+
+    if (StoreValues) then
+      call SVDDecomposition(DimensionR = DimensionR, &
+                            DimensionC = DimensionC, &
+                            Matrix = MatrixFPtr, &
+                            UnitaryU = UnitaryUFPtr, &
+                            DiagSigma = DiagSigmaFPtr, &
+                            UnitaryVH = UnitaryVHFPtr, &
+                            ZGESDDProcedure = ZGESDDProcedureFPtr, &
+                            Info = InfoFPtr)
+    else
+      call SVDDecomposition(DimensionR = DimensionR, &
+                            DimensionC = DimensionC, &
+                            Matrix = MatrixFPtr, &
+                            UnitaryU = UnitaryUFPtr, &
+                            UnitaryVH = UnitaryVHFPtr, &
+                            ZGESDDProcedure = ZGESDDProcedureFPtr, &
+                            Info = InfoFPtr)
+    endif
+
+  end subroutine SVDDecomposition_C
 
   subroutine DegeneracyGroup_C(Dimension, Eigenvalues, DegeneracyThreshold, Degeneracies) &
     bind(C, name="DegeneracyGroup")

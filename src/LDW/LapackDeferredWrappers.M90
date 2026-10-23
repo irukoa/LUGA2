@@ -53,11 +53,11 @@ module LapackDeferredWrappers
       complex(REAL64), intent(inout) :: A(LDA, N)
       integer(INT32),  intent(in)    :: LDA
       real(REAL64),    intent(out)   :: W(N)
-      complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+      complex(REAL64), intent(out)   :: WORK(max(1_INT32, LWORK))
       integer(INT32),  intent(in)    :: LWORK
-      real(REAL64),    intent(out)   :: RWORK(max(1, LRWORK))
+      real(REAL64),    intent(out)   :: RWORK(max(1_INT32, LRWORK))
       integer(INT32),  intent(in)    :: LRWORK
-      integer(INT32),  intent(out)   :: IWORK(max(1, LIWORK))
+      integer(INT32),  intent(out)   :: IWORK(max(1_INT32, LIWORK))
       integer(INT32),  intent(in)    :: LIWORK
       integer(INT32),  intent(out)   :: INFO
     end subroutine ZHEEVDInterface
@@ -153,7 +153,7 @@ module LapackDeferredWrappers
       complex(REAL64),     intent(out)   :: W(N)
       complex(REAL64),     intent(out)   :: VS(LDVS, N)
       integer(INT32),      intent(in)    :: LDVS
-      complex(REAL64),     intent(out)   :: WORK(max(1, LWORK))
+      complex(REAL64),     intent(out)   :: WORK(max(1_INT32, LWORK))
       integer(INT32),      intent(in)    :: LWORK
       real(REAL64),        intent(out)   :: RWORK(N)
       logical(LOGICAL32),  intent(out)   :: BWORK(N)
@@ -212,6 +212,103 @@ module LapackDeferredWrappers
 
   public :: ZGEESInterface
   public :: SchurDecomposition
+
+  abstract interface
+    !< Abstract interface for the reference LAPACK ZGESDD routine.
+    !<
+    !< Type mapping (reference LAPACK, LP64):
+    !<   COMPLEX*16       -> complex(REAL64)
+    !<   DOUBLE PRECISION -> real(REAL64)
+    !<   INTEGER          -> integer(INT32)
+    !<
+    !< ILP64 LAPACK is not compatible with this interface.
+    !<
+    !< Reference documentation:
+    !< https://netlib.org/lapack/explore-html/df/d22/group__gesdd_ga58d8bb0bce9bb2d6224d1955cef7462c.html
+    subroutine ZGESDDInterface(JOBZ, &
+                               M, N, A, LDA, &
+                               S, U, LDU, VT, LDVT, &
+                               WORK, LWORK, RWORK, IWORK, &
+                               INFO)
+      import INT32, REAL64
+      character,       intent(in)    :: JOBZ
+      integer(INT32),  intent(in)    :: M
+      integer(INT32),  intent(in)    :: N
+      complex(REAL64), intent(inout) :: A(LDA, N)
+      integer(INT32),  intent(in)    :: LDA
+      real(REAL64),    intent(out)   :: S(min(M, N))
+      complex(REAL64), intent(out)   :: U(LDU, *)
+      integer(INT32),  intent(in)    :: LDU
+      complex(REAL64), intent(out)   :: VT(LDVT, N)
+      integer(INT32),  intent(in)    :: LDVT
+      complex(REAL64), intent(out)   :: WORK(max(1_INT32, LWORK))
+      integer(INT32),  intent(in)    :: LWORK
+      real(REAL64),    intent(out)   :: RWORK(*)
+      integer(INT32),  intent(out)   :: IWORK(*)
+      integer(INT32),  intent(out)   :: INFO
+    end subroutine ZGESDDInterface
+  end interface
+
+  !< SVDDecomposition computes the singular value decomposition of a
+  !< complex matrix. The LAPACK ZGESDD implementation is supplied by the
+  !< caller at run time.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< For a complex DimensionR-by-DimensionC matrix A, the routine computes
+  !<
+  !<     U^H * A * V = diag(S),   U^H * U = I, V^H * V = I,
+  !<
+  !< where S contains the singular values in ascending order, and the columns
+  !< of U and V are the corresponding orthonormal left and right singular
+  !< vectors. For j = 1 .. min(DimensionR, DimensionC), DiagSigma(j) pairs
+  !< with column j of UnitaryU and row j of UnitaryVH; the remaining columns
+  !< of U and V complete the orthonormal bases.
+  !<
+  !< The working set is O(DimensionR * DimensionC).
+  !<
+  !< -------------------------------------------------------------------------
+  !< DEFERRED LAPACK BINDING AND ABI CONTRACT
+  !< -------------------------------------------------------------------------
+  !<
+  !< The caller supplies ZGESDDProcedure, a procedure with the interface
+  !< ZGESDDInterface.
+  !<
+  !< -------------------------------------------------------------------------
+  !< Info
+  !< -------------------------------------------------------------------------
+  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
+  !< query or from the computational call is propagated unchanged.
+  !< If either dimension exceeds huge(1_INT32), Info is set to huge(1_INT32).
+  !< If either dimension is 0, Info is 0.
+  !<
+  !< NOTES
+  !< -----
+  !< - UnitaryU, DiagSigma and UnitaryVH are valid only when Info == 0.
+  !< - This routine returns conjugate(transpose(V)) = V^(-1), not V.
+  !< - The routine has no global state. Concurrent calls are safe provided
+  !<   the supplied ZGESDD implementation is thread-safe.
+  !<
+  interface
+    module subroutine SVDDecomposition(DimensionR, DimensionC, Matrix, &
+                                       UnitaryU, DiagSigma, UnitaryVH, &
+                                       ZGESDDProcedure, &
+                                       Info)
+      integer(C_SIZE_T),         intent(in)            :: DimensionR
+      integer(C_SIZE_T),         intent(in)            :: DimensionC
+      complex(C_DOUBLE_COMPLEX), intent(in)            :: Matrix(DimensionR, DimensionC)
+      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryU(DimensionR, DimensionR)
+      real(C_DOUBLE),            intent(out), optional :: DiagSigma(min(DimensionR, DimensionC))
+      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryVH(DimensionC, DimensionC)
+      procedure(ZGESDDInterface)                       :: ZGESDDProcedure
+      integer(C_INT),            intent(out)           :: Info
+    end subroutine SVDDecomposition
+  end interface
+
+  public :: ZGESDDInterface
+  public :: SVDDecomposition
 
   !< Identifies degenerate levels in an ascending list of eigenvalues.
   !< Consecutive levels belong to the same group if their difference is

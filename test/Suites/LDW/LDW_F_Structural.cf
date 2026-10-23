@@ -15,11 +15,14 @@ CONTEXT_FN(StructuralSetup) {
   ResetFallibleMalloc();
   Core_MulOverflow = FallibleMulOverflow;
   ResetFallibleMulOverflow();
+  Core_AddOverflow = FallibleAddOverflow;
+  ResetFallibleAddOverflow();
 }
 CONTEXT_FN(StructuralTeardown) {
   (void)ContextData;
   RESET_FN(Core_Malloc);
   RESET_FN(Core_MulOverflow);
+  RESET_FN(Core_AddOverflow);
 }
 CONTEXT(StructuralCtx,
         StructuralSetup,
@@ -459,6 +462,281 @@ contains
   end subroutine ZGEESStub
 
 end module LDWStructuralZGEESStubs
+
+#endif
+
+#ifdef TSD_FORTRAN_IMPL
+
+!< Deterministic ZGESDD stand-in for the LDW structural tests.
+!<
+!< The workspace query reports a fixed complex workspace size (LWORK=5) so
+!< that a mistake in the element size of the buffer is observable. The
+!< computational call writes every output buffer, which also verifies that
+!< the buffers are large enough: ZGESDD carries no RWORK/IWORK length, so
+!< the stub writes the documented minimum (5*mn*mn + 5*mn reals and 8*mn
+!< integers), which the wrapper must always allocate.
+!<
+!< The singular values are written in descending order, like the reference
+!< implementation does, while U and VT are filled with distinct entries.
+!< The output checks therefore also pin the reversal which makes DiagSigma
+!< ascending, and the matching permutation of the two factors.
+!<
+!< StubMode selects the failure to inject. Each Run... helper assigns it
+!< immediately before calling SVDDecomposition, so tests do not depend on
+!< the state left behind by another test.
+module LDWStructuralZGESDDStubs
+
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_QUIET_NAN, IEEE_VALUE
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, C_DOUBLE_COMPLEX
+  use LapackDeferredWrappers, only: INT32, REAL64, C_INT, C_SIZE_T, &
+                                    SVDDecomposition
+
+  implicit none
+  private
+
+  !Stub behaviour selectors.
+  integer(INT32), parameter, public :: &
+    ZGESDDNominal      = 0_INT32, &
+    ZGESDDFailQuery    = 1_INT32, &
+    ZGESDDFailCompute  = 2_INT32, &
+    ZGESDDNegativeWork = 3_INT32, &
+    ZGESDDNaNWork      = 4_INT32, &
+    ZGESDDHugeWork     = 5_INT32, &
+    ZGESDDZeroWork     = 6_INT32
+
+  !Status codes reported by the failing stubs.
+  integer(INT32), parameter, public :: &
+    ZGESDDQueryStatus   = 7_INT32, &
+    ZGESDDComputeStatus = -6_INT32
+
+  !Nominal workspace size.
+  integer(INT32), parameter :: NominalLWork = 5_INT32
+
+  integer(INT32) :: StubMode = ZGESDDNominal
+
+  public :: RunSVDDecomposition
+  public :: RunSVDDecompositionNoDiagSigma
+  public :: RunSVDDecompositionAtDimensions
+  public :: RunSVDDecompositionResults
+  public :: RunSVDDecompositionRectangularResults
+
+contains
+
+  !< Runs SVDDecomposition on a 3x3 matrix with the requested stub
+  !< behaviour.
+  subroutine RunSVDDecomposition(Mode, Info)
+    integer(INT32), intent(in)  :: Mode
+    integer(C_INT), intent(out) :: Info
+
+    complex(REAL64) :: A(3, 3), U(3, 3), VH(3, 3)
+    real(REAL64)    :: S(3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                          DimensionC = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          UnitaryU = U, &
+                          DiagSigma = S, &
+                          UnitaryVH = VH, &
+                          ZGESDDProcedure = ZGESDDStub, &
+                          Info = Info)
+  end subroutine RunSVDDecomposition
+
+  !< Runs SVDDecomposition without the optional DiagSigma argument.
+  subroutine RunSVDDecompositionNoDiagSigma(Mode, UnitaryU, UnitaryVH, Info)
+    integer(INT32),  intent(in)  :: Mode
+    complex(REAL64), intent(out) :: UnitaryU(3, 3)
+    complex(REAL64), intent(out) :: UnitaryVH(3, 3)
+    integer(C_INT),  intent(out) :: Info
+
+    complex(REAL64) :: A(3, 3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                          DimensionC = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          UnitaryU = UnitaryU, &
+                          UnitaryVH = UnitaryVH, &
+                          ZGESDDProcedure = ZGESDDStub, &
+                          Info = Info)
+  end subroutine RunSVDDecompositionNoDiagSigma
+
+  !< Runs SVDDecomposition with the given dimensions and the nominal stub.
+  !< The 1x1 buffers are only dereferenced when both dimensions are 1.
+  subroutine RunSVDDecompositionAtDimensions(DimensionR, DimensionC, Info)
+    integer(C_SIZE_T), intent(in)  :: DimensionR
+    integer(C_SIZE_T), intent(in)  :: DimensionC
+    integer(C_INT),    intent(out) :: Info
+
+    complex(REAL64) :: A(1, 1), U(1, 1), VH(1, 1)
+    real(REAL64)    :: S(1)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = ZGESDDNominal
+
+    call SVDDecomposition(DimensionR = DimensionR, &
+                          DimensionC = DimensionC, &
+                          Matrix = A, &
+                          UnitaryU = U, &
+                          DiagSigma = S, &
+                          UnitaryVH = VH, &
+                          ZGESDDProcedure = ZGESDDStub, &
+                          Info = Info)
+  end subroutine RunSVDDecompositionAtDimensions
+
+  !< Runs SVDDecomposition on a 3x3 matrix and returns its outputs.
+  subroutine RunSVDDecompositionResults(Mode, UnitaryU, DiagSigma, UnitaryVH, &
+                                        Info)
+    integer(INT32),  intent(in)  :: Mode
+    complex(REAL64), intent(out) :: UnitaryU(3, 3)
+    real(REAL64),    intent(out) :: DiagSigma(3)
+    complex(REAL64), intent(out) :: UnitaryVH(3, 3)
+    integer(C_INT),  intent(out) :: Info
+
+    complex(REAL64) :: A(3, 3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
+                          DimensionC = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          UnitaryU = UnitaryU, &
+                          DiagSigma = DiagSigma, &
+                          UnitaryVH = UnitaryVH, &
+                          ZGESDDProcedure = ZGESDDStub, &
+                          Info = Info)
+  end subroutine RunSVDDecompositionResults
+
+  !< Runs SVDDecomposition on a 2x3 matrix and returns its outputs. It pins
+  !< the scope of the ascending permutation: only the first min(R, C)
+  !< columns of U and rows of VH take part in it.
+  subroutine RunSVDDecompositionRectangularResults(Mode, UnitaryU, DiagSigma, &
+                                                   UnitaryVH, Info)
+    integer(INT32),  intent(in)  :: Mode
+    complex(REAL64), intent(out) :: UnitaryU(2, 2)
+    real(REAL64),    intent(out) :: DiagSigma(2)
+    complex(REAL64), intent(out) :: UnitaryVH(3, 3)
+    integer(C_INT),  intent(out) :: Info
+
+    complex(REAL64) :: A(2, 3)
+
+    A        = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+    StubMode = Mode
+
+    call SVDDecomposition(DimensionR = 2_C_SIZE_T, &
+                          DimensionC = 3_C_SIZE_T, &
+                          Matrix = A, &
+                          UnitaryU = UnitaryU, &
+                          DiagSigma = DiagSigma, &
+                          UnitaryVH = UnitaryVH, &
+                          ZGESDDProcedure = ZGESDDStub, &
+                          Info = Info)
+  end subroutine RunSVDDecompositionRectangularResults
+
+  !< ZGESDD stand-in. The workspace query reports NominalLWork elements or an
+  !< invalid value, depending on StubMode. The computational call returns
+  !< descending singular values (mn, mn - 1, ..., 1), U(i, j) = 10*i + j and
+  !< VT(i, j) = 100*i + j so that both the values and the permutation of the
+  !< factors can be checked.
+  subroutine ZGESDDStub(JOBZ, M, N, A, LDA, &
+                        S, U, LDU, VT, LDVT, &
+                        WORK, LWORK, RWORK, IWORK, &
+                        INFO)
+    character,       intent(in)    :: JOBZ
+    integer(INT32),  intent(in)    :: M
+    integer(INT32),  intent(in)    :: N
+    integer(INT32),  intent(in)    :: LDA
+    integer(INT32),  intent(in)    :: LDU
+    integer(INT32),  intent(in)    :: LDVT
+    integer(INT32),  intent(in)    :: LWORK
+    complex(REAL64), intent(inout) :: A(LDA, N)
+    real(REAL64),    intent(out)   :: S(min(M, N))
+    complex(REAL64), intent(out)   :: U(LDU, *)
+    complex(REAL64), intent(out)   :: VT(LDVT, N)
+    complex(REAL64), intent(out)   :: WORK(max(1, LWORK))
+    real(REAL64),    intent(out)   :: RWORK(*)
+    integer(INT32),  intent(out)   :: IWORK(*)
+    integer(INT32),  intent(out)   :: INFO
+
+    integer(INT32) :: i, j, MinMN
+
+    INFO  = 0_INT32
+    MinMN = min(M, N)
+
+    if (JOBZ /= 'A' .or. LDA < M .or. LDU < M .or. LDVT < N) then
+      INFO = -1_INT32
+      return
+    endif
+
+    !Workspace query.
+    if (LWORK == -1_INT32) then
+      select case (StubMode)
+      case (ZGESDDFailQuery)
+        INFO = ZGESDDQueryStatus
+      case (ZGESDDNegativeWork)
+        WORK(1) = cmplx(-1.0_REAL64, 0.0_REAL64, REAL64)
+      case (ZGESDDNaNWork)
+        WORK(1) = cmplx(IEEE_VALUE(0.0_REAL64, IEEE_QUIET_NAN), &
+                        0.0_REAL64, REAL64)
+      case (ZGESDDHugeWork)
+        WORK(1) = cmplx(2.0_REAL64 * real(huge(1_INT32), REAL64), &
+                        0.0_REAL64, REAL64)
+      case (ZGESDDZeroWork)
+        WORK(1) = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      case default
+        WORK(1) = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
+      end select
+      RWORK(1) = 0.0_REAL64
+      IWORK(1) = 0_INT32
+      return
+    endif
+
+    !Computational call. Every output is defined so that the implementation
+    !never copies uninitialized data back to the caller, even on failure.
+    do j = 1, N
+      do i = 1, M
+        A(i, j) = cmplx(real(10*i + j, REAL64), 0.0_REAL64, REAL64)
+      enddo
+    enddo
+
+    !Descending, as the reference implementation returns them.
+    do j = 1, MinMN
+      S(j) = real(MinMN - j + 1, REAL64)
+    enddo
+
+    do j = 1, M
+      do i = 1, M
+        U(i, j) = cmplx(real(10*i + j, REAL64), 0.0_REAL64, REAL64)
+      enddo
+    enddo
+
+    do j = 1, N
+      do i = 1, N
+        VT(i, j) = cmplx(real(100*i + j, REAL64), 0.0_REAL64, REAL64)
+      enddo
+    enddo
+
+    WORK = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+
+    !The wrapper must provide the reference requirements even though ZGESDD
+    !has no length argument for these two buffers.
+    do i = 1, 5*MinMN*MinMN + 5*MinMN
+      RWORK(i) = 0.0_REAL64
+    enddo
+    do i = 1, 8*MinMN
+      IWORK(i) = 0_INT32
+    enddo
+
+    if (StubMode == ZGESDDFailCompute) INFO = ZGESDDComputeStatus
+
+  end subroutine ZGESDDStub
+
+end module LDWStructuralZGESDDStubs
 
 #endif
 
@@ -1615,6 +1893,1036 @@ TEST_EF(StructuralCtx, LDWStructuralZGEESNominalNoSchurForm)
 #endif
 END_TEST_EF
 
+TEST_EF(StructuralCtx, LDWStructuralZGESDDZeroDimension)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionAtDimensions
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !No workspace is needed: the routine must return before any allocation.
+  call RunSVDDecompositionAtDimensions(0_C_SIZE_T, 0_C_SIZE_T, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDZeroColumns)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionAtDimensions
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A single zero dimension is enough for the empty decomposition.
+  call RunSVDDecompositionAtDimensions(3_C_SIZE_T, 0_C_SIZE_T, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDTooLargeDimension)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionAtDimensions
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !DimensionR exceeds huge(1_INT32): reject before any allocation.
+  call RunSVDDecompositionAtDimensions(int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                                       1_C_SIZE_T, &
+                                       Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDTooLargeColumns)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionAtDimensions
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !DimensionC exceeds huge(1_INT32): reject before any allocation.
+  call RunSVDDecompositionAtDimensions(1_C_SIZE_T, &
+                                       int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                                       Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDMatrixCopyColumnBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First multiplication: bytes per matrix column (16 * DimensionR).
+  call SetFallibleMulOverflow(1_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDMatrixCopyTotalBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second multiplication: total matrix bytes
+  !(16 * DimensionR * DimensionC).
+  call SetFallibleMulOverflow(2_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDUnitaryUColumnBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third multiplication: bytes per left-factor column (16 * DimensionR).
+  call SetFallibleMulOverflow(3_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDUnitaryUTotalBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourth multiplication: total left-factor bytes
+  !(16 * DimensionR * DimensionR).
+  call SetFallibleMulOverflow(4_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDSingularValuesBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifth multiplication: singular-value bytes
+  !(8 * min(DimensionR, DimensionC)).
+  call SetFallibleMulOverflow(5_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDUnitaryVHColumnBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Sixth multiplication: bytes per right-factor column (16 * DimensionC).
+  call SetFallibleMulOverflow(6_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDUnitaryVHTotalBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Seventh multiplication: total right-factor bytes
+  !(16 * DimensionC * DimensionC).
+  call SetFallibleMulOverflow(7_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkSquareBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Eighth multiplication: min(M, N)^2 for the LRWORK estimate, before the
+  !workspace query.
+  call SetFallibleMulOverflow(8_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkFiveTimesSquareBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Ninth multiplication: 5 * min(M, N)^2.
+  call SetFallibleMulOverflow(9_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkFiveTimesMinBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Tenth multiplication: 5 * min(M, N).
+  call SetFallibleMulOverflow(10_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkMaxMinBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Eleventh multiplication: max(M, N) * min(M, N).
+  call SetFallibleMulOverflow(11_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkTwiceMaxMinBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Twelfth multiplication: 2 * max(M, N) * min(M, N).
+  call SetFallibleMulOverflow(12_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkSecondSquareBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Thirteenth multiplication: the second min(M, N)^2 term.
+  call SetFallibleMulOverflow(13_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkTwiceSecondSquareBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourteenth multiplication: 2 * min(M, N)^2.
+  call SetFallibleMulOverflow(14_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLIWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifteenth multiplication: 8 * min(M, N) for the LIWORK estimate.
+  call SetFallibleMulOverflow(15_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Sixteenth multiplication: WORK bytes (16 * LWORK), after the query.
+  call SetFallibleMulOverflow(16_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDRWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Seventeenth multiplication: RWORK bytes (8 * LRWORK), after the query.
+  call SetFallibleMulOverflow(17_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDIWorkBytesMulOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Eighteenth multiplication: IWORK bytes (4 * LIWORK), after the query.
+  call SetFallibleMulOverflow(18_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkFirstSumAddOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First addition: 5*mn*mn + 5*mn.
+  call SetFallibleAddOverflow(1_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkSecondSumAddOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second addition: 2*mx*mn + 2*mn*mn.
+  call SetFallibleAddOverflow(2_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDLRWorkThirdSumAddOverflow)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third addition: (2*mx*mn + 2*mn*mn) + mn.
+  call SetFallibleAddOverflow(3_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDMatrixCopyAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !First allocation: the matrix copy buffer.
+  call SetFallibleMalloc(1_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDUnitaryUAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Second allocation: the left-factor buffer.
+  call SetFallibleMalloc(2_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDSingularValuesAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Third allocation: the singular-value buffer.
+  call SetFallibleMalloc(3_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDUnitaryVHAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fourth allocation: the right-factor buffer.
+  call SetFallibleMalloc(4_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Fifth allocation: the complex workspace.
+  call SetFallibleMalloc(5_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDRWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Sixth allocation: the real workspace.
+  call SetFallibleMalloc(6_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDIWorkAllocFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Seventh allocation: the integer workspace.
+  call SetFallibleMalloc(7_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDQueryStatusFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, &
+                                      ZGESDDFailQuery, ZGESDDQueryStatus
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A nonzero status from the workspace query is propagated unchanged.
+  call RunSVDDecomposition(ZGESDDFailQuery, Info)
+
+  ASSERT(Info == int(ZGESDDQueryStatus, C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDZeroWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDZeroWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !An LWORK below one element must be rejected after the query.
+  call RunSVDDecomposition(ZGESDDZeroWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDNegativeWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNegativeWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A negative LWORK must be rejected after the query.
+  call RunSVDDecomposition(ZGESDDNegativeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDNaNWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNaNWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A non-finite LWORK must be rejected after the query.
+  call RunSVDDecomposition(ZGESDDNaNWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDHugeWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDHugeWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !An LWORK which does not fit in INT32 must be rejected after the query.
+  call RunSVDDecomposition(ZGESDDHugeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDComputeStatusFail)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, &
+                                      ZGESDDFailCompute, ZGESDDComputeStatus
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A nonzero status from the computational call is propagated unchanged.
+  call RunSVDDecomposition(ZGESDDFailCompute, Info)
+
+  ASSERT(Info == int(ZGESDDComputeStatus, C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDAllocatorCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly seven allocations, so a failure armed at the eighth
+  !call must never trigger. This pins the indices used above.
+  call SetFallibleMalloc(8_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDMultiplierCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly eighteen multiplications, so a failure armed at the
+  !nineteenth call must never trigger. This pins the indices used above.
+  call SetFallibleMulOverflow(19_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDAddOverflowCallsExhausted)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDNominal
+  use CoreSupportFortran
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !There are exactly three additions, so a failure armed at the fourth call
+  !must never trigger. This pins the indices used above.
+  call SetFallibleAddOverflow(4_C_SIZE_T)
+  call RunSVDDecomposition(ZGESDDNominal, Info)
+
+  ASSERT(Info == 0_C_INT)
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDNominal)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionResults, &
+                                      ZGESDDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: U(3, 3), VH(3, 3), Expected
+  real(C_DOUBLE)            :: S(3)
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !The stub writes LWORK/RWORK/IWORK elements, so this also verifies that
+  !the workspace buffers were sized with the right element sizes.
+  call RunSVDDecompositionResults(ZGESDDNominal, U, S, VH, Info)
+
+  ASSERT(Info == 0_C_INT)
+
+  !The stub wrote 3, 2, 1: the wrapper must return them ascending.
+  do j = 1, 3
+    ASSERT(abs(S(j) - real(j, C_DOUBLE)) <= 0.0_C_DOUBLE)
+  enddo
+
+  !Reversing the columns of U swaps columns 1 and 3, so column j holds
+  !10*i + (4 - j).
+  do j = 1, 3
+    do i = 1, 3
+      Expected = cmplx(real(10*i + 4 - j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+      ASSERT(abs(U(i, j) - Expected) <= 0.0_C_DOUBLE)
+    enddo
+  enddo
+
+  !Reversing the rows of VT swaps rows 1 and 3, so row i holds
+  !100*(4 - i) + j.
+  do j = 1, 3
+    do i = 1, 3
+      Expected = cmplx(real(100*(4 - i) + j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+      ASSERT(abs(VH(i, j) - Expected) <= 0.0_C_DOUBLE)
+    enddo
+  enddo
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDNominalNoDiagSigma)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionNoDiagSigma, &
+                                      ZGESDDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: U(3, 3), VH(3, 3), Expected
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !Omitting the optional DiagSigma must not change the computation.
+  call RunSVDDecompositionNoDiagSigma(ZGESDDNominal, U, VH, Info)
+
+  ASSERT(Info == 0_C_INT)
+
+  do j = 1, 3
+    do i = 1, 3
+      Expected = cmplx(real(10*i + 4 - j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+      ASSERT(abs(U(i, j) - Expected) <= 0.0_C_DOUBLE)
+    enddo
+  enddo
+
+  do j = 1, 3
+    do i = 1, 3
+      Expected = cmplx(real(100*(4 - i) + j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+      ASSERT(abs(VH(i, j) - Expected) <= 0.0_C_DOUBLE)
+    enddo
+  enddo
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDNominalRectangular)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecompositionRectangularResults, &
+                                      ZGESDDNominal
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  complex(C_DOUBLE_COMPLEX) :: U(2, 2), VH(3, 3), Expected
+  real(C_DOUBLE)            :: S(2)
+  integer(C_INT)            :: Info
+  integer                   :: i, j
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call RunSVDDecompositionRectangularResults(ZGESDDNominal, U, S, VH, Info)
+
+  ASSERT(Info == 0_C_INT)
+
+  !The stub wrote 2, 1 for a 2-by-3 matrix.
+  ASSERT(abs(S(1) - 1.0_C_DOUBLE) <= 0.0_C_DOUBLE)
+  ASSERT(abs(S(2) - 2.0_C_DOUBLE) <= 0.0_C_DOUBLE)
+
+  !U is 2x2, so both of its columns are permuted.
+  do j = 1, 2
+    do i = 1, 2
+      Expected = cmplx(real(10*i + 3 - j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+      ASSERT(abs(U(i, j) - Expected) <= 0.0_C_DOUBLE)
+    enddo
+  enddo
+
+  !Only the first min(2, 3) = 2 rows of VT are permuted: rows 1 and 2 are
+  !swapped and row 3 keeps its position.
+  do j = 1, 3
+    do i = 1, 3
+      if (i <= 2) then
+        Expected = cmplx(real(100*(3 - i) + j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+        ASSERT(abs(VH(i, j) - Expected) <= 0.0_C_DOUBLE)
+      else
+        Expected = cmplx(real(300 + j, C_DOUBLE), 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+        ASSERT(abs(VH(i, j) - Expected) <= 0.0_C_DOUBLE)
+      endif
+    enddo
+  enddo
+#endif
+END_TEST_EF
+
 #ifdef TSD_KERNEL
 TEST_SUITE(LDWStructuralSuite,
            LDWStructuralZeroDimension,
@@ -1667,5 +2975,49 @@ TEST_SUITE(LDWStructuralSuite,
            LDWStructuralZGEESMultiplierCallsExhausted,
            LDWStructuralZGEESNominal,
            LDWStructuralZGEESNominalNoSchurForm,
+           LDWStructuralZGESDDZeroDimension,
+           LDWStructuralZGESDDZeroColumns,
+           LDWStructuralZGESDDTooLargeDimension,
+           LDWStructuralZGESDDTooLargeColumns,
+           LDWStructuralZGESDDMatrixCopyColumnBytesMulOverflow,
+           LDWStructuralZGESDDMatrixCopyTotalBytesMulOverflow,
+           LDWStructuralZGESDDUnitaryUColumnBytesMulOverflow,
+           LDWStructuralZGESDDUnitaryUTotalBytesMulOverflow,
+           LDWStructuralZGESDDSingularValuesBytesMulOverflow,
+           LDWStructuralZGESDDUnitaryVHColumnBytesMulOverflow,
+           LDWStructuralZGESDDUnitaryVHTotalBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkSquareBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkFiveTimesSquareBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkFiveTimesMinBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkMaxMinBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkTwiceMaxMinBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkSecondSquareBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkTwiceSecondSquareBytesMulOverflow,
+           LDWStructuralZGESDDLIWorkBytesMulOverflow,
+           LDWStructuralZGESDDWorkBytesMulOverflow,
+           LDWStructuralZGESDDRWorkBytesMulOverflow,
+           LDWStructuralZGESDDIWorkBytesMulOverflow,
+           LDWStructuralZGESDDLRWorkFirstSumAddOverflow,
+           LDWStructuralZGESDDLRWorkSecondSumAddOverflow,
+           LDWStructuralZGESDDLRWorkThirdSumAddOverflow,
+           LDWStructuralZGESDDMatrixCopyAllocFail,
+           LDWStructuralZGESDDUnitaryUAllocFail,
+           LDWStructuralZGESDDSingularValuesAllocFail,
+           LDWStructuralZGESDDUnitaryVHAllocFail,
+           LDWStructuralZGESDDWorkAllocFail,
+           LDWStructuralZGESDDRWorkAllocFail,
+           LDWStructuralZGESDDIWorkAllocFail,
+           LDWStructuralZGESDDQueryStatusFail,
+           LDWStructuralZGESDDZeroWorkQuery,
+           LDWStructuralZGESDDNegativeWorkQuery,
+           LDWStructuralZGESDDNaNWorkQuery,
+           LDWStructuralZGESDDHugeWorkQuery,
+           LDWStructuralZGESDDComputeStatusFail,
+           LDWStructuralZGESDDAllocatorCallsExhausted,
+           LDWStructuralZGESDDMultiplierCallsExhausted,
+           LDWStructuralZGESDDAddOverflowCallsExhausted,
+           LDWStructuralZGESDDNominal,
+           LDWStructuralZGESDDNominalNoDiagSigma,
+           LDWStructuralZGESDDNominalRectangular,
            LDWStructuralDegeneracyNoAllocator);
 #endif

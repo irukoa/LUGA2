@@ -38,7 +38,7 @@ Enabling OpenMP adds a runtime dependency on the OpenMP runtime (e.g. `libgomp`)
 
 Deferred LAPACK wrappers: LAPACK procedures are supplied by the application at runtime rather than linked into LUGA2.
 
-Provides Hermitian diagonalization (`DiagHermitian`) through a caller-supplied `ZHEEVD` procedure, and consecutive eigenvalue grouping (`DegeneracyGroup`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
+Provides Hermitian diagonalization (`DiagHermitian`), Schur decomposition (`SchurDecomposition`), and singular value decomposition (`SVDDecomposition`) through a caller-supplied `ZHEEVD`/`ZGEES`/`ZGESDD` procedure, and consecutive eigenvalue grouping (`DegeneracyGroup`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
 
 ## Graph Topologies and Shortest-path Algorithms (GRTP)
 
