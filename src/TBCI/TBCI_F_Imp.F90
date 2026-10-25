@@ -159,7 +159,6 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     integer(C_SIZE_T)         :: i, j, iSites
     complex(C_DOUBLE_COMPLEX) :: Sum, Ipow
     real(C_DOUBLE)            :: KdotR, DerProd
-    real(C_DOUBLE)            :: Pos(Crystal%Dimensionality)
 
     if (present(Derivative)) then
       LocalDerivative = Derivative
@@ -258,7 +257,22 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     end select
 
     Computation: block
-      integer(C_SIZE_T) :: ArrayHandle(size(ArrayShape, KIND = C_SIZE_T))
+      integer(C_SIZE_T)         :: ArrayHandle(size(ArrayShape, KIND = C_SIZE_T))
+      complex(C_DOUBLE_COMPLEX) :: Phase(Crystal%SiteCount)
+      real(C_DOUBLE)            :: Pos(Crystal%Dimensionality, Crystal%SiteCount)
+
+      do iSites = 1_C_SIZE_T, Crystal%SiteCount
+        KdotR         = 2 * TBCIPi * dot_product(real(SiteCoords(:, iSites), C_DOUBLE), KPoint)
+        Phase(iSites) = exp(TBCICmplxI * KdotR)
+        if (LocalDerivative > 0_C_SIZE_T) then
+          Pos(:, iSites) = 0.0_C_DOUBLE
+          do j = 1_C_SIZE_T, Crystal%Dimensionality
+            Pos(:, iSites) = Pos(:, iSites) + DirectLattice(:, j) * &
+              SiteCoords(j, iSites)
+          enddo
+        endif
+      enddo
+
       do i = 0_C_SIZE_T, ArraySpec%ElementCount() - 1_C_SIZE_T
 
         ArrayHandle = ArraySpec%Multidimensional(i)
@@ -266,21 +280,12 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
         do iSites = 1_C_SIZE_T, Crystal%SiteCount
 
-          KdotR = 2 * TBCIPi * dot_product(real(SiteCoords(:, iSites), C_DOUBLE), KPoint)
-
-          if (LocalDerivative > 0_C_SIZE_T) then
-            Pos = 0.0_C_DOUBLE
-            do j = 1_C_SIZE_T, Crystal%Dimensionality
-                Pos = Pos + DirectLattice(:, j) * SiteCoords(j, iSites)
-            enddo
-          endif
-
           DerProd = 1_C_DOUBLE
           do j = 1_C_SIZE_T, LocalDerivative
-            DerProd = DerProd * Pos(ArrayHandle(j + 2_C_SIZE_T) + 1_C_SIZE_T)
+            DerProd = DerProd * Pos(ArrayHandle(j + 2_C_SIZE_T) + 1_C_SIZE_T, iSites)
           enddo
 
-          Sum = Sum + Ipow * DerProd * exp(TBCICmplxI * KdotR) * &
+          Sum = Sum + Ipow * DerProd * Phase(iSites) * &
             Hamiltonian(iSites, &
                         ArrayHandle(1_C_SIZE_T) + 1_C_SIZE_T, &
                         ArrayHandle(2_C_SIZE_T) + 1_C_SIZE_T)
@@ -377,7 +382,6 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     integer(C_SIZE_T)         :: i, j, iSites
     complex(C_DOUBLE_COMPLEX) :: Sum, Ipow
     real(C_DOUBLE)            :: KdotR, DerProd
-    real(C_DOUBLE)            :: Pos(Crystal%Dimensionality)
 
     if (present(Derivative)) then
       LocalDerivative = Derivative
@@ -477,7 +481,22 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     end select
 
     Computation: block
-      integer(C_SIZE_T) :: ArrayHandle(size(ArrayShape, KIND = C_SIZE_T))
+      integer(C_SIZE_T)         :: ArrayHandle(size(ArrayShape, KIND = C_SIZE_T))
+      complex(C_DOUBLE_COMPLEX) :: Phase(Crystal%SiteCount)
+      real(C_DOUBLE)            :: Pos(Crystal%Dimensionality, Crystal%SiteCount)
+
+      do iSites = 1_C_SIZE_T, Crystal%SiteCount
+        KdotR         = 2 * TBCIPi * dot_product(real(SiteCoords(:, iSites), C_DOUBLE), KPoint)
+        Phase(iSites) = exp(TBCICmplxI * KdotR)
+        if (LocalDerivative > 0_C_SIZE_T) then
+          Pos(:, iSites) = 0.0_C_DOUBLE
+          do j = 1_C_SIZE_T, Crystal%Dimensionality
+            Pos(:, iSites) = Pos(:, iSites) + DirectLattice(:, j) * &
+              SiteCoords(j, iSites)
+          enddo
+        endif
+      enddo
+
       do i = 0_C_SIZE_T, ArraySpec%ElementCount() - 1_C_SIZE_T
 
         ArrayHandle = ArraySpec%Multidimensional(i)
@@ -485,21 +504,12 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
         do iSites = 1_C_SIZE_T, Crystal%SiteCount
 
-          KdotR = 2 * TBCIPi * dot_product(real(SiteCoords(:, iSites), C_DOUBLE), KPoint)
-
-          if (LocalDerivative > 0_C_SIZE_T) then
-            Pos = 0.0_C_DOUBLE
-            do j = 1_C_SIZE_T, Crystal%Dimensionality
-                Pos = Pos + DirectLattice(:, j) * SiteCoords(j, iSites)
-            enddo
-          endif
-
           DerProd = 1_C_DOUBLE
           do j = 1_C_SIZE_T, LocalDerivative
-            DerProd = DerProd * Pos(ArrayHandle(j + 3_C_SIZE_T) + 1_C_SIZE_T)
+            DerProd = DerProd * Pos(ArrayHandle(j + 3_C_SIZE_T) + 1_C_SIZE_T, iSites)
           enddo
 
-          Sum = Sum + Ipow * DerProd * exp(TBCICmplxI * KdotR) * &
+          Sum = Sum + Ipow * DerProd * Phase(iSites) * &
             Position(iSites, &
                      ArrayHandle(1_C_SIZE_T) + 1_C_SIZE_T, &
                      ArrayHandle(2_C_SIZE_T) + 1_C_SIZE_T, &

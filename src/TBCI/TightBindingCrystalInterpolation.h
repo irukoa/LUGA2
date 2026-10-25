@@ -502,7 +502,7 @@ bool TBCrystalGetTBPositionOperator(const TBCrystal *Crystal,
  * - The routine performs no Brillouin-zone folding, no hermitization and no
  *   symmetrization of the supplied blocks.
  * - The cost is O(BandCount^2 * Dimensionality^Derivative * SiteCount).
- * - Working storage is O(Derivative + 2).
+ * - Working storage is O(SiteCount * (Dimensionality + 2) + Derivative + 2).
  * - The routine keeps no state; concurrent calls are safe.
  */
 bool TBCrystalHamiltonian(const TBCrystal *Crystal,
@@ -601,7 +601,7 @@ bool TBCrystalHamiltonian(const TBCrystal *Crystal,
  * - The routine performs no Brillouin-zone folding, no hermitization and no
  *   symmetrization of the supplied blocks.
  * - The cost is O(BandCount^2 * Dimensionality^(Derivative + 1) * SiteCount).
- * - Working storage is O(Derivative + 3).
+ * - Working storage is O(SiteCount * (Dimensionality + 2) + Derivative + 3).
  * - The routine keeps no state; concurrent calls are safe.
  */
 bool TBPositionOperator(const TBCrystal *Crystal,
