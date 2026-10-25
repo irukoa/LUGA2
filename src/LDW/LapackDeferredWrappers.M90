@@ -94,13 +94,16 @@ module LapackDeferredWrappers
   !< -------------------------------------------------------------------------
   !< Info
   !< -------------------------------------------------------------------------
+  !<
   !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
   !< query or from the computational call is propagated unchanged.
   !< If Dimension > huge(1_INT32), Info is set to huge(1_INT32).
   !< If Dimension == 0, Info is 0.
   !<
+  !< -------------------------------------------------------------------------
   !< NOTES
-  !< -----
+  !< -------------------------------------------------------------------------
+  !<
   !< - Unitary and Eigenvalues are valid only when Info == 0.
   !< - The routine has no global state. Concurrent calls are safe provided
   !<   the supplied ZHEEVD implementation is thread-safe.
@@ -191,13 +194,16 @@ module LapackDeferredWrappers
   !< -------------------------------------------------------------------------
   !< Info
   !< -------------------------------------------------------------------------
+  !<
   !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
   !< query or from the computational call is propagated unchanged.
   !< If Dimension > huge(1_INT32), Info is set to huge(1_INT32).
   !< If Dimension == 0, Info is 0.
   !<
+  !< -------------------------------------------------------------------------
   !< NOTES
-  !< -----
+  !< -------------------------------------------------------------------------
+  !<
   !< - Unitary and SchurForm are valid only when Info == 0.
   !< - The routine has no global state. Concurrent calls are safe provided
   !<   the supplied ZGEES implementation is thread-safe.
@@ -285,13 +291,16 @@ module LapackDeferredWrappers
   !< -------------------------------------------------------------------------
   !< Info
   !< -------------------------------------------------------------------------
+  !<
   !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
   !< query or from the computational call is propagated unchanged.
   !< If either dimension exceeds huge(1_INT32), Info is set to huge(1_INT32).
   !< If either dimension is 0, Info is 0.
   !<
+  !< -------------------------------------------------------------------------
   !< NOTES
-  !< -----
+  !< -------------------------------------------------------------------------
+  !<
   !< - UnitaryU, DiagSigma and UnitaryVH are valid only when Info == 0.
   !< - This routine returns conjugate(transpose(V)) = V^(-1), not V.
   !< - The routine has no global state. Concurrent calls are safe provided

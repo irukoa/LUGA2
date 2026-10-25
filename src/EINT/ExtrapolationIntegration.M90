@@ -25,12 +25,12 @@ module ExtrapolationIntegration
   !< The input array represents samples of a function evaluated on a uniform
   !< grid:
   !<
-  !<    x_i = a + (i - 1) * h,   i = 1, ..., N;
-  !<    h   = (b - a) / (N - 1),
+  !<     x_i = a + (i - 1) * h,   i = 1, ..., N;
+  !<     h   = (b - a) / (N - 1),
   !<
   !< with:
   !<
-  !<    Array(i) = f(x_i).
+  !<     Array(i) = f(x_i).
   !<
   !< The method is based on a Richardson extrapolation scheme (Romberg-type
   !< integration generalized to arbitrary refinement bases).
@@ -41,8 +41,8 @@ module ExtrapolationIntegration
   !<
   !< The optional argument Base controls the extrapolation structure:
   !<
-  !<     - Base = p, where p is a prime number.
-  !<     - If Base is not provided or invalid, Base = 2 is used.
+  !< - Base = p, where p is a prime number.
+  !< - If Base is not provided or invalid, Base = 2 is used.
   !<
   !< The convergence behavior depends on the factorization of (N - 1):
   !<

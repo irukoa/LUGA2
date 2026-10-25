@@ -166,8 +166,8 @@ typedef void (*ZGEESSymbol)(void);
  *
  * @param[out] SchurForm
  *     Optional output N-by-N upper triangular matrix in column-major order.
- * Contains the Schur form of Matrix. The array is overwritten. May be NULL,
- * in which case the Schur form is not returned.
+ *     Contains the Schur form of Matrix. The array is overwritten. May be NULL,
+ *     in which case the Schur form is not returned.
  *
  * @param[in] ZGEESProcedure
  *     Address of a Fortran LAPACK ZGEES implementation. See
@@ -318,7 +318,7 @@ void SVDDecomposition(const size_t         DimensionR,
  *
  * @param[in] Eigenvalues
  *     Input list of eigenvalues. Eigenvalues is
- * not modified. Must not overlap Degeneracies.
+ *     not modified. Must not overlap Degeneracies.
  *
  * @param[in] DegeneracyThreshold
  *     Input degeneracy threshold. DegeneracyThreshold <= 0 is a no-op.

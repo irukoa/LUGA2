@@ -86,8 +86,8 @@ void FreeMAC(MAC **ContainerReference);
  *     Memory layout convention used for index conversion.
  *
  * @return
- * Pointer to a newly allocated MAC instance on success, or NULL on
- * failure.
+ *     Pointer to a newly allocated MAC instance on success, or NULL on
+ *     failure.
  *
  * @note
  * - The returned object is owned by the caller.
@@ -105,7 +105,7 @@ MAC *NewMAC(const size_t    Rank,
  *     Pointer to the MAC instance.
  *
  * @return
- * Number of dimensions represented by the object.
+ *     Number of dimensions represented by the object.
  *
  * @note
  * - The returned value corresponds to the number of elements in the shape
@@ -120,7 +120,7 @@ size_t MACGetRank(const MAC *Container);
  *     Pointer to the MAC instance.
  *
  * @return
- * Pointer to an internal array containing the extent of each dimension.
+ *     Pointer to an internal array containing the extent of each dimension.
  *
  * @note
  * - The returned pointer is owned by the MAC instance.
@@ -139,7 +139,7 @@ const size_t *MACGetShape(const MAC *Container);
  *     Pointer to the MAC instance.
  *
  * @return
- * Total number of elements represented by the multidimensional shape.
+ *     Total number of elements represented by the multidimensional shape.
  *
  * @details
  * The returned value corresponds to the product of all dimension extents.
@@ -154,7 +154,7 @@ size_t MACGetElementCount(const MAC *Container);
  *     Pointer to the MAC instance.
  *
  * @return
- * The configured multidimensional memory layout.
+ *     The configured multidimensional memory layout.
  */
 MACLayout MACGetLayout(const MAC *Container);
 

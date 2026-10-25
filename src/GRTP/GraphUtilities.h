@@ -99,8 +99,8 @@ void FreeGraphSupportBuilder(GraphSupportBuilder **BuilderReference);
  *     Number of vertices in the graph.
  *
  * @return
- * Pointer to a newly allocated GraphSupportBuilder on success, or NULL on
- * failure.
+ *     Pointer to a newly allocated GraphSupportBuilder on success, or NULL on
+ *     failure.
  *
  * @note
  * - The returned object is owned by the caller.
@@ -186,7 +186,7 @@ bool GraphSupportBuilderRemoveEdge(GraphSupportBuilder *Builder,
  *     Pointer to the GraphSupportBuilder instance.
  *
  * @return
- * Number of vertices contained in the builder.
+ *     Number of vertices contained in the builder.
  */
 size_t GraphSupportBuilderGetVertexCount(const GraphSupportBuilder *Builder);
 
@@ -198,7 +198,7 @@ size_t GraphSupportBuilderGetVertexCount(const GraphSupportBuilder *Builder);
  *     Pointer to the GraphSupportBuilder instance.
  *
  * @return
- * Total number of directed edges.
+ *     Total number of directed edges.
  */
 size_t GraphSupportBuilderGetEdgeCount(const GraphSupportBuilder *Builder);
 
@@ -213,7 +213,7 @@ size_t GraphSupportBuilderGetEdgeCount(const GraphSupportBuilder *Builder);
  *     Vertex whose neighborhood is queried.
  *
  * @return
- * Number of outgoing neighbors of Vertex.
+ *     Number of outgoing neighbors of Vertex.
  */
 size_t GraphSupportBuilderGetNeighborCount(const GraphSupportBuilder *Builder,
                                            const size_t               Vertex);
@@ -229,7 +229,7 @@ size_t GraphSupportBuilderGetNeighborCount(const GraphSupportBuilder *Builder,
  *     Vertex whose neighborhood is queried.
  *
  * @return
- * Pointer to an internal array containing the outgoing neighbors of Vertex.
+ *     Pointer to an internal array containing the outgoing neighbors of Vertex.
  *
  * @note
  * - The returned pointer is owned by GraphSupportBuilder.
@@ -257,7 +257,7 @@ GraphSupportBuilderGetNeighbors(const GraphSupportBuilder *Builder,
  *     Destination vertex of the directed edge.
  *
  * @return
- * true if the edge exists; false otherwise.
+ *     true if the edge exists; false otherwise.
  */
 bool GraphSupportBuilderHasEdge(const GraphSupportBuilder *Builder,
                                 const size_t               Origin,
@@ -310,8 +310,8 @@ void FreeGraphSupport(GraphSupport **SupportReference);
  *     Graph topology builder.
  *
  * @return
- * Pointer to a newly allocated GraphSupport instance on success,
- * or NULL on failure.
+ *     Pointer to a newly allocated GraphSupport instance on success,
+ *     or NULL on failure.
  *
  * @details
  * Finalizes the graph stored in Builder into an immutable representation
@@ -334,7 +334,7 @@ GraphSupport *NewGraphSupport(const GraphSupportBuilder *Builder);
  *     Graph topology.
  *
  * @return
- * Number of vertices contained in the graph.
+ *     Number of vertices contained in the graph.
  */
 size_t GraphSupportGetVertexCount(const GraphSupport *Support);
 
@@ -345,7 +345,7 @@ size_t GraphSupportGetVertexCount(const GraphSupport *Support);
  *     Graph topology.
  *
  * @return
- * Total number of directed edges.
+ *     Total number of directed edges.
  */
 size_t GraphSupportGetEdgeCount(const GraphSupport *Support);
 
@@ -359,7 +359,7 @@ size_t GraphSupportGetEdgeCount(const GraphSupport *Support);
  *     Vertex whose neighborhood is queried.
  *
  * @return
- * Number of outgoing neighbors of Vertex.
+ *     Number of outgoing neighbors of Vertex.
  */
 size_t GraphSupportGetNeighborCount(const GraphSupport *Support,
                                     const size_t        Vertex);
@@ -374,8 +374,8 @@ size_t GraphSupportGetNeighborCount(const GraphSupport *Support,
  *     Vertex whose neighborhood is queried.
  *
  * @return
- * Pointer to an internal read-only array containing the outgoing
- * neighbors of Vertex.
+ *     Pointer to an internal read-only array containing the outgoing
+ *     neighbors of Vertex.
  *
  * @note
  * - The returned pointer is owned by GraphSupport.
@@ -404,7 +404,7 @@ const size_t *GraphSupportGetNeighbors(const GraphSupport *Support,
  *     Receives the internal edge identifier.
  *
  * @return
- * true if the edge exists; false otherwise.
+ *     true if the edge exists; false otherwise.
  *
  * @details
  * Each directed edge stored in GraphSupport is assigned a unique internal
@@ -437,7 +437,7 @@ bool GraphSupportGetEdgeIndex(const GraphSupport *Support,
  *     Receives the destination vertex.
  *
  * @return
- * true on success; false if EdgeIndex is invalid.
+ *     true on success; false if EdgeIndex is invalid.
  *
  * @details
  * This function is the inverse operation of
@@ -463,7 +463,7 @@ bool GraphSupportGetEdgeVertices(const GraphSupport *Support,
  *     Destination vertex.
  *
  * @return
- * true if the edge exists; false otherwise.
+ *     true if the edge exists; false otherwise.
  *
  * @note
  * This function is equivalent to querying GraphSupportGetEdgeIndex()
@@ -501,7 +501,7 @@ bool GraphSupportHasEdge(const GraphSupport *Support,
  *     invocation.
  *
  * @return
- * Weight associated with the specified directed edge.
+ *     Weight associated with the specified directed edge.
  *
  * @note
  * - Passing NULL as the weighting function causes graph algorithms to
@@ -556,7 +556,7 @@ void FreeGraphWorkspace(GraphWorkspace **WorkspaceReference);
  *     Graph topology on which the workspace will operate.
  *
  * @return
- * Pointer to a newly allocated workspace on success, or NULL on failure.
+ *     Pointer to a newly allocated workspace on success, or NULL on failure.
  *
  * @details
  * Allocates all internal memory required to execute shortest-path algorithms
@@ -580,7 +580,7 @@ GraphWorkspace *NewGraphWorkspace(const GraphSupport *Support);
  *     Graph workspace.
  *
  * @return
- * Pointer to the internal distance array.
+ *     Pointer to the internal distance array.
  *
  * @details
  * The returned array contains one entry per graph vertex.
@@ -603,7 +603,7 @@ const double *GraphWorkspaceGetDistance(const GraphWorkspace *Workspace);
  *     Graph workspace.
  *
  * @return
- * Pointer to the internal predecessor array.
+ *     Pointer to the internal predecessor array.
  *
  * @details
  * For every reachable vertex, the predecessor array stores the previous
@@ -637,7 +637,7 @@ const size_t *GraphWorkspaceGetParent(const GraphWorkspace *Workspace);
  *     Optional caller-defined context passed to WeightFunction.
  *
  * @return
- * true on success; false if the computation could not be performed.
+ *     true on success; false if the computation could not be performed.
  *
  * @details
  * Computes the shortest-path tree rooted at the vertices specified in the
@@ -695,7 +695,7 @@ bool GraphDijkstra(GraphWorkspace           *Workspace,
  *     Optional reference receiving the shortest-path distance.
  *
  * @return
- * true on success; false if the computation could not be performed.
+ *     true on success; false if the computation could not be performed.
  *
  * @details
  * Computes the shortest path between Source and Target by simultaneously
@@ -759,7 +759,7 @@ bool GraphBidirectionalDijkstra(GraphWorkspace           *ForwardWorkspace,
  *     exists.
  *
  * @return
- * true on success; false if the computation could not be performed.
+ *     true on success; false if the computation could not be performed.
  *
  * @details
  * Computes the shortest-path tree rooted at the vertices specified in the

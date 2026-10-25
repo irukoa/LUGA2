@@ -76,7 +76,7 @@
  *     If invalid, a default value of 2 is used.
  *
  * @return
- * Approximated value of the normalized integral.
+ *     Approximated value of the normalized integral.
  */
 double EINT(const size_t Count,
             const double Array[Count],

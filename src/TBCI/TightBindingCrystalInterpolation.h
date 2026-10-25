@@ -23,6 +23,7 @@
  *
  *     R_S = sum_{l = 0}^{D - 1} a_l * n_S[l].
  *
+ * -------------------------------------------------------------------------
  * STORAGE LAYOUT
  * -------------------------------------------------------------------------
  *
@@ -88,7 +89,7 @@ void FreeTBCrystal(TBCrystal **CrystalReference);
  *     Number of bands (orbitals) B per site. Must be greater than zero.
  *
  * @return
- * Pointer to a newly allocated TBCrystal on success, or NULL on failure.
+ *     Pointer to a newly allocated TBCrystal on success, or NULL on failure.
  *
  * @note
  * - The returned object is owned by the caller.
@@ -110,7 +111,7 @@ TBCrystal *NewTBCrystal(const size_t Dimensionality,
  *     Pointer to the TBCrystal instance.
  *
  * @return
- * Dimensionality supplied to NewTBCrystal(), or 0 if Crystal is NULL.
+ *     Dimensionality supplied to NewTBCrystal(), or 0 if Crystal is NULL.
  */
 size_t TBCrystalGetDimensionality(const TBCrystal *Crystal);
 
@@ -121,7 +122,7 @@ size_t TBCrystalGetDimensionality(const TBCrystal *Crystal);
  *     Pointer to the TBCrystal instance.
  *
  * @return
- * SiteCount supplied to NewTBCrystal(), or 0 if Crystal is NULL.
+ *     SiteCount supplied to NewTBCrystal(), or 0 if Crystal is NULL.
  */
 size_t TBCrystalGetSiteCount(const TBCrystal *Crystal);
 
@@ -132,7 +133,7 @@ size_t TBCrystalGetSiteCount(const TBCrystal *Crystal);
  *     Pointer to the TBCrystal instance.
  *
  * @return
- * BandCount supplied to NewTBCrystal(), or 0 if Crystal is NULL.
+ *     BandCount supplied to NewTBCrystal(), or 0 if Crystal is NULL.
  */
 size_t TBCrystalGetBandCount(const TBCrystal *Crystal);
 
