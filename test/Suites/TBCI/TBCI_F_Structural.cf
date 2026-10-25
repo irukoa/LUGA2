@@ -80,8 +80,9 @@ TEST_EF(StructuralCtx, TBCIStructuralHamiltonianMallocFailure)
     ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
   enddo
 
-  !Two allocations: the record and its shape buffer.
-  ASSERT(FailAt == 3_C_SIZE_T)
+  !Four allocations: the record, its shape buffer, the multi-index buffer and
+  !the phase buffer.
+  ASSERT(FailAt == 5_C_SIZE_T)
   ASSERT(Success)
 
   !The fault-free attempt evaluated the crystal instead of skipping it.
@@ -149,8 +150,14 @@ TEST_EF(StructuralCtx, TBCIStructuralHamiltonianMulOverflowFailure)
       ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
     enddo
 
-    !Derivative + 2 products of the shape, one of the byte size.
-    ASSERT(FailAt == Derivative + 4_C_SIZE_T)
+    !Derivative + 2 products of the shape, one of the byte size, and the byte
+    !sizes of the two buffers of the derivatives, which the derivative-free
+    !case does not take.
+    if (Derivative == 0_C_SIZE_T) then
+      ASSERT(FailAt == Derivative + 6_C_SIZE_T)
+    else
+      ASSERT(FailAt == Derivative + 8_C_SIZE_T)
+    endif
     ASSERT(Success)
 
     !The fault-free attempt specified and filled the whole shape.
@@ -306,8 +313,9 @@ TEST_EF(StructuralCtx, TBCIStructuralPositionOperatorMallocFailure)
     ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
   enddo
 
-  !Two allocations: the record and its shape buffer.
-  ASSERT(FailAt == 3_C_SIZE_T)
+  !Four allocations: the record, its shape buffer, the multi-index buffer and
+  !the phase buffer.
+  ASSERT(FailAt == 5_C_SIZE_T)
   ASSERT(Success)
 
   !The fault-free attempt filled the two band indexes and the component.
@@ -377,8 +385,14 @@ TEST_EF(StructuralCtx, TBCIStructuralPositionOperatorMulOverflowFailure)
       ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
     enddo
 
-    !Derivative + 3 products of the shape, one of the byte size.
-    ASSERT(FailAt == Derivative + 5_C_SIZE_T)
+    !Derivative + 3 products of the shape, one of the byte size, and the byte
+    !sizes of the two buffers of the derivatives, which the derivative-free
+    !case does not take.
+    if (Derivative == 0_C_SIZE_T) then
+      ASSERT(FailAt == Derivative + 7_C_SIZE_T)
+    else
+      ASSERT(FailAt == Derivative + 9_C_SIZE_T)
+    endif
     ASSERT(Success)
 
     ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)

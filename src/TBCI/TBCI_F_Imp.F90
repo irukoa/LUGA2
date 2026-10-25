@@ -4,9 +4,14 @@
 
 submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementation
 
-  use CoreFortran, only: FortranAddOverflow
+  use CoreFortran, only: FortranAddOverflow, &
+                         FortranMulOverflow, &
+                         FortranMalloc, &
+                         FortranFree
   use MultidimensionalArrayContainers, only: MAC, COLUMN_MAJOR
-  use, intrinsic :: ISO_C_BINDING, only: C_ASSOCIATED, C_F_POINTER
+  use, intrinsic :: ISO_C_BINDING, only: C_ASSOCIATED, &
+                                         C_F_POINTER, &
+                                         C_SIZEOF
 
   implicit none
 
@@ -145,18 +150,27 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
   module procedure FortranTBCrystalHamiltonian
     integer(C_SIZE_T) :: LocalDerivative
     integer(C_SIZE_T) :: ArrayShapeSize
+    integer(C_SIZE_T) :: BufferSize
+    integer(C_SIZE_T) :: ElementCount
+    integer(C_SIZE_T) :: ElementSize
 
     type(C_PTR) :: DirectLatticePtr
     type(C_PTR) :: SiteCoordsPtr
     type(C_PTR) :: HamiltonianPtr
+    type(C_PTR) :: ArrayHandlePtr
+    type(C_PTR) :: PhasePtr
+    type(C_PTR) :: PosPtr
 
     real(C_DOUBLE),            pointer :: DirectLattice(:, :)
     integer(C_LONG),           pointer :: SiteCoords(:, :)
     complex(C_DOUBLE_COMPLEX), pointer :: Hamiltonian(:, :, :)
+    integer(C_SIZE_T),         pointer :: ArrayHandle(:)
+    complex(C_DOUBLE_COMPLEX), pointer :: Phase(:)
+    real(C_DOUBLE),            pointer :: Pos(:, :)
 
     type(MAC) :: ArraySpec
 
-    integer(C_SIZE_T)         :: i, j, iSites
+    integer(C_SIZE_T)         :: i, j, iSites, iBand1, iBand2
     complex(C_DOUBLE_COMPLEX) :: Sum, Ipow
     real(C_DOUBLE)            :: KdotR, DerProd
 
@@ -256,10 +270,50 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
       Ipow = -TBCICmplxI
     end select
 
+    ArrayHandlePtr = C_NULL_PTR
+    PhasePtr       = C_NULL_PTR
+    PosPtr         = C_NULL_PTR
+    Success        = .false.
+
     Computation: block
-      integer(C_SIZE_T)         :: ArrayHandle(size(ArrayShape, KIND = C_SIZE_T))
-      complex(C_DOUBLE_COMPLEX) :: Phase(Crystal%SiteCount)
-      real(C_DOUBLE)            :: Pos(Crystal%Dimensionality, Crystal%SiteCount)
+      ElementSize = int(C_SIZEOF(1_C_SIZE_T), C_SIZE_T)
+      if (logical(FortranMulOverflow(A   = ElementSize, &
+                                     B   = ArrayShapeSize, &
+                                     Res = BufferSize))) exit Computation
+
+      ArrayHandlePtr = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(ArrayHandlePtr)) exit Computation
+      call C_F_POINTER(ArrayHandlePtr, &
+                       ArrayHandle, &
+                       [ArrayShapeSize])
+
+      ElementSize = int(C_SIZEOF(TBCICmplx1), C_SIZE_T)
+      if (logical(FortranMulOverflow(A   = ElementSize, &
+                                     B   = Crystal%SiteCount, &
+                                     Res = BufferSize))) exit Computation
+
+      PhasePtr = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(PhasePtr)) exit Computation
+      call C_F_POINTER(PhasePtr, &
+                       Phase, &
+                       [Crystal%SiteCount])
+
+      !The Cartesian offsets are only formed for the derivatives.
+      if (LocalDerivative > 0_C_SIZE_T) then
+        ElementSize = int(C_SIZEOF(1.0_C_DOUBLE), C_SIZE_T)
+        if (logical(FortranMulOverflow(A   = Crystal%Dimensionality, &
+                                       B   = Crystal%SiteCount, &
+                                       Res = ElementCount))) exit Computation
+        if (logical(FortranMulOverflow(A   = ElementCount, &
+                                       B   = ElementSize, &
+                                       Res = BufferSize))) exit Computation
+
+        PosPtr = FortranMalloc(BufferSize)
+        if (.not.C_ASSOCIATED(PosPtr)) exit Computation
+        call C_F_POINTER(PosPtr, &
+                         Pos, &
+                         [Crystal%Dimensionality, Crystal%SiteCount])
+      endif
 
       do iSites = 1_C_SIZE_T, Crystal%SiteCount
         KdotR         = 2 * TBCIPi * dot_product(real(SiteCoords(:, iSites), C_DOUBLE), KPoint)
@@ -277,6 +331,8 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
         ArrayHandle = ArraySpec%Multidimensional(i)
         Sum         = TBCICmplx0
+        iBand1      = ArrayHandle(1_C_SIZE_T) + 1_C_SIZE_T
+        iBand2      = ArrayHandle(2_C_SIZE_T) + 1_C_SIZE_T
 
         do iSites = 1_C_SIZE_T, Crystal%SiteCount
 
@@ -287,15 +343,23 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
           Sum = Sum + Ipow * DerProd * Phase(iSites) * &
             Hamiltonian(iSites, &
-                        ArrayHandle(1_C_SIZE_T) + 1_C_SIZE_T, &
-                        ArrayHandle(2_C_SIZE_T) + 1_C_SIZE_T)
+                        iBand1, &
+                        iBand2)
 
         enddo
         Array(i + 1_C_SIZE_T) = Sum
       enddo
+
+      Success = .true.
     end block Computation
 
-    Success = .true.
+    nullify(ArrayHandle)
+    nullify(Phase)
+    nullify(Pos)
+
+    if (C_ASSOCIATED(ArrayHandlePtr)) call FortranFree(ArrayHandlePtr)
+    if (C_ASSOCIATED(PhasePtr))       call FortranFree(PhasePtr)
+    if (C_ASSOCIATED(PosPtr))         call FortranFree(PosPtr)
 
   end procedure FortranTBCrystalHamiltonian
 
@@ -368,18 +432,27 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
   module procedure FortranTBPositionOperator
     integer(C_SIZE_T) :: LocalDerivative
     integer(C_SIZE_T) :: ArrayShapeSize
+    integer(C_SIZE_T) :: BufferSize
+    integer(C_SIZE_T) :: ElementCount
+    integer(C_SIZE_T) :: ElementSize
 
     type(C_PTR) :: DirectLatticePtr
     type(C_PTR) :: SiteCoordsPtr
     type(C_PTR) :: PositionPtr
+    type(C_PTR) :: ArrayHandlePtr
+    type(C_PTR) :: PhasePtr
+    type(C_PTR) :: PosPtr
 
     real(C_DOUBLE),            pointer :: DirectLattice(:, :)
     integer(C_LONG),           pointer :: SiteCoords(:, :)
     complex(C_DOUBLE_COMPLEX), pointer :: Position(:, :, :, :)
+    integer(C_SIZE_T),         pointer :: ArrayHandle(:)
+    complex(C_DOUBLE_COMPLEX), pointer :: Phase(:)
+    real(C_DOUBLE),            pointer :: Pos(:, :)
 
     type(MAC) :: ArraySpec
 
-    integer(C_SIZE_T)         :: i, j, iSites
+    integer(C_SIZE_T)         :: i, j, iSites, iBand1, iBand2, iCart
     complex(C_DOUBLE_COMPLEX) :: Sum, Ipow
     real(C_DOUBLE)            :: KdotR, DerProd
 
@@ -480,10 +553,50 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
       Ipow = -TBCICmplxI
     end select
 
+    ArrayHandlePtr = C_NULL_PTR
+    PhasePtr       = C_NULL_PTR
+    PosPtr         = C_NULL_PTR
+    Success        = .false.
+
     Computation: block
-      integer(C_SIZE_T)         :: ArrayHandle(size(ArrayShape, KIND = C_SIZE_T))
-      complex(C_DOUBLE_COMPLEX) :: Phase(Crystal%SiteCount)
-      real(C_DOUBLE)            :: Pos(Crystal%Dimensionality, Crystal%SiteCount)
+      ElementSize = int(C_SIZEOF(1_C_SIZE_T), C_SIZE_T)
+      if (logical(FortranMulOverflow(A   = ElementSize, &
+                                     B   = ArrayShapeSize, &
+                                     Res = BufferSize))) exit Computation
+
+      ArrayHandlePtr = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(ArrayHandlePtr)) exit Computation
+      call C_F_POINTER(ArrayHandlePtr, &
+                       ArrayHandle, &
+                       [ArrayShapeSize])
+
+      ElementSize = int(C_SIZEOF(TBCICmplx1), C_SIZE_T)
+      if (logical(FortranMulOverflow(A   = ElementSize, &
+                                     B   = Crystal%SiteCount, &
+                                     Res = BufferSize))) exit Computation
+
+      PhasePtr = FortranMalloc(BufferSize)
+      if (.not.C_ASSOCIATED(PhasePtr)) exit Computation
+      call C_F_POINTER(PhasePtr, &
+                       Phase, &
+                       [Crystal%SiteCount])
+
+      !The Cartesian offsets are only formed for the derivatives.
+      if (LocalDerivative > 0_C_SIZE_T) then
+        ElementSize = int(C_SIZEOF(1.0_C_DOUBLE), C_SIZE_T)
+        if (logical(FortranMulOverflow(A   = Crystal%Dimensionality, &
+                                       B   = Crystal%SiteCount, &
+                                       Res = ElementCount))) exit Computation
+        if (logical(FortranMulOverflow(A   = ElementCount, &
+                                       B   = ElementSize, &
+                                       Res = BufferSize))) exit Computation
+
+        PosPtr = FortranMalloc(BufferSize)
+        if (.not.C_ASSOCIATED(PosPtr)) exit Computation
+        call C_F_POINTER(PosPtr, &
+                         Pos, &
+                         [Crystal%Dimensionality, Crystal%SiteCount])
+      endif
 
       do iSites = 1_C_SIZE_T, Crystal%SiteCount
         KdotR         = 2 * TBCIPi * dot_product(real(SiteCoords(:, iSites), C_DOUBLE), KPoint)
@@ -501,6 +614,9 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
         ArrayHandle = ArraySpec%Multidimensional(i)
         Sum         = TBCICmplx0
+        iBand1      = ArrayHandle(1_C_SIZE_T) + 1_C_SIZE_T
+        iBand2      = ArrayHandle(2_C_SIZE_T) + 1_C_SIZE_T
+        iCart       = ArrayHandle(3_C_SIZE_T) + 1_C_SIZE_T
 
         do iSites = 1_C_SIZE_T, Crystal%SiteCount
 
@@ -511,16 +627,24 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
           Sum = Sum + Ipow * DerProd * Phase(iSites) * &
             Position(iSites, &
-                     ArrayHandle(1_C_SIZE_T) + 1_C_SIZE_T, &
-                     ArrayHandle(2_C_SIZE_T) + 1_C_SIZE_T, &
-                     ArrayHandle(3_C_SIZE_T) + 1_C_SIZE_T)
+                     iBand1, &
+                     iBand2, &
+                     iCart)
 
         enddo
         Array(i + 1_C_SIZE_T) = Sum
       enddo
+
+      Success = .true.
     end block Computation
 
-    Success = .true.
+    nullify(ArrayHandle)
+    nullify(Phase)
+    nullify(Pos)
+
+    if (C_ASSOCIATED(ArrayHandlePtr)) call FortranFree(ArrayHandlePtr)
+    if (C_ASSOCIATED(PhasePtr))       call FortranFree(PhasePtr)
+    if (C_ASSOCIATED(PosPtr))         call FortranFree(PosPtr)
 
   end procedure FortranTBPositionOperator
 

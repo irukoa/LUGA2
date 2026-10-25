@@ -150,14 +150,16 @@ TEST_F(StructuralCtx,
       break;
     }
   }
-  // Two allocations: the specifier record and its shape buffer.
-  ASSERT(FailAt == 3);
+  // Four allocations: the specifier record, its shape buffer, the multi-index
+  // buffer and the phase buffer.
+  ASSERT(FailAt == 5);
   ASSERT(Success);
 
   // The fault-free attempt evaluated the crystal instead of skipping it.
   ASSERT(ArrayShape[0] == 1);
   ASSERT(ArrayShape[1] == 1);
   ASSERT(creal(Array[0]) == 1.0);
+
   ASSERT(cimag(Array[0]) == 0.0);
 
   FreeTBCrystal(&Crystal);
@@ -182,7 +184,9 @@ TEST_F(StructuralCtx,
   ASSERT(TBCrystalSetTBHamiltonian(Crystal, 0, 0, 0, 1.0));
 
   // One product per shape entry of the (Derivative + 2)-ranked result, plus
-  // the byte size of the shape buffer.
+  // the byte size of the shape buffer, plus the byte sizes of the multi-index
+  // and the phase buffer. The derivatives add the two products of the
+  // Cartesian offsets.
   for (Derivative = 0; Derivative <= 2; Derivative++) {
     Success = false;
     for (FailAt = 1; FailAt <= 64; FailAt++) {
@@ -193,7 +197,11 @@ TEST_F(StructuralCtx,
         break;
       }
     }
-    ASSERT(FailAt == Derivative + 4);
+    if (Derivative == 0) {
+      ASSERT(FailAt == Derivative + 6);
+    } else {
+      ASSERT(FailAt == Derivative + 8);
+    }
     ASSERT(Success);
     ASSERT(ArrayShape[0] == 1);
     ASSERT(ArrayShape[1] == 1);
@@ -278,8 +286,9 @@ TEST_F(StructuralCtx,
       break;
     }
   }
-  // Two allocations: the specifier record and its shape buffer.
-  ASSERT(FailAt == 3);
+  // Four allocations: the specifier record, its shape buffer, the multi-index
+  // buffer and the phase buffer.
+  ASSERT(FailAt == 5);
   ASSERT(Success);
 
   // The fault-free attempt evaluated the crystal instead of skipping it.
@@ -311,7 +320,9 @@ TEST_F(StructuralCtx,
   ASSERT(TBCrystalSetTBPositionOperator(Crystal, 0, 0, 0, 0, 1.0));
 
   // One product per shape entry of the (Derivative + 3)-ranked result, plus
-  // the byte size of the shape buffer.
+  // the byte size of the shape buffer, plus the byte sizes of the multi-index
+  // and the phase buffer. The derivatives add the two products of the
+  // Cartesian offsets.
   for (Derivative = 0; Derivative <= 2; Derivative++) {
     Success = false;
     for (FailAt = 1; FailAt <= 64; FailAt++) {
@@ -322,7 +333,11 @@ TEST_F(StructuralCtx,
         break;
       }
     }
-    ASSERT(FailAt == Derivative + 5);
+    if (Derivative == 0) {
+      ASSERT(FailAt == Derivative + 7);
+    } else {
+      ASSERT(FailAt == Derivative + 9);
+    }
     ASSERT(Success);
     ASSERT(ArrayShape[0] == 1);
     ASSERT(ArrayShape[1] == 1);

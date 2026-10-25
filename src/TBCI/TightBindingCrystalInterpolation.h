@@ -494,15 +494,18 @@ bool TBCrystalGetTBPositionOperator(const TBCrystal *Crystal,
  *     The evaluation was rejected. Rejection covers a NULL Crystal, a NULL
  *     KPoint, Array or ArrayShape, a Dimensionality mismatch, an
  *     ArrayShapeSize other than Derivative + 2, an ArraySize other than
- *     BandCount^2 * Dimensionality^Derivative, an overflow of Derivative + 2
- *     and an overflow of BandCount^2 * Dimensionality^Derivative. Array and
- *     ArrayShape are left in an unspecified state.
+ *     BandCount^2 * Dimensionality^Derivative, an overflow of Derivative + 2,
+ *     an overflow of BandCount^2 * Dimensionality^Derivative and a failed
+ *     allocation of the working storage. Array and ArrayShape are left in an
+ *     unspecified state.
  *
  * @note
  * - The routine performs no Brillouin-zone folding, no hermitization and no
  *   symmetrization of the supplied blocks.
  * - The cost is O(BandCount^2 * Dimensionality^Derivative * SiteCount).
- * - Working storage is O(SiteCount * (Dimensionality + 2) + Derivative + 2).
+ * - Working storage is O(SiteCount * (Dimensionality + 2) + Derivative + 2)
+ *   on the heap, allocated per call and released before it returns. A failed
+ *   allocation is reported through the return value.
  * - The routine keeps no state; concurrent calls are safe.
  */
 bool TBCrystalHamiltonian(const TBCrystal *Crystal,
@@ -593,15 +596,18 @@ bool TBCrystalHamiltonian(const TBCrystal *Crystal,
  *     KPoint, Array or ArrayShape, a Dimensionality mismatch, an
  *     ArrayShapeSize other than Derivative + 3, an ArraySize other than
  *     BandCount^2 * Dimensionality^(Derivative + 1), an overflow of
- *     Derivative + 3 and an overflow of
- *     BandCount^2 * Dimensionality^(Derivative + 1). Array and ArrayShape are
- *     left in an unspecified state.
+ *     Derivative + 3, an overflow of
+ *     BandCount^2 * Dimensionality^(Derivative + 1) and a failed allocation of
+ *     the working storage. Array and ArrayShape are left in an unspecified
+ *     state.
  *
  * @note
  * - The routine performs no Brillouin-zone folding, no hermitization and no
  *   symmetrization of the supplied blocks.
  * - The cost is O(BandCount^2 * Dimensionality^(Derivative + 1) * SiteCount).
- * - Working storage is O(SiteCount * (Dimensionality + 2) + Derivative + 3).
+ * - Working storage is O(SiteCount * (Dimensionality + 2) + Derivative + 3)
+ *   on the heap, allocated per call and released before it returns. A failed
+ *   allocation is reported through the return value.
  * - The routine keeps no state; concurrent calls are safe.
  */
 bool TBPositionOperator(const TBCrystal *Crystal,
