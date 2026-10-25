@@ -106,7 +106,10 @@ module LapackDeferredWrappers
   !<   the supplied ZHEEVD implementation is thread-safe.
   !<
   interface
-    module subroutine DiagHermitian(Dimension, Matrix, Unitary, Eigenvalues, ZHEEVDProcedure, Info)
+    module subroutine DiagHermitian(Dimension, Matrix, &
+                                    Unitary, Eigenvalues, &
+                                    ZHEEVDProcedure, &
+                                    Info)
       integer(C_SIZE_T),          intent(in)            :: Dimension
       complex(C_DOUBLE_COMPLEX),  intent(in)            :: Matrix(Dimension, Dimension)
       complex(C_DOUBLE_COMPLEX),  intent(out)           :: Unitary(Dimension, Dimension)
@@ -200,7 +203,10 @@ module LapackDeferredWrappers
   !<   the supplied ZGEES implementation is thread-safe.
   !<
   interface
-    module subroutine SchurDecomposition(Dimension, Matrix, Unitary, SchurForm, ZGEESProcedure, Info)
+    module subroutine SchurDecomposition(Dimension, Matrix, &
+                                         Unitary, SchurForm, &
+                                         ZGEESProcedure, &
+                                         Info)
       integer(C_SIZE_T),          intent(in)            :: Dimension
       complex(C_DOUBLE_COMPLEX),  intent(in)            :: Matrix(Dimension, Dimension)
       complex(C_DOUBLE_COMPLEX),  intent(out)           :: Unitary(Dimension, Dimension)
@@ -321,7 +327,10 @@ module LapackDeferredWrappers
   !< DegeneracyThreshold <= 0 is a no-op.
   !<
   interface
-    pure module subroutine DegeneracyGroup(Dimension, Eigenvalues, DegeneracyThreshold, Degeneracies)
+    pure module subroutine DegeneracyGroup(Dimension, &
+                                           Eigenvalues, &
+                                           DegeneracyThreshold, &
+                                           Degeneracies)
       integer(C_SIZE_T), intent(in)  :: Dimension
       real(C_DOUBLE),    intent(in)  :: Eigenvalues(Dimension)
       real(C_DOUBLE),    intent(in)  :: DegeneracyThreshold

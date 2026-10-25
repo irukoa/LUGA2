@@ -460,8 +460,8 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     IntDimensionR = int(DimensionR, INT32)
     IntDimensionC = int(DimensionC, INT32)
-    MinMN          = min(IntDimensionR, IntDimensionC)
-    MaxMN          = max(IntDimensionR, IntDimensionC)
+    MinMN         = min(IntDimensionR, IntDimensionC)
+    MaxMN         = max(IntDimensionR, IntDimensionC)
 
     Body: block
 

@@ -68,6 +68,7 @@ module TightBindingCrystalInterpolation
     final                            :: FortranFreeTBCrystal_Final
   end type TBCrystal
 
+  !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyTBCrystal(Copy, Original)
       class(TBCrystal), intent(out) :: Copy
@@ -95,7 +96,10 @@ module TightBindingCrystalInterpolation
   !< a rejected construction leaves the crystal uninitialized.
   !<
   interface
-    pure module subroutine FortranNewTBCrystal(Crystal, Dimensionality, SiteCount, BandCount)
+    pure module subroutine FortranNewTBCrystal(Crystal, &
+                                               Dimensionality, &
+                                               SiteCount, &
+                                               BandCount)
       class(TBCrystal),  intent(inout) :: Crystal
       integer(C_SIZE_T), intent(in)    :: Dimensionality
       integer(C_SIZE_T), intent(in)    :: SiteCount
@@ -144,8 +148,10 @@ module TightBindingCrystalInterpolation
   !< Val is in length units.
   !<
   interface
-    pure module function FortranTBCrystalSetDirectLatticeVal(Crystal, VectorId, &
-                                                             ComponentId, Val) &
+    pure module function FortranTBCrystalSetDirectLatticeVal(Crystal, &
+                                                             VectorId, &
+                                                             ComponentId, &
+                                                             Val) &
       result(Success)
       class(TBCrystal),  intent(in) :: Crystal
       integer(C_SIZE_T), intent(in) :: VectorId
@@ -161,8 +167,10 @@ module TightBindingCrystalInterpolation
   !< Val is in length units.
   !<
   interface
-    module function FortranTBCrystalGetDirectLatticeVal(Crystal, VectorId, &
-                                                        ComponentId, Val) &
+    module function FortranTBCrystalGetDirectLatticeVal(Crystal, &
+                                                        VectorId, &
+                                                        ComponentId, &
+                                                        Val) &
       result(Success)
       class(TBCrystal),  intent(in)  :: Crystal
       integer(C_SIZE_T), intent(in)  :: VectorId
@@ -182,8 +190,10 @@ module TightBindingCrystalInterpolation
   !< Val is SiteCoords(ComponentId, SiteId).
   !<
   interface
-    pure module function FortranTBCrystalSetSiteVal(Crystal, SiteId, &
-                                                    ComponentId, Val) &
+    pure module function FortranTBCrystalSetSiteVal(Crystal, &
+                                                    SiteId, &
+                                                    ComponentId, &
+                                                    Val) &
       result(Success)
       class(TBCrystal),  intent(in) :: Crystal
       integer(C_SIZE_T), intent(in) :: SiteId
@@ -203,8 +213,10 @@ module TightBindingCrystalInterpolation
   !< Val is SiteCoords(ComponentId, SiteId).
   !<
   interface
-    module function FortranTBCrystalGetSiteVal(Crystal, SiteId, &
-                                               ComponentId, Val) &
+    module function FortranTBCrystalGetSiteVal(Crystal, &
+                                               SiteId, &
+                                               ComponentId, &
+                                               Val) &
       result(Success)
       class(TBCrystal),  intent(in)  :: Crystal
       integer(C_SIZE_T), intent(in)  :: SiteId
@@ -223,8 +235,11 @@ module TightBindingCrystalInterpolation
   !< Val is H_{BandId1, BandId2}(R).
   !<
   interface
-    pure module function FortranTBCrystalSetTBHamiltonian(Crystal, BandId1, &
-                                                          BandId2, SiteId, Val) &
+    pure module function FortranTBCrystalSetTBHamiltonian(Crystal, &
+                                                          BandId1, &
+                                                          BandId2, &
+                                                          SiteId, &
+                                                          Val) &
       result(Success)
       class(TBCrystal),          intent(in) :: Crystal
       integer(C_SIZE_T),         intent(in) :: BandId1
@@ -244,8 +259,11 @@ module TightBindingCrystalInterpolation
   !< Val is H_{BandId1, BandId2}(R).
   !<
   interface
-    module function FortranTBCrystalGetTBHamiltonian(Crystal, BandId1, &
-                                                     BandId2, SiteId, Val) &
+    module function FortranTBCrystalGetTBHamiltonian(Crystal, &
+                                                     BandId1, &
+                                                     BandId2, &
+                                                     SiteId, &
+                                                     Val) &
       result(Success)
       class(TBCrystal),          intent(in)  :: Crystal
       integer(C_SIZE_T),         intent(in)  :: BandId1
@@ -266,9 +284,12 @@ module TightBindingCrystalInterpolation
   !< Val is A_{BandId1, BandId2, ComponentId}(R).
   !<
   interface
-    pure module function FortranTBCrystalSetTBPositionOperator(Crystal, BandId1, &
-                                                               BandId2, SiteId, &
-                                                               ComponentId, Val) &
+    pure module function FortranTBCrystalSetTBPositionOperator(Crystal, &
+                                                               BandId1, &
+                                                               BandId2, &
+                                                               SiteId, &
+                                                               ComponentId, &
+                                                               Val) &
       result(Success)
       class(TBCrystal),          intent(in) :: Crystal
       integer(C_SIZE_T),         intent(in) :: BandId1
@@ -290,9 +311,12 @@ module TightBindingCrystalInterpolation
   !< Val is A_{BandId1, BandId2, ComponentId}(R).
   !<
   interface
-    module function FortranTBCrystalGetTBPositionOperator(Crystal, BandId1, &
-                                                          BandId2, SiteId, &
-                                                          ComponentId, Val) &
+    module function FortranTBCrystalGetTBPositionOperator(Crystal, &
+                                                          BandId1, &
+                                                          BandId2, &
+                                                          SiteId, &
+                                                          ComponentId, &
+                                                          Val) &
       result(Success)
       class(TBCrystal),          intent(in)  :: Crystal
       integer(C_SIZE_T),         intent(in)  :: BandId1
@@ -353,7 +377,11 @@ module TightBindingCrystalInterpolation
   !< - On failure, Array and ArrayShape are left in an unspecified state.
   !<
   interface
-    module function FortranTBCrystalHamiltonian(Crystal, KPoint, Derivative, Array, ArrayShape) &
+    module function FortranTBCrystalHamiltonian(Crystal, &
+                                                KPoint, &
+                                                Derivative, &
+                                                Array, &
+                                                ArrayShape) &
       result(Success)
       class(TBCrystal),          intent(in)           :: Crystal
       real(C_DOUBLE),            intent(in)           :: KPoint(:)
@@ -415,7 +443,11 @@ module TightBindingCrystalInterpolation
   !< - On failure, Array and ArrayShape are left in an unspecified state.
   !<
   interface
-    module function FortranTBPositionOperator(Crystal, KPoint, Derivative, Array, ArrayShape) &
+    module function FortranTBPositionOperator(Crystal, &
+                                              KPoint, &
+                                              Derivative, &
+                                              Array, &
+                                              ArrayShape) &
       result(Success)
       class(TBCrystal),          intent(in)           :: Crystal
       real(C_DOUBLE),            intent(in)           :: KPoint(:)
