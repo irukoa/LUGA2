@@ -28,3 +28,7 @@ include buildsystem/FTestRules.mk
 DIR := test/Suites/GRTP
 include buildsystem/CTestRules.mk
 include buildsystem/FTestRules.mk
+
+DIR := test/Suites/TBCI
+include buildsystem/CTestRules.mk
+include buildsystem/FTestRules.mk

@@ -1,0 +1,1621 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/TBCI/TightBindingCrystalInterpolation.M90"
+#endif
+
+TEST_E(TBCIFortranCrystalLifecycle)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(TBCrystal) :: Crystal
+
+  !A default initialized crystal holds no C-side state.
+  ASSERT(.not.Crystal%Initialized())
+
+  call Crystal%New(3_C_SIZE_T, 4_C_SIZE_T, 2_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  !Renewing an owner releases the previous handle before allocating again.
+  call Crystal%New(1_C_SIZE_T, 2_C_SIZE_T, 3_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+
+  !Releasing an already released crystal is a no-op.
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+
+  !Rejected constructions leave the crystal uninitialized.
+  call Crystal%New(0_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT(.not.Crystal%Initialized())
+  call Crystal%New(1_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT(.not.Crystal%Initialized())
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T)
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(TBCIFortranCrystalCopy)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(TBCrystal) :: Original, Copy, Empty, EmptyCopy
+
+  !Copying an empty crystal yields another empty, non-owning alias.
+  EmptyCopy = Empty
+  ASSERT(.not.EmptyCopy%Initialized())
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+
+  call Original%New(2_C_SIZE_T, 3_C_SIZE_T, 4_C_SIZE_T)
+  ASSERT_X(Original%Initialized())
+
+  !Assignment aliases the C-side crystal instead of duplicating it.
+  Copy = Original
+  ASSERT_X(Copy%Initialized())
+
+  !Releasing the alias leaves the owner untouched.
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Original%Initialized())
+
+  !Rebinding an owning alias releases its previous handle first.
+  call Copy%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Copy%Initialized())
+  Copy = Original
+  ASSERT_X(Copy%Initialized())
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Original%Initialized())
+
+  !Renewing a live alias unbinds it and allocates a new owned crystal
+  !without touching the aliased target.
+  Copy = Original
+  ASSERT_X(Copy%Initialized())
+  call Copy%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Copy%Initialized())
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Original%Initialized())
+
+  call Original%Free()
+  ASSERT(.not.Original%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(TBCIFortranCrystalFinalization)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(TBCrystal) :: Original
+
+  call Original%New(2_C_SIZE_T, 2_C_SIZE_T, 2_C_SIZE_T)
+  ASSERT_X(Original%Initialized())
+
+  !Leaving the block finalizes the owning crystal and only unbinds the alias.
+  block
+    type(TBCrystal) :: Scoped, Alias
+
+    call Scoped%New(2_C_SIZE_T, 2_C_SIZE_T, 2_C_SIZE_T)
+    ASSERT_X(Scoped%Initialized())
+
+    Alias = Scoped
+    ASSERT_X(Alias%Initialized())
+  end block
+
+  !The outer crystal survives the block finalizations.
+  ASSERT(Original%Initialized())
+
+  call Original%Free()
+  ASSERT(.not.Original%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(TBCIFortranCrystalAccessors)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE), parameter :: Tolerance = epsilon(1.0_C_DOUBLE) * 10
+
+  type(TBCrystal) :: Crystal, Empty
+
+  logical                   :: Accepted
+  real(C_DOUBLE)            :: LatticeVal
+  integer(C_LONG)           :: SiteVal
+  complex(C_DOUBLE_COMPLEX) :: HamiltonianVal, PositionVal
+
+  !An uninitialized crystal reports no counts and rejects every write.
+  ASSERT(Empty%GetDimensionality() == 0_C_SIZE_T)
+  ASSERT(Empty%GetSiteCount() == 0_C_SIZE_T)
+  ASSERT(Empty%GetBandCount() == 0_C_SIZE_T)
+  ASSERT(.not.Empty%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.0_C_DOUBLE))
+  ASSERT(.not.Empty%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  Accepted = Empty%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                    (1.0_C_DOUBLE, 0.0_C_DOUBLE))
+  ASSERT(.not.Accepted)
+  Accepted = Empty%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                         0_C_SIZE_T, (1.0_C_DOUBLE, 0.0_C_DOUBLE))
+  ASSERT(.not.Accepted)
+
+  call Crystal%New(3_C_SIZE_T, 2_C_SIZE_T, 2_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  ASSERT(Crystal%GetDimensionality() == 3_C_SIZE_T)
+  ASSERT(Crystal%GetSiteCount() == 2_C_SIZE_T)
+  ASSERT(Crystal%GetBandCount() == 2_C_SIZE_T)
+
+  !Direct lattice.
+  ASSERT_X(Crystal%SetDirectLatticeVal(1_C_SIZE_T, 2_C_SIZE_T, 0.5_C_DOUBLE))
+  LatticeVal = 0.0_C_DOUBLE
+  ASSERT_X(Crystal%GetDirectLatticeVal(1_C_SIZE_T, 2_C_SIZE_T, LatticeVal))
+  ASSERT(abs(LatticeVal - 0.5_C_DOUBLE) < Tolerance)
+  ASSERT(.not.Crystal%SetDirectLatticeVal(3_C_SIZE_T, 0_C_SIZE_T, 1.0_C_DOUBLE))
+  ASSERT(.not.Crystal%GetDirectLatticeVal(0_C_SIZE_T, 3_C_SIZE_T, LatticeVal))
+
+  !Sites.
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 2_C_SIZE_T, -7_C_LONG))
+  SiteVal = 0_C_LONG
+  ASSERT_X(Crystal%GetSiteVal(1_C_SIZE_T, 2_C_SIZE_T, SiteVal))
+  ASSERT(SiteVal == -7_C_LONG)
+  ASSERT(.not.Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+  ASSERT(.not.Crystal%GetSiteVal(0_C_SIZE_T, 3_C_SIZE_T, SiteVal))
+
+  !Hamiltonian.
+  Accepted = Crystal%SetTBHamiltonian(1_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, &
+                                      (3.0_C_DOUBLE, 4.0_C_DOUBLE))
+  ASSERT_X(Accepted)
+  HamiltonianVal = (0.0_C_DOUBLE, 0.0_C_DOUBLE)
+  Accepted       = Crystal%GetTBHamiltonian(1_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, &
+                                            HamiltonianVal)
+  ASSERT_X(Accepted)
+  ASSERT(abs(HamiltonianVal - (3.0_C_DOUBLE, 4.0_C_DOUBLE)) < Tolerance)
+
+  Accepted = Crystal%SetTBHamiltonian(2_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                      (1.0_C_DOUBLE, 0.0_C_DOUBLE))
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%GetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 2_C_SIZE_T, &
+                                      HamiltonianVal)
+  ASSERT(.not.Accepted)
+
+  !Berry connection.
+  Accepted = Crystal%SetTBPositionOperator(1_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, &
+                                           2_C_SIZE_T, (5.0_C_DOUBLE, -6.0_C_DOUBLE))
+  ASSERT_X(Accepted)
+  PositionVal = (0.0_C_DOUBLE, 0.0_C_DOUBLE)
+  Accepted    = Crystal%GetTBPositionOperator(1_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, &
+                                              2_C_SIZE_T, PositionVal)
+  ASSERT_X(Accepted)
+  ASSERT(abs(PositionVal - (5.0_C_DOUBLE, -6.0_C_DOUBLE)) < Tolerance)
+
+  Accepted = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                           3_C_SIZE_T, (1.0_C_DOUBLE, 0.0_C_DOUBLE))
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%GetTBPositionOperator(2_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                           0_C_SIZE_T, PositionVal)
+  ASSERT(.not.Accepted)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(TBCIFortranCrystalSuite,
+           TBCIFortranCrystalLifecycle,
+           TBCIFortranCrystalCopy,
+           TBCIFortranCrystalFinalization,
+           TBCIFortranCrystalAccessors);
+#endif
+
+TEST_E(TBCIFortranHamiltonianChainDispersion)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Realistic benchmark: a one-dimensional, one-band chain with nearest
+  !neighbour hopping t on the sites at R = -a and R = +a, and on-site energy
+  !e on the site at R = 0,
+  !
+  !    ... -- o -- o -- o -- ...
+  !           R=-a  R=0  R=+a
+  !
+  !    H(k) = e + t*exp(-i*k*a) + t*exp(+i*k*a) = e + 2*t*cos(2*pi*x),
+  !
+  !with k = 2*pi*x/a and x = KPoint(1) the reduced coordinate. The band is
+  !therefore the textbook sine wave: offset e, amplitude 2*|t|, period 1 in x,
+  !and cos(2*pi*x) = sin(2*pi*(x + 1/4)).
+
+  real(C_DOUBLE), parameter :: Pi        = acos(-1.0_C_DOUBLE)
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+  real(C_DOUBLE), parameter :: Hop       = -1.25_C_DOUBLE
+  real(C_DOUBLE), parameter :: Onsite    = 0.5_C_DOUBLE
+  real(C_DOUBLE), parameter :: Lattice   = 2.0_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Sites = 3_C_SIZE_T
+
+  real(C_DOUBLE), parameter :: ReducedPoints(7) = [ &
+    0.0_C_DOUBLE, 0.125_C_DOUBLE, 0.25_C_DOUBLE, 1.0_C_DOUBLE/3.0_C_DOUBLE, &
+    0.5_C_DOUBLE, -0.25_C_DOUBLE, -0.5_C_DOUBLE]
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference
+  integer(C_SIZE_T)         :: ArrayShape(2)
+  integer(C_SIZE_T)         :: i
+  real(C_DOUBLE)            :: Error
+  logical                   :: Accepted
+
+  call Crystal%New(1_C_SIZE_T, Sites, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, Lattice))
+
+  !Site 0 sits at R = -a, site 1 at R = 0 and site 2 at R = +a.
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, -1_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  Reference = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted  = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Accepted)
+
+  Reference = cmplx(Onsite, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted  = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Accepted)
+
+  Reference = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted  = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 2_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Accepted)
+
+  !The analytic dispersion is recovered across the reduced zone.
+  do i = 1, size(ReducedPoints)
+    KPoint(1)  = ReducedPoints(i)
+    ArrayShape = 0_C_SIZE_T
+
+    Accepted = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                   ArrayShape = ArrayShape)
+    ASSERT_X(Accepted)
+
+    ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+    ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+
+    Reference = cmplx(Onsite + 2.0_C_DOUBLE * Hop * &
+                      cos(2.0_C_DOUBLE * Pi * ReducedPoints(i)), &
+                      0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+    Error     = abs(Array(1) - Reference)
+    ASSERT(Error < Tolerance)
+  enddo
+
+  !Band bottom (x = 0), band top (x = 1/2) and the band crossing at e (x = 1/4).
+  KPoint(1) = 0.0_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = cmplx(Onsite + 2.0_C_DOUBLE * Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  KPoint(1) = 0.5_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = cmplx(Onsite - 2.0_C_DOUBLE * Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  KPoint(1) = 0.25_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = cmplx(Onsite, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  !cos(2*pi*x) = sin(2*pi*(x + 1/4)): the band is a plain sine wave.
+  KPoint(1) = 0.1_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = cmplx(Onsite + 2.0_C_DOUBLE * Hop * &
+                    sin(2.0_C_DOUBLE * Pi * (0.1_C_DOUBLE + 0.25_C_DOUBLE)), &
+                    0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  !The reciprocal-lattice phase is periodic in every reduced coordinate with
+  !period 1, so replicas of the same point must agree.
+  KPoint(1) = 0.2_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = Array(1)
+
+  KPoint(1) = 1.2_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Error = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  KPoint(1) = -1.8_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Array = Array, &
+                                  ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Error = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  !x is a reduced coordinate, so the zero-th derivative does not depend on the
+  !length of the direct lattice vector: only the product k*a enters the phase.
+  !Derivative = 0 is also equivalent to omitting the optional argument.
+  KPoint(1) = 0.3_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Derivative = 0_C_SIZE_T, &
+                                  Array = Array, ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = Array(1)
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 3.7_C_DOUBLE))
+  Accepted = Crystal%Hamiltonian(KPoint, Array = Array, ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Error = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(TBCIFortranHamiltonianChainDerivatives)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Same nearest-neighbour chain as in the dispersion benchmark. Because
+  !
+  !    H(k) = e + 2*t*cos(k*a),     k = 2*pi*x/a,
+  !
+  !the m-th derivative with respect to the Cartesian wave number k is
+  !
+  !    d^m H / dk^m = 2*t*a^m*cos(2*pi*x + m*pi/2),
+  !
+  !so the check pins the chain rule (powers of a), the i^m factor and the
+  !(m + 2)-ranked column-major layout of the result at once.
+
+  real(C_DOUBLE), parameter :: Pi        = acos(-1.0_C_DOUBLE)
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+  real(C_DOUBLE), parameter :: Hop       = -1.25_C_DOUBLE
+  real(C_DOUBLE), parameter :: Onsite    = 0.5_C_DOUBLE
+  real(C_DOUBLE), parameter :: Lattice   = 2.0_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Sites         = 3_C_SIZE_T
+  integer(C_SIZE_T), parameter :: MaxDerivative = 4_C_SIZE_T
+
+  real(C_DOUBLE), parameter :: ReducedPoints(3) = [ &
+    0.0_C_DOUBLE, 0.1_C_DOUBLE, 1.0_C_DOUBLE/3.0_C_DOUBLE]
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference
+  integer(C_SIZE_T)         :: ArrayShape(MaxDerivative + 2_C_SIZE_T)
+  integer(C_SIZE_T)         :: i, m
+  real(C_DOUBLE)            :: Error
+  logical                   :: Accepted
+
+  call Crystal%New(1_C_SIZE_T, Sites, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, Lattice))
+
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, -1_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  Reference = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted  = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Accepted)
+
+  Reference = cmplx(Onsite, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted  = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Accepted)
+
+  Reference = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted  = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 2_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Accepted)
+
+  do i = 1, size(ReducedPoints)
+    KPoint(1) = ReducedPoints(i)
+
+    do m = 1, MaxDerivative
+      !Poison the shape buffer: it is an output argument, so every entry of the
+      !reported slice must be overwritten by the call.
+      ArrayShape = huge(0_C_SIZE_T)
+
+      Accepted = Crystal%Hamiltonian(KPoint, Derivative = m, Array = Array, &
+                                     ArrayShape = ArrayShape(1_C_SIZE_T: &
+                                                             m + 2_C_SIZE_T))
+      ASSERT_X(Accepted)
+
+      !One band in one dimension: every reported extent is 1.
+      ASSERT(all(ArrayShape(1_C_SIZE_T:m + 2_C_SIZE_T) == 1_C_SIZE_T))
+
+      !e is annihilated by every positive-order derivative.
+      Reference = cmplx(2.0_C_DOUBLE * Hop * Lattice**m * &
+                        cos(2.0_C_DOUBLE * Pi * ReducedPoints(i) + &
+                            real(m, C_DOUBLE) * Pi / 2.0_C_DOUBLE), &
+                        0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+      Error     = abs(Array(1) - Reference)
+      ASSERT(Error < Tolerance)
+    enddo
+  enddo
+
+  !At a band edge the odd derivatives vanish and the even ones reduce to
+  !-/+ 2*t*a^m.
+  KPoint(1) = 0.0_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Derivative = 1_C_SIZE_T, &
+                                  Array = Array, ArrayShape = ArrayShape(1:3))
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1)) < Tolerance)
+
+  Accepted = Crystal%Hamiltonian(KPoint, Derivative = 2_C_SIZE_T, &
+                                 Array = Array, ArrayShape = ArrayShape(1:4))
+  ASSERT_X(Accepted)
+  Reference = cmplx(-2.0_C_DOUBLE * Hop * Lattice**2, 0.0_C_DOUBLE, &
+                    C_DOUBLE_COMPLEX)
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  KPoint(1) = 0.5_C_DOUBLE
+  Accepted  = Crystal%Hamiltonian(KPoint, Derivative = 2_C_SIZE_T, &
+                                  Array = Array, ArrayShape = ArrayShape(1:4))
+  ASSERT_X(Accepted)
+  Reference = cmplx(2.0_C_DOUBLE * Hop * Lattice**2, 0.0_C_DOUBLE, &
+                    C_DOUBLE_COMPLEX)
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(TBCIFortranHamiltonianLayout)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Two dimensions, two bands and four sites on a non-orthogonal lattice, so
+  !that the Cartesian position of site s is
+  !
+  !    R = a1*Coords(1, s) + a2*Coords(2, s),
+  !
+  !with a1 = (1, 0) and a2 = (1/2, 2) neither symmetric nor orthogonal: a
+  !transposed read of the direct lattice matrix cannot go unnoticed. The
+  !blocks are deliberately non-Hermitian and asymmetric under
+  !BandId1 <-> BandId2, which exposes any transposition, hermitization or
+  !direction-index mix-up in the result.
+
+  real(C_DOUBLE), parameter :: Pi        = acos(-1.0_C_DOUBLE)
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Dim           = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: Bands         = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: Sites         = 4_C_SIZE_T
+  integer(C_SIZE_T), parameter :: MaxDerivative = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: MaxElements   = &
+    Bands * Bands * Dim**MaxDerivative
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(2), LatticeVals(2, 2)
+  integer(C_LONG)           :: Coords(2, 0:Sites - 1_C_SIZE_T)
+  complex(C_DOUBLE_COMPLEX) :: Blocks(0:Bands - 1_C_SIZE_T, &
+                                      0:Bands - 1_C_SIZE_T, &
+                                      0:Sites - 1_C_SIZE_T)
+  complex(C_DOUBLE_COMPLEX) :: Array(MaxElements), Reference, Sum, Ipow
+  integer(C_SIZE_T)         :: ArrayShape(MaxDerivative + 2_C_SIZE_T)
+
+  integer(C_SIZE_T) :: i, idx, N, m, t, b1, b2, d1, d2, s, c
+  real(C_DOUBLE)    :: KdotR, DerProd, Pos1, Pos2, Error
+  logical           :: Accepted
+
+  call Crystal%New(Dim, Sites, Bands)
+  ASSERT_X(Crystal%Initialized())
+
+  LatticeVals       = 0.0_C_DOUBLE
+  LatticeVals(1, 1) = 1.0_C_DOUBLE
+  LatticeVals(1, 2) = 0.5_C_DOUBLE
+  LatticeVals(2, 2) = 2.0_C_DOUBLE
+  !SetDirectLatticeVal takes (VectorId, ComponentId), while LatticeVals is
+  !indexed as (Cartesian component, lattice vector): column j of LatticeVals
+  !is the vector a_j.
+  do s = 0, Dim - 1_C_SIZE_T
+    do c = 0, Dim - 1_C_SIZE_T
+      ASSERT_X(Crystal%SetDirectLatticeVal(s, c, LatticeVals(c + 1, s + 1)))
+    enddo
+  enddo
+
+  Coords(:, 0_C_SIZE_T) = [0_C_LONG, 0_C_LONG]
+  Coords(:, 1_C_SIZE_T) = [1_C_LONG, 0_C_LONG]
+  Coords(:, 2_C_SIZE_T) = [0_C_LONG, 1_C_LONG]
+  Coords(:, 3_C_SIZE_T) = [1_C_LONG, 1_C_LONG]
+
+  do s = 0, Sites - 1_C_SIZE_T
+    do c = 0, Dim - 1_C_SIZE_T
+      ASSERT_X(Crystal%SetSiteVal(s, c, Coords(c + 1_C_SIZE_T, s)))
+    enddo
+  enddo
+
+  do s = 0, Sites - 1_C_SIZE_T
+    do b2 = 0, Bands - 1_C_SIZE_T
+      do b1 = 0, Bands - 1_C_SIZE_T
+        Blocks(b1, b2, s) = &
+          cmplx(real(b1 + 10_C_SIZE_T * b2 + 100_C_SIZE_T * s, C_DOUBLE) + &
+                0.5_C_DOUBLE, &
+                -real(b1 + 3_C_SIZE_T * b2 + 7_C_SIZE_T * s, C_DOUBLE) - &
+                0.25_C_DOUBLE, &
+                C_DOUBLE_COMPLEX)
+        Accepted          = Crystal%SetTBHamiltonian(b1, b2, s, Blocks(b1, b2, s))
+        ASSERT_X(Accepted)
+      enddo
+    enddo
+  enddo
+
+  KPoint = [0.25_C_DOUBLE, -0.125_C_DOUBLE]
+
+  do m = 0, MaxDerivative
+    N          = Bands * Bands * Dim**m
+    Array      = (0.0_C_DOUBLE, 0.0_C_DOUBLE)
+    ArrayShape = huge(0_C_SIZE_T)
+
+    Accepted = Crystal%Hamiltonian(KPoint, Derivative = m, &
+                                   Array = Array(1_C_SIZE_T:N), &
+                                   ArrayShape = ArrayShape(1_C_SIZE_T: &
+                                                           m + 2_C_SIZE_T))
+    ASSERT_X(Accepted)
+
+    !ArrayShape(1) = ArrayShape(2) = BandCount and every derivative slot
+    !reports the full Dimensionality.
+    ASSERT(ArrayShape(1_C_SIZE_T) == Bands)
+    ASSERT(ArrayShape(2_C_SIZE_T) == Bands)
+    do t = 1, m
+      ASSERT(ArrayShape(2_C_SIZE_T + t) == Dim)
+    enddo
+
+    select case (m)
+    case (0_C_SIZE_T)
+      Ipow = (1.0_C_DOUBLE, 0.0_C_DOUBLE)
+    case (1_C_SIZE_T)
+      Ipow = (0.0_C_DOUBLE, 1.0_C_DOUBLE)
+    case default
+      Ipow = (-1.0_C_DOUBLE, 0.0_C_DOUBLE)
+    end select
+
+    do i = 0, N - 1_C_SIZE_T
+      !Decompose the flat index following the documented column-major layout:
+      !BandId1 is the fastest index, then BandId2, then the Cartesian
+      !direction of each successive derivative.
+      idx = i
+      b1  = mod(idx, Bands)
+      idx = (idx - b1) / Bands
+      b2  = mod(idx, Bands)
+      idx = (idx - b2) / Bands
+      d1  = mod(idx, Dim)
+      idx = (idx - d1) / Dim
+      d2  = idx
+
+      Sum = (0.0_C_DOUBLE, 0.0_C_DOUBLE)
+      do s = 0, Sites - 1_C_SIZE_T
+        KdotR = 2.0_C_DOUBLE * Pi * &
+          (real(Coords(1_C_SIZE_T, s), C_DOUBLE) * KPoint(1) + &
+           real(Coords(2_C_SIZE_T, s), C_DOUBLE) * KPoint(2))
+
+        !Cartesian component d1 of the position of site s.
+        Pos1 = LatticeVals(d1 + 1_C_SIZE_T, 1_C_SIZE_T) * &
+          Coords(1_C_SIZE_T, s) + &
+          LatticeVals(d1 + 1_C_SIZE_T, 2_C_SIZE_T) * &
+          Coords(2_C_SIZE_T, s)
+
+        select case (m)
+        case (0_C_SIZE_T)
+          DerProd = 1.0_C_DOUBLE
+        case (1_C_SIZE_T)
+          DerProd = Pos1
+        case default
+          Pos2    = LatticeVals(d2 + 1_C_SIZE_T, 1_C_SIZE_T) * &
+            Coords(1_C_SIZE_T, s) + &
+            LatticeVals(d2 + 1_C_SIZE_T, 2_C_SIZE_T) * &
+            Coords(2_C_SIZE_T, s)
+          DerProd = Pos1 * Pos2
+        end select
+
+        Sum = Sum + Ipow * DerProd * &
+          exp(cmplx(0.0_C_DOUBLE, KdotR, C_DOUBLE_COMPLEX)) * &
+          Blocks(b1, b2, s)
+      enddo
+
+      Reference = Sum
+      Error     = abs(Array(i + 1_C_SIZE_T) - Reference)
+      ASSERT(Error < Tolerance)
+    enddo
+  enddo
+
+  !(BandId1, BandId2) = (0, 1) and (1, 0) are stored as given: no hermitian
+  !conjugation is applied, and BandId1 is the fastest running index.
+  block
+    type(TBCrystal)           :: Skewed
+    real(C_DOUBLE)            :: Origin(2)
+    complex(C_DOUBLE_COMPLEX) :: SkewedArray(4), Expected
+    integer(C_SIZE_T)         :: SkewedShape(2)
+    logical                   :: Ok
+
+    Origin   = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+    Expected = cmplx(1.0_C_DOUBLE, 1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+
+    call Skewed%New(Dim, 1_C_SIZE_T, Bands)
+    ASSERT_X(Skewed%Initialized())
+
+    Ok = Skewed%SetTBHamiltonian(0_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, Expected)
+    ASSERT_X(Ok)
+
+    Ok = Skewed%Hamiltonian(Origin, Array = SkewedArray, &
+                            ArrayShape = SkewedShape)
+    ASSERT_X(Ok)
+
+    ASSERT(SkewedShape(1_C_SIZE_T) == Bands)
+    ASSERT(SkewedShape(2_C_SIZE_T) == Bands)
+    !Element 3 is (BandId1, BandId2) = (0, 1); element 2 is (1, 0).
+    Error = abs(SkewedArray(3_C_SIZE_T) - Expected)
+    ASSERT(Error < Tolerance)
+    ASSERT(abs(SkewedArray(2_C_SIZE_T)) < Tolerance)
+
+    call Skewed%Free()
+  end block
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+
+TEST_E(TBCIFortranHamiltonianHandleAssociation)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !The routine guards its C side with C_ASSOCIATED(Crystal%OpaqueHandle).
+  !These checks exercise the false branch (never bound, already released) and
+  !the true branch on a non-owning alias, without dereferencing a null handle.
+
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+  real(C_DOUBLE), parameter :: Hop       = -1.25_C_DOUBLE
+  real(C_DOUBLE), parameter :: Onsite    = 0.5_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Sites = 3_C_SIZE_T
+
+  type(TBCrystal)           :: Empty, Crystal, Alias
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: OwnerArray(1), AliasArray(1), Val
+  integer(C_SIZE_T)         :: OwnerShape(2), AliasShape(2)
+  real(C_DOUBLE)            :: Error
+  logical                   :: Accepted
+
+  KPoint(1)  = 0.3_C_DOUBLE
+  OwnerShape = 0_C_SIZE_T
+
+  !A never-initialized crystal holds a null handle: the call is rejected
+  !instead of dereferencing it.
+  ASSERT(.not.Empty%Initialized())
+  Accepted = Empty%Hamiltonian(KPoint, Array = OwnerArray, &
+                               ArrayShape = OwnerShape)
+  ASSERT(.not.Accepted)
+  ASSERT(OwnerShape(1_C_SIZE_T) == 0_C_SIZE_T)
+
+  call Crystal%New(1_C_SIZE_T, Sites, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.0_C_DOUBLE))
+
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, -1_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  Val      = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, Val)
+  ASSERT_X(Accepted)
+
+  Val      = cmplx(Onsite, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, Val)
+  ASSERT_X(Accepted)
+
+  Val      = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 2_C_SIZE_T, Val)
+  ASSERT_X(Accepted)
+
+  Accepted = Crystal%Hamiltonian(KPoint, Array = OwnerArray, &
+                                 ArrayShape = OwnerShape)
+  ASSERT_X(Accepted)
+
+  !A non-owning alias carries the same associated handle, so it evaluates the
+  !same band. Releasing the alias leaves the owner untouched.
+  Alias = Crystal
+  ASSERT(Alias%Initialized())
+
+  Accepted = Alias%Hamiltonian(KPoint, Array = AliasArray, &
+                               ArrayShape = AliasShape)
+  ASSERT_X(Accepted)
+
+  Error = abs(AliasArray(1) - OwnerArray(1))
+  ASSERT(Error < Tolerance)
+  ASSERT(AliasShape(1_C_SIZE_T) == OwnerShape(1_C_SIZE_T))
+  ASSERT(AliasShape(2_C_SIZE_T) == OwnerShape(2_C_SIZE_T))
+
+  call Alias%Free()
+  ASSERT(.not.Alias%Initialized())
+  ASSERT(Crystal%Initialized())
+
+  Accepted = Crystal%Hamiltonian(KPoint, Array = OwnerArray, &
+                                 ArrayShape = OwnerShape)
+  ASSERT_X(Accepted)
+
+  !Releasing the owner resets its handle to null, so the guard rejects further
+  !use instead of reading freed memory.
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+  Accepted = Crystal%Hamiltonian(KPoint, Array = OwnerArray, &
+                                 ArrayShape = OwnerShape)
+  ASSERT(.not.Accepted)
+#endif
+END_TEST_E
+
+
+TEST_E(TBCIFortranHamiltonianRejectsMalformedArguments)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Validation contract: KPoint must hold Dimensionality entries, ArrayShape
+  !Derivative + 2 entries and Array exactly
+  !BandCount^2 * Dimensionality^Derivative elements. Every mismatch is
+  !reported through the logical result, never through a crash, and a rejection
+  !leaves the crystal reusable.
+
+  integer(C_SIZE_T), parameter :: Dim   = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: Bands = 2_C_SIZE_T
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(2), TooShort(1), TooLong(3)
+  complex(C_DOUBLE_COMPLEX) :: Array4(4), Array8(8), Array16(16), Array3(3)
+  integer(C_SIZE_T)         :: Shape2(2), Shape3(3), Shape4(4)
+  integer(C_SIZE_T)         :: HugeDerivative
+  logical                   :: Accepted
+
+  call Crystal%New(Dim, 1_C_SIZE_T, Bands)
+  ASSERT_X(Crystal%Initialized())
+
+  KPoint   = [0.125_C_DOUBLE, -0.375_C_DOUBLE]
+  TooShort = [0.125_C_DOUBLE]
+  TooLong  = [0.125_C_DOUBLE, -0.375_C_DOUBLE, 0.5_C_DOUBLE]
+
+  !KPoint size must match the crystal dimensionality.
+  Shape2   = 0_C_SIZE_T
+  Accepted = Crystal%Hamiltonian(TooShort, Array = Array4, &
+                                 ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%Hamiltonian(TooLong, Array = Array4, &
+                                 ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+
+  !Derivative = 0: (BandCount, BandCount) shape and four elements.
+  Accepted = Crystal%Hamiltonian(KPoint, Array = Array4, ArrayShape = Shape2)
+  ASSERT_X(Accepted)
+  ASSERT(Shape2(1_C_SIZE_T) == Bands)
+  ASSERT(Shape2(2_C_SIZE_T) == Bands)
+
+  !Too few or too many elements are rejected.
+  Accepted = Crystal%Hamiltonian(KPoint, Array = Array3, ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%Hamiltonian(KPoint, Array = Array8, ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+
+  !Derivative = 1: (BandCount, BandCount, Dimensionality) shape and eight
+  !elements.
+  Shape3   = 0_C_SIZE_T
+  Accepted = Crystal%Hamiltonian(KPoint, Derivative = 1_C_SIZE_T, &
+                                 Array = Array8, ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%Hamiltonian(KPoint, Derivative = 1_C_SIZE_T, &
+                                 Array = Array8, ArrayShape = Shape3)
+  ASSERT_X(Accepted)
+  ASSERT(Shape3(1_C_SIZE_T) == Bands)
+  ASSERT(Shape3(2_C_SIZE_T) == Bands)
+  ASSERT(Shape3(3_C_SIZE_T) == Dim)
+
+  !Derivative = 2: sixteen elements and a four-entry shape.
+  Shape4   = 0_C_SIZE_T
+  Accepted = Crystal%Hamiltonian(KPoint, Derivative = 2_C_SIZE_T, &
+                                 Array = Array8, ArrayShape = Shape4)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%Hamiltonian(KPoint, Derivative = 2_C_SIZE_T, &
+                                 Array = Array16, ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%Hamiltonian(KPoint, Derivative = 2_C_SIZE_T, &
+                                 Array = Array16, ArrayShape = Shape4)
+  ASSERT_X(Accepted)
+  ASSERT(Shape4(1_C_SIZE_T) == Bands)
+  ASSERT(Shape4(2_C_SIZE_T) == Bands)
+  ASSERT(Shape4(3_C_SIZE_T) == Dim)
+  ASSERT(Shape4(4_C_SIZE_T) == Dim)
+
+  !A derivative with an astronomically large shape rank cannot match any
+  !ArrayShape. It is rejected up front, before any per-element work, instead
+  !of wrapping around to a small, accidentally valid rank.
+  HugeDerivative = huge(0_C_SIZE_T)
+  Accepted       = Crystal%Hamiltonian(KPoint, Derivative = HugeDerivative, &
+                                       Array = Array4, ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+
+  !The rejected calls left no state behind: a well-formed call still succeeds
+  !and rewrites the requested extents.
+  Shape2   = 0_C_SIZE_T
+  Accepted = Crystal%Hamiltonian(KPoint, Array = Array4, ArrayShape = Shape2)
+  ASSERT_X(Accepted)
+  ASSERT(Shape2(1_C_SIZE_T) == Bands)
+  ASSERT(Shape2(2_C_SIZE_T) == Bands)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(TBCIFortranHamiltonianSuite,
+           TBCIFortranHamiltonianChainDispersion,
+           TBCIFortranHamiltonianChainDerivatives,
+           TBCIFortranHamiltonianLayout,
+           TBCIFortranHamiltonianHandleAssociation,
+           TBCIFortranHamiltonianRejectsMalformedArguments);
+#endif
+
+TEST_E(TBCIFortranPositionOperatorChainDispersion)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Realistic benchmark: the chain of the Hamiltonian dispersion test now
+  !carries the site-resolved Berry connection A(S) = R(S), with the sites at
+  !R = -a, R = 0 and R = +a,
+  !
+  !    ... -- o -- o -- o -- ...
+  !           R=-a  R=0  R=+a
+  !
+  !so that
+  !
+  !    A(k) = -a*exp(-i*k*a) + a*exp(+i*k*a) = 2*i*a*sin(2*pi*x),
+  !
+  !with k = 2*pi*x/a and x = KPoint(1). The result is purely imaginary and odd
+  !in x: the sign pins the exp(+i*k.R_S) phase convention, and the vanishing
+  !real part pins that the Berry connection is summed on its own instead of
+  !being mixed with the Hamiltonian.
+
+  real(C_DOUBLE), parameter :: Pi        = acos(-1.0_C_DOUBLE)
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+  real(C_DOUBLE), parameter :: Lattice   = 2.0_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Sites = 3_C_SIZE_T
+
+  real(C_DOUBLE), parameter :: ReducedPoints(7) = [ &
+    0.0_C_DOUBLE, 0.125_C_DOUBLE, 0.25_C_DOUBLE, 1.0_C_DOUBLE/3.0_C_DOUBLE, &
+    0.5_C_DOUBLE, -0.25_C_DOUBLE, -0.5_C_DOUBLE]
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference
+  integer(C_SIZE_T)         :: ArrayShape(3)
+  integer(C_SIZE_T)         :: i
+  real(C_DOUBLE)            :: Error
+  logical                   :: Accepted
+
+  call Crystal%New(1_C_SIZE_T, Sites, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, Lattice))
+
+  !Site 0 sits at R = -a, site 1 at R = 0 and site 2 at R = +a.
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, -1_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  ASSERT_X(Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, cmplx(-Lattice, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)))
+  ASSERT_X(Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, cmplx(0.0_C_DOUBLE, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)))
+  ASSERT_X(Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 2_C_SIZE_T, 0_C_SIZE_T, cmplx(Lattice, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)))
+
+  !The analytic connection is recovered across the reduced zone, and the shape
+  !reports the component index on top of the band pair.
+  do i = 1, size(ReducedPoints)
+    KPoint(1)  = ReducedPoints(i)
+    ArrayShape = 0_C_SIZE_T
+
+    Accepted = Crystal%PositionOperator(KPoint, Array = Array, &
+                                        ArrayShape = ArrayShape)
+    ASSERT_X(Accepted)
+    ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+    ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+    ASSERT(ArrayShape(3_C_SIZE_T) == 1_C_SIZE_T)
+
+    Reference = cmplx(0.0_C_DOUBLE, &
+                      2.0_C_DOUBLE * Lattice * sin(2.0_C_DOUBLE * Pi * &
+                                                   ReducedPoints(i)), &
+                      C_DOUBLE_COMPLEX)
+    Error     = abs(Array(1) - Reference)
+    ASSERT(Error < Tolerance)
+    ASSERT(abs(real(Array(1), C_DOUBLE)) < Tolerance)
+  enddo
+
+  !Nodes at x = 0 and x = 1/2, extrema +2*i*a at x = 1/4 and -2*i*a at
+  !x = -1/4.
+  KPoint(1) = 0.0_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1)) < Tolerance)
+
+  KPoint(1) = 0.25_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = cmplx(0.0_C_DOUBLE, 2.0_C_DOUBLE * Lattice, C_DOUBLE_COMPLEX)
+  ASSERT(abs(Array(1) - Reference) < Tolerance)
+
+  KPoint(1) = -0.25_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = cmplx(0.0_C_DOUBLE, -2.0_C_DOUBLE * Lattice, C_DOUBLE_COMPLEX)
+  ASSERT(abs(Array(1) - Reference) < Tolerance)
+
+  KPoint(1) = 0.5_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1)) < Tolerance)
+
+  !The phase is periodic in every reduced coordinate with period 1.
+  KPoint(1) = 0.2_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = Array(1)
+
+  KPoint(1) = 1.2_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1) - Reference) < Tolerance)
+
+  KPoint(1) = -1.8_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1) - Reference) < Tolerance)
+
+  !x is a reduced coordinate, so the zeroth derivative does not depend on the
+  !length of the direct lattice vector: only k*a enters the phase.
+  KPoint(1) = 0.3_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  Reference = Array(1)
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 3.7_C_DOUBLE))
+  Accepted = Crystal%PositionOperator(KPoint, Array = Array, &
+                                      ArrayShape = ArrayShape)
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1) - Reference) < Tolerance)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+
+TEST_E(TBCIFortranPositionOperatorChainDerivatives)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !The chain of the dispersion benchmark carries P(S) = (n*a)*P0 with a
+  !complex weight P0, hence
+  !
+  !    P(k)         = 2*i*a*P0*sin(k*a),
+  !    d^m P / dk^m = 2*i*a**(m+1)*P0*sin(2*pi*x + m*pi/2),
+  !
+  !with k = 2*pi*x/a. The reference pins the chain rule (powers of a), the
+  !i^m factor and the (m + 3)-ranked column-major layout of the result at
+  !once.
+
+  real(C_DOUBLE), parameter :: Pi        = acos(-1.0_C_DOUBLE)
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+  real(C_DOUBLE), parameter :: Lattice   = 2.0_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Sites         = 3_C_SIZE_T
+  integer(C_SIZE_T), parameter :: MaxDerivative = 4_C_SIZE_T
+
+  real(C_DOUBLE), parameter :: ReducedPoints(3) = [ &
+    0.0_C_DOUBLE, 0.1_C_DOUBLE, 1.0_C_DOUBLE/3.0_C_DOUBLE]
+
+  complex(C_DOUBLE_COMPLEX), parameter :: Prefactor = (1.5_C_DOUBLE, -2.5_C_DOUBLE)
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Scaled
+  integer(C_SIZE_T)         :: ArrayShape(MaxDerivative + 3_C_SIZE_T)
+  integer(C_SIZE_T)         :: i, m
+  real(C_DOUBLE)            :: Error
+  logical                   :: Accepted
+
+  call Crystal%New(1_C_SIZE_T, Sites, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, Lattice))
+
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, -1_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  ASSERT_X(Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, -Lattice * Prefactor))
+  ASSERT_X(Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, cmplx(0.0_C_DOUBLE, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)))
+  ASSERT_X(Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, 2_C_SIZE_T, 0_C_SIZE_T, Lattice * Prefactor))
+
+  do i = 1, size(ReducedPoints)
+    KPoint(1) = ReducedPoints(i)
+
+    do m = 1, MaxDerivative
+      !Poison the shape buffer: it is an output argument, so every entry of the
+      !reported slice must be overwritten by the call.
+      ArrayShape = huge(0_C_SIZE_T)
+
+      Accepted = Crystal%PositionOperator(KPoint, Derivative = m, Array = Array, &
+                                          ArrayShape = ArrayShape(1_C_SIZE_T: &
+                                                                  m + 3_C_SIZE_T))
+      ASSERT_X(Accepted)
+
+      !One band in one dimension: every reported extent is 1.
+      ASSERT(all(ArrayShape(1_C_SIZE_T:m + 3_C_SIZE_T) == 1_C_SIZE_T))
+
+      Reference = cmplx(0.0_C_DOUBLE, 2.0_C_DOUBLE, C_DOUBLE_COMPLEX) * &
+        Prefactor * Lattice**(m + 1_C_SIZE_T) * &
+        sin(2.0_C_DOUBLE * Pi * ReducedPoints(i) + &
+            real(m, C_DOUBLE) * Pi / 2.0_C_DOUBLE)
+      Error     = abs(Array(1) - Reference)
+      ASSERT(Error < Tolerance)
+    enddo
+  enddo
+
+  !At x = 0 the odd derivatives alternate between +2*i*a**(m+1)*P0 and
+  !-2*i*a**(m+1)*P0, while the even ones vanish.
+  KPoint(1) = 0.0_C_DOUBLE
+
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 1_C_SIZE_T, &
+                                      Array = Array, ArrayShape = ArrayShape(1:4))
+  ASSERT_X(Accepted)
+  Reference = cmplx(0.0_C_DOUBLE, 2.0_C_DOUBLE, C_DOUBLE_COMPLEX) * &
+    Prefactor * Lattice**2
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 2_C_SIZE_T, &
+                                      Array = Array, ArrayShape = ArrayShape(1:5))
+  ASSERT_X(Accepted)
+  ASSERT(abs(Array(1)) < Tolerance)
+
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 3_C_SIZE_T, &
+                                      Array = Array, ArrayShape = ArrayShape(1:6))
+  ASSERT_X(Accepted)
+  Reference = -cmplx(0.0_C_DOUBLE, 2.0_C_DOUBLE, C_DOUBLE_COMPLEX) * &
+    Prefactor * Lattice**4
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  !Every derivative order picks up one factor R_c = a*n per order, so rescaling
+  !the direct lattice rescales the m-th derivative by (Anew/a)**m. The stored
+  !blocks are left untouched: a mismatch here would mean that the integer site
+  !offsets, rather than their Cartesian positions, reached the derivative.
+  KPoint(1) = 0.375_C_DOUBLE
+  Accepted  = Crystal%PositionOperator(KPoint, Derivative = 2_C_SIZE_T, &
+                                       Array = Array, ArrayShape = ArrayShape(1:5))
+  ASSERT_X(Accepted)
+  Scaled = Array(1)
+
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 3.7_C_DOUBLE))
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 2_C_SIZE_T, &
+                                      Array = Array, ArrayShape = ArrayShape(1:5))
+  ASSERT_X(Accepted)
+  Reference = Scaled * (3.7_C_DOUBLE / Lattice)**2
+  Error     = abs(Array(1) - Reference)
+  ASSERT(Error < Tolerance)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+
+TEST_E(TBCIFortranPositionOperatorLayout)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Two dimensions, two bands and four sites on a non-orthogonal lattice, so
+  !that the Cartesian position of site s is
+  !
+  !    R = a1*Coords(1, s) + a2*Coords(2, s),
+  !
+  !with a1 = (1, 0) and a2 = (1/2, 2). Every block depends on the Cartesian
+  !component c, and the blocks are deliberately non-Hermitian and asymmetric
+  !under BandId1 <-> BandId2, so a dropped, transposed or hermitized read, a
+  !component index swapped with a band index and a component index used as a
+  !derivative direction all change the result.
+
+  real(C_DOUBLE), parameter :: Pi        = acos(-1.0_C_DOUBLE)
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Dim           = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: Bands         = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: Sites         = 4_C_SIZE_T
+  integer(C_SIZE_T), parameter :: MaxDerivative = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: MaxElements   = &
+    Bands * Bands * Dim**(MaxDerivative + 1_C_SIZE_T)
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(2), LatticeVals(2, 2)
+  integer(C_LONG)           :: Coords(2, 0:Sites - 1_C_SIZE_T)
+  complex(C_DOUBLE_COMPLEX) :: Blocks(0:Bands - 1_C_SIZE_T, &
+                                      0:Bands - 1_C_SIZE_T, &
+                                      0:Dim - 1_C_SIZE_T, &
+                                      0:Sites - 1_C_SIZE_T)
+  complex(C_DOUBLE_COMPLEX) :: Array(MaxElements), Reference, Sum, Ipow
+  integer(C_SIZE_T)         :: ArrayShape(MaxDerivative + 3_C_SIZE_T)
+
+  integer(C_SIZE_T) :: i, idx, N, m, t, b1, b2, c, s
+  integer(C_SIZE_T) :: Direction(2)
+  real(C_DOUBLE)    :: KdotR, DerProd, Pos, Error
+  logical           :: Accepted
+
+  call Crystal%New(Dim, Sites, Bands)
+  ASSERT_X(Crystal%Initialized())
+
+  LatticeVals       = 0.0_C_DOUBLE
+  LatticeVals(1, 1) = 1.0_C_DOUBLE
+  LatticeVals(1, 2) = 0.5_C_DOUBLE
+  LatticeVals(2, 2) = 2.0_C_DOUBLE
+  !SetDirectLatticeVal takes (VectorId, ComponentId), while LatticeVals is
+  !indexed as (Cartesian component, lattice vector): column j of LatticeVals
+  !is the vector a_j.
+  do s = 0, Dim - 1_C_SIZE_T
+    do c = 0, Dim - 1_C_SIZE_T
+      ASSERT_X(Crystal%SetDirectLatticeVal(s, c, LatticeVals(c + 1, s + 1)))
+    enddo
+  enddo
+
+  Coords(:, 0_C_SIZE_T) = [0_C_LONG, 0_C_LONG]
+  Coords(:, 1_C_SIZE_T) = [1_C_LONG, 0_C_LONG]
+  Coords(:, 2_C_SIZE_T) = [0_C_LONG, 1_C_LONG]
+  Coords(:, 3_C_SIZE_T) = [1_C_LONG, 1_C_LONG]
+
+  do s = 0, Sites - 1_C_SIZE_T
+    do c = 0, Dim - 1_C_SIZE_T
+      ASSERT_X(Crystal%SetSiteVal(s, c, Coords(c + 1_C_SIZE_T, s)))
+    enddo
+  enddo
+
+  do s = 0, Sites - 1_C_SIZE_T
+    do c = 0, Dim - 1_C_SIZE_T
+      do b2 = 0, Bands - 1_C_SIZE_T
+        do b1 = 0, Bands - 1_C_SIZE_T
+          Blocks(b1, b2, c, s) = &
+            cmplx(real(b1 + 10_C_SIZE_T * b2 + 100_C_SIZE_T * c + &
+                       1000_C_SIZE_T * s, C_DOUBLE) + 0.5_C_DOUBLE, &
+                  -real(b1 + 3_C_SIZE_T * b2 + 7_C_SIZE_T * c + 11_C_SIZE_T * s, &
+                        C_DOUBLE) - 0.25_C_DOUBLE, &
+                  C_DOUBLE_COMPLEX)
+          Accepted             = Crystal%SetTBPositionOperator(b1, b2, s, c, &
+                                                               Blocks(b1, b2, c, s))
+          ASSERT_X(Accepted)
+        enddo
+      enddo
+    enddo
+  enddo
+
+  KPoint = [0.25_C_DOUBLE, -0.125_C_DOUBLE]
+
+  do m = 0, MaxDerivative
+    N          = Bands * Bands * Dim**(m + 1_C_SIZE_T)
+    Array      = (0.0_C_DOUBLE, 0.0_C_DOUBLE)
+    ArrayShape = huge(0_C_SIZE_T)
+
+    Accepted = Crystal%PositionOperator(KPoint, Derivative = m, &
+                                        Array = Array(1_C_SIZE_T:N), &
+                                        ArrayShape = ArrayShape(1_C_SIZE_T: &
+                                                                m + 3_C_SIZE_T))
+    ASSERT_X(Accepted)
+
+    !ArrayShape(1) = ArrayShape(2) = BandCount, ArrayShape(3) = Dim and every
+    !derivative slot reports the full Dimensionality.
+    ASSERT(ArrayShape(1_C_SIZE_T) == Bands)
+    ASSERT(ArrayShape(2_C_SIZE_T) == Bands)
+    ASSERT(ArrayShape(3_C_SIZE_T) == Dim)
+    do t = 1, m
+      ASSERT(ArrayShape(3_C_SIZE_T + t) == Dim)
+    enddo
+
+    select case (m)
+    case (0_C_SIZE_T)
+      Ipow = (1.0_C_DOUBLE, 0.0_C_DOUBLE)
+    case (1_C_SIZE_T)
+      Ipow = (0.0_C_DOUBLE, 1.0_C_DOUBLE)
+    case default
+      Ipow = (-1.0_C_DOUBLE, 0.0_C_DOUBLE)
+    end select
+
+    do i = 0, N - 1_C_SIZE_T
+      !Decompose the flat index following the documented column-major layout:
+      !BandId1 is the fastest index, then BandId2, then the undifferentiated
+      !Cartesian component, then the direction of each successive derivative.
+      idx = i
+      b1  = mod(idx, Bands)
+      idx = (idx - b1) / Bands
+      b2  = mod(idx, Bands)
+      idx = (idx - b2) / Bands
+      c   = mod(idx, Dim)
+      idx = (idx - c) / Dim
+      do t = 1, m
+        Direction(t) = mod(idx, Dim)
+        idx          = (idx - Direction(t)) / Dim
+      enddo
+
+      Sum = (0.0_C_DOUBLE, 0.0_C_DOUBLE)
+      do s = 0, Sites - 1_C_SIZE_T
+        KdotR   = 2.0_C_DOUBLE * Pi * &
+          (real(Coords(1_C_SIZE_T, s), C_DOUBLE) * KPoint(1) + &
+           real(Coords(2_C_SIZE_T, s), C_DOUBLE) * KPoint(2))
+        DerProd = 1.0_C_DOUBLE
+        do t = 1, m
+          !Cartesian component Direction(t) of the position of site s.
+          Pos     = LatticeVals(Direction(t) + 1_C_SIZE_T, 1_C_SIZE_T) * &
+            Coords(1_C_SIZE_T, s) + &
+            LatticeVals(Direction(t) + 1_C_SIZE_T, 2_C_SIZE_T) * &
+            Coords(2_C_SIZE_T, s)
+          DerProd = DerProd * Pos
+        enddo
+
+        Sum = Sum + Ipow * DerProd * &
+          exp(cmplx(0.0_C_DOUBLE, KdotR, C_DOUBLE_COMPLEX)) * &
+          Blocks(b1, b2, c, s)
+      enddo
+
+      Reference = Sum
+      Error     = abs(Array(i + 1_C_SIZE_T) - Reference)
+      ASSERT(Error < Tolerance)
+    enddo
+  enddo
+
+  !(BandId1, BandId2, ComponentId) = (0, 1, 1) is stored as given: no
+  !hermitian conjugation, and the component index is the slowest of the three,
+  !so its Fortran element index is 4*1 + 2*1 + 0 + 1 = 7.
+  block
+    type(TBCrystal)           :: Skewed
+    real(C_DOUBLE)            :: Origin(2)
+    complex(C_DOUBLE_COMPLEX) :: SkewedArray(8), Expected
+    integer(C_SIZE_T)         :: SkewedShape(3)
+    logical                   :: Ok
+
+    Origin   = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+    Expected = cmplx(1.0_C_DOUBLE, 1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+
+    call Skewed%New(Dim, 1_C_SIZE_T, Bands)
+    ASSERT_X(Skewed%Initialized())
+
+    Ok = Skewed%SetTBPositionOperator(0_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, &
+                                      1_C_SIZE_T, Expected)
+    ASSERT_X(Ok)
+
+    Ok = Skewed%PositionOperator(Origin, Array = SkewedArray, &
+                                 ArrayShape = SkewedShape)
+    ASSERT_X(Ok)
+
+    ASSERT(SkewedShape(1_C_SIZE_T) == Bands)
+    ASSERT(SkewedShape(2_C_SIZE_T) == Bands)
+    ASSERT(SkewedShape(3_C_SIZE_T) == Dim)
+    Error = abs(SkewedArray(7_C_SIZE_T) - Expected)
+    ASSERT(Error < Tolerance)
+    do i = 1, 6
+      ASSERT(abs(SkewedArray(i)) < Tolerance)
+    enddo
+    ASSERT(abs(SkewedArray(8_C_SIZE_T)) < Tolerance)
+
+    !Element 2 is (BandId1, BandId2, ComponentId) = (1, 0, 0).
+    Expected = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+    Ok       = Skewed%SetTBPositionOperator(1_C_SIZE_T, 0_C_SIZE_T, &
+                                            0_C_SIZE_T, 0_C_SIZE_T, Expected)
+    ASSERT_X(Ok)
+    Ok = Skewed%PositionOperator(Origin, Array = SkewedArray, &
+                                 ArrayShape = SkewedShape)
+    ASSERT_X(Ok)
+    Error = abs(SkewedArray(2_C_SIZE_T) - Expected)
+    ASSERT(Error < Tolerance)
+    Error = abs(SkewedArray(7_C_SIZE_T) - &
+                cmplx(1.0_C_DOUBLE, 1.0_C_DOUBLE, C_DOUBLE_COMPLEX))
+    ASSERT(Error < Tolerance)
+
+    call Skewed%Free()
+  end block
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+
+TEST_E(TBCIFortranPositionOperatorHandleAssociation)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !The routine guards its C side with C_ASSOCIATED(Crystal%OpaqueHandle).
+  !These checks exercise the false branch (never bound, already released) and
+  !the true branch on a non-owning alias, without dereferencing a null handle.
+
+  real(C_DOUBLE), parameter :: Tolerance = 1.0e-12_C_DOUBLE
+  real(C_DOUBLE), parameter :: Hop       = -1.25_C_DOUBLE
+  real(C_DOUBLE), parameter :: Onsite    = 0.5_C_DOUBLE
+
+  integer(C_SIZE_T), parameter :: Sites = 3_C_SIZE_T
+
+  type(TBCrystal)           :: Empty, Crystal, Alias
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: OwnerArray(1), AliasArray(1), Val
+  integer(C_SIZE_T)         :: OwnerShape(3), AliasShape(3)
+  real(C_DOUBLE)            :: Error
+  logical                   :: Accepted
+
+  KPoint(1)  = 0.3_C_DOUBLE
+  OwnerShape = 0_C_SIZE_T
+
+  !A never-initialized crystal holds a null handle: the call is rejected
+  !instead of dereferencing it.
+  ASSERT(.not.Empty%Initialized())
+  Accepted = Empty%PositionOperator(KPoint, Array = OwnerArray, &
+                                    ArrayShape = OwnerShape)
+  ASSERT(.not.Accepted)
+  ASSERT(OwnerShape(1_C_SIZE_T) == 0_C_SIZE_T)
+
+  call Crystal%New(1_C_SIZE_T, Sites, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.0_C_DOUBLE))
+
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, -1_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(1_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+  ASSERT_X(Crystal%SetSiteVal(2_C_SIZE_T, 0_C_SIZE_T, 1_C_LONG))
+
+  !A non-trivial connection makes the evaluation distinguishable from zero.
+  Val      = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, &
+                                           0_C_SIZE_T, 0_C_SIZE_T, Val)
+  ASSERT_X(Accepted)
+  Val      = cmplx(Onsite, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, &
+                                           1_C_SIZE_T, 0_C_SIZE_T, Val)
+  ASSERT_X(Accepted)
+  Val      = cmplx(Hop, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Accepted = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, &
+                                           2_C_SIZE_T, 0_C_SIZE_T, Val)
+  ASSERT_X(Accepted)
+
+  Accepted = Crystal%PositionOperator(KPoint, Array = OwnerArray, &
+                                      ArrayShape = OwnerShape)
+  ASSERT_X(Accepted)
+
+  !A non-owning alias carries the same associated handle, so it evaluates the
+  !same connection. Releasing the alias leaves the owner untouched.
+  Alias = Crystal
+  ASSERT(Alias%Initialized())
+
+  Accepted = Alias%PositionOperator(KPoint, Array = AliasArray, &
+                                    ArrayShape = AliasShape)
+  ASSERT_X(Accepted)
+
+  Error = abs(AliasArray(1) - OwnerArray(1))
+  ASSERT(Error < Tolerance)
+  ASSERT(AliasShape(1_C_SIZE_T) == OwnerShape(1_C_SIZE_T))
+  ASSERT(AliasShape(2_C_SIZE_T) == OwnerShape(2_C_SIZE_T))
+  ASSERT(AliasShape(3_C_SIZE_T) == OwnerShape(3_C_SIZE_T))
+
+  call Alias%Free()
+  ASSERT(.not.Alias%Initialized())
+  ASSERT(Crystal%Initialized())
+
+  Accepted = Crystal%PositionOperator(KPoint, Array = OwnerArray, &
+                                      ArrayShape = OwnerShape)
+  ASSERT_X(Accepted)
+
+  !Releasing the owner resets its handle to null, so the guard rejects further
+  !use instead of reading freed memory.
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+  Accepted = Crystal%PositionOperator(KPoint, Array = OwnerArray, &
+                                      ArrayShape = OwnerShape)
+  ASSERT(.not.Accepted)
+#endif
+END_TEST_E
+
+
+TEST_E(TBCIFortranPositionOperatorRejectsMalformedArguments)
+#ifdef TSD_FORTRAN_IMPL
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_DOUBLE_COMPLEX
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Validation contract: KPoint must hold Dimensionality entries, ArrayShape
+  !Derivative + 3 entries and Array exactly
+  !BandCount^2 * Dimensionality^(Derivative + 1) elements. Every mismatch is
+  !reported through the logical result, never through a crash, and a rejection
+  !leaves the crystal reusable.
+
+  integer(C_SIZE_T), parameter :: Dim   = 2_C_SIZE_T
+  integer(C_SIZE_T), parameter :: Bands = 2_C_SIZE_T
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(2), TooShort(1), TooLong(3)
+  complex(C_DOUBLE_COMPLEX) :: Array7(7), Array8(8), Array9(9), Array16(16), &
+                               Array32(32)
+  integer(C_SIZE_T)         :: Shape2(2), Shape3(3), Shape4(4), Shape5(5)
+  integer(C_SIZE_T)         :: HugeDerivative
+  logical                   :: Accepted
+
+  call Crystal%New(Dim, 1_C_SIZE_T, Bands)
+  ASSERT_X(Crystal%Initialized())
+
+  KPoint   = [0.125_C_DOUBLE, -0.375_C_DOUBLE]
+  TooShort = [0.125_C_DOUBLE]
+  TooLong  = [0.125_C_DOUBLE, -0.375_C_DOUBLE, 0.5_C_DOUBLE]
+
+  !KPoint size must match the crystal dimensionality.
+  Shape3   = 0_C_SIZE_T
+  Accepted = Crystal%PositionOperator(TooShort, Array = Array8, &
+                                      ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%PositionOperator(TooLong, Array = Array8, &
+                                      ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+
+  !Derivative = 0: (BandCount, BandCount, Dim) shape and eight elements.
+  Accepted = Crystal%PositionOperator(KPoint, Array = Array8, &
+                                      ArrayShape = Shape3)
+  ASSERT_X(Accepted)
+  ASSERT(Shape3(1_C_SIZE_T) == Bands)
+  ASSERT(Shape3(2_C_SIZE_T) == Bands)
+  ASSERT(Shape3(3_C_SIZE_T) == Dim)
+
+  !Too few or too many elements are rejected, and so is the two-entry shape of
+  !the Hamiltonian kernel: the component index is mandatory.
+  Accepted = Crystal%PositionOperator(KPoint, Array = Array7, &
+                                      ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%PositionOperator(KPoint, Array = Array9, &
+                                      ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+  Shape2   = 0_C_SIZE_T
+  Accepted = Crystal%PositionOperator(KPoint, Array = Array8, &
+                                      ArrayShape = Shape2)
+  ASSERT(.not.Accepted)
+
+  !Derivative = 1: sixteen elements and a four-entry shape.
+  Shape4   = 0_C_SIZE_T
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 1_C_SIZE_T, &
+                                      Array = Array16, ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 1_C_SIZE_T, &
+                                      Array = Array8, ArrayShape = Shape4)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 1_C_SIZE_T, &
+                                      Array = Array16, ArrayShape = Shape4)
+  ASSERT_X(Accepted)
+  ASSERT(Shape4(1_C_SIZE_T) == Bands)
+  ASSERT(Shape4(2_C_SIZE_T) == Bands)
+  ASSERT(Shape4(3_C_SIZE_T) == Dim)
+  ASSERT(Shape4(4_C_SIZE_T) == Dim)
+
+  !Derivative = 2: thirty-two elements and a five-entry shape.
+  Shape5   = 0_C_SIZE_T
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 2_C_SIZE_T, &
+                                      Array = Array32, ArrayShape = Shape4)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 2_C_SIZE_T, &
+                                      Array = Array16, ArrayShape = Shape5)
+  ASSERT(.not.Accepted)
+  Accepted = Crystal%PositionOperator(KPoint, Derivative = 2_C_SIZE_T, &
+                                      Array = Array32, ArrayShape = Shape5)
+  ASSERT_X(Accepted)
+  ASSERT(Shape5(1_C_SIZE_T) == Bands)
+  ASSERT(Shape5(2_C_SIZE_T) == Bands)
+  ASSERT(Shape5(3_C_SIZE_T) == Dim)
+  ASSERT(Shape5(4_C_SIZE_T) == Dim)
+  ASSERT(Shape5(5_C_SIZE_T) == Dim)
+
+  !A derivative with an astronomically large shape rank cannot match any
+  !ArrayShape. It is rejected up front, before any per-element work, instead
+  !of wrapping around to a small, accidentally valid rank.
+  HugeDerivative = huge(0_C_SIZE_T)
+  Accepted       = Crystal%PositionOperator(KPoint, Derivative = HugeDerivative, &
+                                            Array = Array8, ArrayShape = Shape3)
+  ASSERT(.not.Accepted)
+
+  !The rejected calls left no state behind: a well-formed call still succeeds.
+  Shape3   = 0_C_SIZE_T
+  Accepted = Crystal%PositionOperator(KPoint, Array = Array8, &
+                                      ArrayShape = Shape3)
+  ASSERT_X(Accepted)
+  ASSERT(Shape3(1_C_SIZE_T) == Bands)
+  ASSERT(Shape3(2_C_SIZE_T) == Bands)
+  ASSERT(Shape3(3_C_SIZE_T) == Dim)
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(TBCIFortranPositionOperatorSuite,
+           TBCIFortranPositionOperatorChainDispersion,
+           TBCIFortranPositionOperatorChainDerivatives,
+           TBCIFortranPositionOperatorLayout,
+           TBCIFortranPositionOperatorHandleAssociation,
+           TBCIFortranPositionOperatorRejectsMalformedArguments);
+#endif

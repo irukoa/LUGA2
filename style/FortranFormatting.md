@@ -1,6 +1,6 @@
 # Fortran formatting style
 
-Style used by the Fortran sources (`src/**/*.M90`, `src/**/*.F90`, `test/**/*.M90`, `test/**/*.cf`). The C sources are formatted by `clang-format` from `.clang-format` through `.pre-commit-config.yaml`, which also trims trailing whitespace and fixes the end of file for every text file; no Fortran formatter is configured, so the layout below is applied by hand and a change is compliant when a reviewer can check it against these rules.
+Style used by the Fortran sources (`src/**/*.M90`, `src/**/*.F90`, `test/**/*.M90`, `test/**/*.cf`). The C sources are formatted by `clang-format` from `.clang-format` through `.pre-commit-config.yaml`, which also trims trailing whitespace and fixes the end of file for every text file; no Fortran formatter is configured, so the layout below is applied by hand and a change is compliant when a reviewer can check it against these rules. The rules a machine can decide are encoded in `style/FortranStyleCheck.py`, which reports them and applies the mechanical fixes (section 11).
 
 The rules are derived from the corpus itself and mirror the options of `.clang-format` (`IndentWidth: 2`, `AlignConsecutiveDeclarations`, `AlignConsecutiveAssignments`, `AlignAfterOpenBracket: Align`, `AlignOperands: Align`, `MaxEmptyLinesToKeep: 1`, `SpaceBeforeParens: ControlStatements`, `SpacesBeforeTrailingComments: 1`, `UseTab: Never`), extended to the Fortran constructs that have no C equivalent (continuations, `::`, `enddo`).
 
@@ -245,3 +245,18 @@ The following constructs are intentionally left as they are; a reviewer must not
 - ASCII diagrams in comments (`test/Suites/GRTP/GRTP_Algorithms_F_Functional.cf` draws graphs with spaces inside the comment).
 - Lines wider than 80 columns (weak rule, see section 3).
 - The hand-laid matrix and array-constructor blocks of the LDW tests, where the spacing encodes the mathematical structure.
+
+## 11. Checking
+
+`style/FortranStyleCheck.py` encodes the rules a machine can decide and reports every violation with the identifier of the rule and the column it expected:
+
+```sh
+python3 style/FortranStyleCheck.py                    # the whole corpus
+python3 style/FortranStyleCheck.py src/TBCI           # one module
+python3 style/FortranStyleCheck.py --fix src/TBCI     # apply the mechanical fixes
+python3 style/FortranStyleCheck.py --rules            # list the rules
+```
+
+The checker reads `.M90` and `.F90` as Fortran; in a `.cf` suite it reads the Fortran bodies of the `#ifdef TSD_FORTRAN_IMPL` regions and leaves the C part and the framework macros to `clang-format`. The weak rules (the 80-column limit, the period of a comment) are warnings: they are reported but do not change the exit status. The exit status is 0 when no violation is found.
+
+`--fix` applies the rewrites that have a single answer: the alignment of the continuations, of the `::` and attribute columns, of the assignment operators and of the keywords of a continued call; the spacing of the operators and separators; the one-line form of `if (...)`; `endif` and `enddo`; the comment markers; the trailing whitespace and the blank lines. It never renames an identifier, never re-breaks a line and never touches a construct of section 10, so running it twice changes nothing; review the diff anyway, because a fix can move a comment or expose a line that a human should re-wrap.

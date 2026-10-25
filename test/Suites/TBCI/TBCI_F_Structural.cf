@@ -1,0 +1,498 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/TBCI/TightBindingCrystalInterpolation.M90"
+#include "test/CoreSupport/CoreSupportFortran.M90"
+#endif
+#ifdef TSD_KERNEL
+#include "src/Core/Core.h"
+#include "test/CoreSupport/CoreSupport.h"
+#endif
+
+#ifdef TSD_KERNEL
+CONTEXT_FN(StructuralSetup) {
+  (void)ContextData;
+  Core_Malloc      = FallibleMalloc;
+  Core_MulOverflow = FallibleMulOverflow;
+  Core_AddOverflow = FallibleAddOverflow;
+  ResetFallibleMalloc();
+  ResetFallibleMulOverflow();
+  ResetFallibleAddOverflow();
+}
+CONTEXT_FN(StructuralTeardown) {
+  (void)ContextData;
+  RESET_FN(Core_Malloc);
+  RESET_FN(Core_MulOverflow);
+  RESET_FN(Core_AddOverflow);
+}
+CONTEXT(StructuralCtx,
+        StructuralSetup,
+        StructuralTeardown,
+        (size_t)0);
+#endif
+
+TEST_EF(StructuralCtx, TBCIStructuralHamiltonianMallocFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+  use CoreSupportFortran, only: SetFallibleMalloc
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Sentinel
+  integer(C_SIZE_T)         :: ArrayShape(2)
+  integer(C_SIZE_T)         :: FailAt
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.5_C_DOUBLE))
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+
+  Reference = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Sentinel  = cmplx(42.0_C_DOUBLE, -42.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Success   = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Success)
+  KPoint(1) = 0.25_C_DOUBLE
+
+  Success = .false.
+  do FailAt = 1_C_SIZE_T, 16_C_SIZE_T
+
+    !The armed allocation is the only one that can fail, so an earlier success
+    !would mean that the failure was swallowed.
+    Array = Sentinel
+
+    call SetFallibleMalloc(FailAt)
+
+    Success = Crystal%Hamiltonian(KPoint, Array = Array, ArrayShape = ArrayShape)
+
+    if (Success) exit
+
+    !A rejected call leaves the result of the caller untouched.
+    ASSERT(.not.Success)
+    ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  enddo
+
+  !Two allocations: the record and its shape buffer.
+  ASSERT(FailAt == 3_C_SIZE_T)
+  ASSERT(Success)
+
+  !The fault-free attempt evaluated the crystal instead of skipping it.
+  ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(abs(Array(1) - Reference) < 10 * epsilon(1.0_C_DOUBLE))
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, TBCIStructuralHamiltonianMulOverflowFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  !< The shape of the result has Derivative + 2 entries, so the checked
+  !< arithmetic of the specifier runs Derivative + 2 products for the shape
+  !< itself, plus one for the byte size of the shape buffer.
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+  use CoreSupportFortran, only: SetFallibleMulOverflow
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Sentinel
+  integer(C_SIZE_T)         :: ArrayShape(4)
+  integer(C_SIZE_T)         :: Derivative, Rank, FailAt, i
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.5_C_DOUBLE))
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+
+  Reference = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Sentinel  = cmplx(42.0_C_DOUBLE, -42.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Success   = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Success)
+  KPoint(1) = 0.25_C_DOUBLE
+
+  do Derivative = 0_C_SIZE_T, 2_C_SIZE_T
+    Rank    = Derivative + 2_C_SIZE_T
+    Success = .false.
+
+    do FailAt = 1_C_SIZE_T, 16_C_SIZE_T
+      Array = Sentinel
+
+      call SetFallibleMulOverflow(FailAt)
+
+      Success = Crystal%Hamiltonian(KPoint, Derivative = Derivative, &
+                                    Array = Array, &
+                                    ArrayShape = ArrayShape(1_C_SIZE_T:Rank))
+
+      if (Success) exit
+
+      !A rejected call leaves the result of the caller untouched.
+      ASSERT(.not.Success)
+      ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+    enddo
+
+    !Derivative + 2 products of the shape, one of the byte size.
+    ASSERT(FailAt == Derivative + 4_C_SIZE_T)
+    ASSERT(Success)
+
+    !The fault-free attempt specified and filled the whole shape.
+    ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+    ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+    do i = 3_C_SIZE_T, Rank
+      ASSERT(ArrayShape(i) == 1_C_SIZE_T)
+    enddo
+
+    !The site sits at the origin, so every derivative of order one and higher
+    !vanishes, while the value itself is the stored block.
+    if (Derivative == 0_C_SIZE_T) then
+      ASSERT(abs(Array(1) - Reference) < 10 * epsilon(1.0_C_DOUBLE))
+    else
+      ASSERT(abs(Array(1)) < 10 * epsilon(1.0_C_DOUBLE))
+    endif
+  enddo
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, TBCIStructuralHamiltonianAddOverflowFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  !< The rank of the result is Derivative + 2, and the checked addition of the
+  !< rank runs once per call. A Derivative that cannot be incremented by two is
+  !< rejected before the shape is filled, and so is a shape array whose extent
+  !< does not match that rank.
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+  use CoreSupportFortran, only: SetFallibleAddOverflow, &
+                                ResetFallibleAddOverflow
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Sentinel
+  integer(C_SIZE_T)         :: ArrayShape(2)
+  integer(C_SIZE_T)         :: FailAt
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.5_C_DOUBLE))
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+
+  Reference = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Sentinel  = cmplx(42.0_C_DOUBLE, -42.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Success   = Crystal%SetTBHamiltonian(0_C_SIZE_T, 0_C_SIZE_T, 0_C_SIZE_T, &
+                                       Reference)
+  ASSERT_X(Success)
+  KPoint(1) = 0.25_C_DOUBLE
+
+  Success = .false.
+  do FailAt = 1_C_SIZE_T, 8_C_SIZE_T
+    Array      = Sentinel
+    ArrayShape = 99_C_SIZE_T
+
+    call SetFallibleAddOverflow(FailAt)
+
+    Success = Crystal%Hamiltonian(KPoint, Array = Array, ArrayShape = ArrayShape)
+
+    if (Success) exit
+
+    ASSERT(.not.Success)
+    ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  enddo
+
+  !One addition: the rank of the result.
+  ASSERT(FailAt == 2_C_SIZE_T)
+  ASSERT(Success)
+  ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(abs(Array(1) - Reference) < 10 * epsilon(1.0_C_DOUBLE))
+
+  call ResetFallibleAddOverflow()
+
+  !A Derivative that cannot be incremented by two overflows the rank, and the
+  !call is rejected before anything is written.
+  Array      = Sentinel
+  ArrayShape = 99_C_SIZE_T
+  Success    = Crystal%Hamiltonian(KPoint, Derivative = huge(1_C_SIZE_T), &
+                                   Array = Array, ArrayShape = ArrayShape)
+  ASSERT(.not.Success)
+  ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  ASSERT(all(ArrayShape == 99_C_SIZE_T))
+
+  !A shape array of a rank that does not match Derivative is rejected the same
+  !way, without writing the result.
+  Success = Crystal%Hamiltonian(KPoint, Derivative = 1_C_SIZE_T, &
+                                Array = Array, ArrayShape = ArrayShape)
+  ASSERT(.not.Success)
+  ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  ASSERT(all(ArrayShape == 99_C_SIZE_T))
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, TBCIStructuralPositionOperatorMallocFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+  use CoreSupportFortran, only: SetFallibleMalloc
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Sentinel
+  integer(C_SIZE_T)         :: ArrayShape(3)
+  integer(C_SIZE_T)         :: FailAt
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.5_C_DOUBLE))
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+
+  Reference = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Sentinel  = cmplx(42.0_C_DOUBLE, -42.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Success   = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, &
+                                            0_C_SIZE_T, 0_C_SIZE_T, &
+                                            Reference)
+  ASSERT_X(Success)
+  KPoint(1) = 0.25_C_DOUBLE
+
+  Success = .false.
+  do FailAt = 1_C_SIZE_T, 16_C_SIZE_T
+    Array = Sentinel
+
+    call SetFallibleMalloc(FailAt)
+
+    Success = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+
+    if (Success) exit
+
+    ASSERT(.not.Success)
+    ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  enddo
+
+  !Two allocations: the record and its shape buffer.
+  ASSERT(FailAt == 3_C_SIZE_T)
+  ASSERT(Success)
+
+  !The fault-free attempt filled the two band indexes and the component.
+  ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(ArrayShape(3_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(abs(Array(1) - Reference) < 10 * epsilon(1.0_C_DOUBLE))
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, TBCIStructuralPositionOperatorMulOverflowFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  !< The shape of the result has Derivative + 3 entries, so the checked
+  !< arithmetic of the specifier runs Derivative + 3 products for the shape
+  !< itself, plus one for the byte size of the shape buffer: one more than the
+  !< Hamiltonian of the same crystal and Derivative.
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+  use CoreSupportFortran, only: SetFallibleMulOverflow
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Sentinel
+  integer(C_SIZE_T)         :: ArrayShape(5)
+  integer(C_SIZE_T)         :: Derivative, Rank, FailAt, i
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.5_C_DOUBLE))
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+
+  Reference = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Sentinel  = cmplx(42.0_C_DOUBLE, -42.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Success   = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, &
+                                            0_C_SIZE_T, 0_C_SIZE_T, &
+                                            Reference)
+  ASSERT_X(Success)
+  KPoint(1) = 0.25_C_DOUBLE
+
+  do Derivative = 0_C_SIZE_T, 2_C_SIZE_T
+    Rank    = Derivative + 3_C_SIZE_T
+    Success = .false.
+
+    do FailAt = 1_C_SIZE_T, 16_C_SIZE_T
+      Array = Sentinel
+
+      call SetFallibleMulOverflow(FailAt)
+
+      Success = Crystal%PositionOperator(KPoint, Derivative = Derivative, &
+                                         Array = Array, &
+                                         ArrayShape = ArrayShape(1_C_SIZE_T:Rank))
+
+      if (Success) exit
+
+      ASSERT(.not.Success)
+      ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+    enddo
+
+    !Derivative + 3 products of the shape, one of the byte size.
+    ASSERT(FailAt == Derivative + 5_C_SIZE_T)
+    ASSERT(Success)
+
+    ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+    ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+    ASSERT(ArrayShape(3_C_SIZE_T) == 1_C_SIZE_T)
+    do i = 4_C_SIZE_T, Rank
+      ASSERT(ArrayShape(i) == 1_C_SIZE_T)
+    enddo
+
+    if (Derivative == 0_C_SIZE_T) then
+      ASSERT(abs(Array(1) - Reference) < 10 * epsilon(1.0_C_DOUBLE))
+    else
+      ASSERT(abs(Array(1)) < 10 * epsilon(1.0_C_DOUBLE))
+    endif
+  enddo
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, TBCIStructuralPositionOperatorAddOverflowFailure)
+#ifdef TSD_FORTRAN_IMPL
+
+  !< The rank of the result is Derivative + 3: the checked addition runs once
+  !< per call, an overflowing Derivative is rejected before the shape is
+  !< filled, and a shape array whose extent does not match the rank is rejected
+  !< without writing the result either.
+  use TightBindingCrystalInterpolation, only: TBCrystal, C_SIZE_T, C_DOUBLE, &
+                                              C_LONG, C_DOUBLE_COMPLEX
+  use CoreSupportFortran, only: SetFallibleAddOverflow, &
+                                ResetFallibleAddOverflow
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  type(TBCrystal)           :: Crystal
+  real(C_DOUBLE)            :: KPoint(1)
+  complex(C_DOUBLE_COMPLEX) :: Array(1), Reference, Sentinel
+  integer(C_SIZE_T)         :: ArrayShape(3)
+  integer(C_SIZE_T)         :: FailAt
+  logical                   :: Success
+  type(C_PTR)               :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  call Crystal%New(1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  ASSERT_X(Crystal%Initialized())
+  ASSERT_X(Crystal%SetDirectLatticeVal(0_C_SIZE_T, 0_C_SIZE_T, 1.5_C_DOUBLE))
+  ASSERT_X(Crystal%SetSiteVal(0_C_SIZE_T, 0_C_SIZE_T, 0_C_LONG))
+
+  Reference = cmplx(2.0_C_DOUBLE, -1.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Sentinel  = cmplx(42.0_C_DOUBLE, -42.0_C_DOUBLE, C_DOUBLE_COMPLEX)
+  Success   = Crystal%SetTBPositionOperator(0_C_SIZE_T, 0_C_SIZE_T, &
+                                            0_C_SIZE_T, 0_C_SIZE_T, &
+                                            Reference)
+  ASSERT_X(Success)
+  KPoint(1) = 0.25_C_DOUBLE
+
+  Success = .false.
+  do FailAt = 1_C_SIZE_T, 8_C_SIZE_T
+    Array      = Sentinel
+    ArrayShape = 99_C_SIZE_T
+
+    call SetFallibleAddOverflow(FailAt)
+
+    Success = Crystal%PositionOperator(KPoint, Array = Array, &
+                                       ArrayShape = ArrayShape)
+
+    if (Success) exit
+
+    ASSERT(.not.Success)
+    ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  enddo
+
+  !One addition: the rank of the result.
+  ASSERT(FailAt == 2_C_SIZE_T)
+  ASSERT(Success)
+  ASSERT(ArrayShape(1_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(ArrayShape(2_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(ArrayShape(3_C_SIZE_T) == 1_C_SIZE_T)
+  ASSERT(abs(Array(1) - Reference) < 10 * epsilon(1.0_C_DOUBLE))
+
+  call ResetFallibleAddOverflow()
+
+  !A Derivative that cannot be incremented by three overflows the rank.
+  Array      = Sentinel
+  ArrayShape = 99_C_SIZE_T
+  Success    = Crystal%PositionOperator(KPoint, Derivative = huge(1_C_SIZE_T), &
+                                        Array = Array, &
+                                        ArrayShape = ArrayShape)
+  ASSERT(.not.Success)
+  ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  ASSERT(all(ArrayShape == 99_C_SIZE_T))
+
+  !A shape array of a rank that does not match Derivative is rejected the same
+  !way, without writing the result.
+  Success = Crystal%PositionOperator(KPoint, Derivative = 1_C_SIZE_T, &
+                                     Array = Array, ArrayShape = ArrayShape)
+  ASSERT(.not.Success)
+  ASSERT(abs(Array(1) - Sentinel) < epsilon(1.0_C_DOUBLE))
+  ASSERT(all(ArrayShape == 99_C_SIZE_T))
+
+  call Crystal%Free()
+  ASSERT(.not.Crystal%Initialized())
+#endif
+END_TEST_EF
+
+#ifdef TSD_KERNEL
+TEST_SUITE(TBCIStructuralSuite,
+           TBCIStructuralHamiltonianAddOverflowFailure,
+           TBCIStructuralHamiltonianMallocFailure,
+           TBCIStructuralHamiltonianMulOverflowFailure,
+           TBCIStructuralPositionOperatorAddOverflowFailure,
+           TBCIStructuralPositionOperatorMallocFailure,
+           TBCIStructuralPositionOperatorMulOverflowFailure);
+#endif

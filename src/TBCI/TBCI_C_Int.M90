@@ -1,0 +1,242 @@
+#ifndef TBCI_C_Interfaces_H
+#define TBCI_C_Interfaces_H
+
+#include "src/TBCI/TightBindingCrystalInterpolation.M90"
+
+submodule (TightBindingCrystalInterpolation) TBCI_C_Interfaces
+
+  use, intrinsic :: ISO_C_BINDING, only: C_BOOL
+
+  implicit none
+
+  interface
+    pure subroutine FreeTBCrystal(OpaqueHandle) &
+      bind(C, name="FreeTBCrystal")
+      import C_PTR
+      type(C_PTR), intent(inout) :: OpaqueHandle
+    end subroutine FreeTBCrystal
+  end interface
+
+  interface
+    pure function NewTBCrystal(Dimensionality, SiteCount, BandCount) &
+      result(OpaqueHandle) &
+      bind(C, name="NewTBCrystal")
+      import C_SIZE_T, C_PTR
+      integer(C_SIZE_T), intent(in), value :: Dimensionality
+      integer(C_SIZE_T), intent(in), value :: SiteCount
+      integer(C_SIZE_T), intent(in), value :: BandCount
+
+      type(C_PTR) :: OpaqueHandle
+    end function NewTBCrystal
+  end interface
+
+  interface
+    pure function TBCrystalGetDimensionality(OpaqueHandle) &
+      result(Dimensionality) &
+      bind(C, name="TBCrystalGetDimensionality")
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: Dimensionality
+    end function TBCrystalGetDimensionality
+  end interface
+
+  interface
+    pure function TBCrystalGetSiteCount(OpaqueHandle) &
+      result(SiteCount) &
+      bind(C, name="TBCrystalGetSiteCount")
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: SiteCount
+    end function TBCrystalGetSiteCount
+  end interface
+
+  interface
+    pure function TBCrystalGetBandCount(OpaqueHandle) &
+      result(BandCount) &
+      bind(C, name="TBCrystalGetBandCount")
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      integer(C_SIZE_T) :: BandCount
+    end function TBCrystalGetBandCount
+  end interface
+
+  interface
+    pure function TBCrystalSetDirectLatticeVal(OpaqueHandle, VectorId, &
+                                               ComponentId, Val) &
+      result(Success) &
+      bind(C, name="TBCrystalSetDirectLatticeVal")
+      import C_PTR, C_SIZE_T, C_DOUBLE, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: VectorId
+      integer(C_SIZE_T), intent(in), value :: ComponentId
+      real(C_DOUBLE),    intent(in), value :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalSetDirectLatticeVal
+  end interface
+
+  interface
+    function TBCrystalGetDirectLatticeVal(OpaqueHandle, VectorId, &
+                                          ComponentId, Val) &
+      result(Success) &
+      bind(C, name="TBCrystalGetDirectLatticeVal")
+      import C_PTR, C_SIZE_T, C_DOUBLE, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: VectorId
+      integer(C_SIZE_T), intent(in), value :: ComponentId
+      real(C_DOUBLE),    intent(out)       :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalGetDirectLatticeVal
+  end interface
+
+  interface
+    pure function TBCrystalSetSiteVal(OpaqueHandle, SiteId, ComponentId, &
+                                      Val) &
+      result(Success) &
+      bind(C, name="TBCrystalSetSiteVal")
+      import C_PTR, C_SIZE_T, C_LONG, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: SiteId
+      integer(C_SIZE_T), intent(in), value :: ComponentId
+      integer(C_LONG),   intent(in), value :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalSetSiteVal
+  end interface
+
+  interface
+    function TBCrystalGetSiteVal(OpaqueHandle, SiteId, ComponentId, &
+                                 Val) &
+      result(Success) &
+      bind(C, name="TBCrystalGetSiteVal")
+      import C_PTR, C_SIZE_T, C_LONG, C_BOOL
+      type(C_PTR),       intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T), intent(in), value :: SiteId
+      integer(C_SIZE_T), intent(in), value :: ComponentId
+      integer(C_LONG),   intent(out)       :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalGetSiteVal
+  end interface
+
+  interface
+    pure function TBCrystalSetTBHamiltonian(OpaqueHandle, BandId1, BandId2, &
+                                            SiteId, Val) &
+      result(Success) &
+      bind(C, name="TBCrystalSetTBHamiltonian")
+      import C_PTR, C_SIZE_T, C_DOUBLE_COMPLEX, C_BOOL
+      type(C_PTR),               intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T),         intent(in), value :: BandId1
+      integer(C_SIZE_T),         intent(in), value :: BandId2
+      integer(C_SIZE_T),         intent(in), value :: SiteId
+      complex(C_DOUBLE_COMPLEX), intent(in), value :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalSetTBHamiltonian
+  end interface
+
+  interface
+    function TBCrystalGetTBHamiltonian(OpaqueHandle, BandId1, BandId2, &
+                                       SiteId, Val) &
+      result(Success) &
+      bind(C, name="TBCrystalGetTBHamiltonian")
+      import C_PTR, C_SIZE_T, C_DOUBLE_COMPLEX, C_BOOL
+      type(C_PTR),               intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T),         intent(in), value :: BandId1
+      integer(C_SIZE_T),         intent(in), value :: BandId2
+      integer(C_SIZE_T),         intent(in), value :: SiteId
+      complex(C_DOUBLE_COMPLEX), intent(out)       :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalGetTBHamiltonian
+  end interface
+
+  interface
+    pure function TBCrystalSetTBPositionOperator(OpaqueHandle, BandId1, &
+                                                 BandId2, SiteId, ComponentId, &
+                                                 Val) &
+      result(Success) &
+      bind(C, name="TBCrystalSetTBPositionOperator")
+      import C_PTR, C_SIZE_T, C_DOUBLE_COMPLEX, C_BOOL
+      type(C_PTR),               intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T),         intent(in), value :: BandId1
+      integer(C_SIZE_T),         intent(in), value :: BandId2
+      integer(C_SIZE_T),         intent(in), value :: SiteId
+      integer(C_SIZE_T),         intent(in), value :: ComponentId
+      complex(C_DOUBLE_COMPLEX), intent(in), value :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalSetTBPositionOperator
+  end interface
+
+  interface
+    function TBCrystalGetTBPositionOperator(OpaqueHandle, BandId1, &
+                                            BandId2, SiteId, &
+                                            ComponentId, Val) &
+      result(Success) &
+      bind(C, name="TBCrystalGetTBPositionOperator")
+      import C_PTR, C_SIZE_T, C_DOUBLE_COMPLEX, C_BOOL
+      type(C_PTR),               intent(in), value :: OpaqueHandle
+      integer(C_SIZE_T),         intent(in), value :: BandId1
+      integer(C_SIZE_T),         intent(in), value :: BandId2
+      integer(C_SIZE_T),         intent(in), value :: SiteId
+      integer(C_SIZE_T),         intent(in), value :: ComponentId
+      complex(C_DOUBLE_COMPLEX), intent(out)       :: Val
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalGetTBPositionOperator
+  end interface
+
+  !< INTERNAL ARRAY VIEWS.
+
+  interface
+    pure function TBCI_InternalGetDirectLatticePtr(OpaqueHandle) &
+      result(InternalHandle) &
+      bind(C, name="TBCI_InternalGetDirectLatticePtr")
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: InternalHandle
+    end function TBCI_InternalGetDirectLatticePtr
+  end interface
+
+  interface
+    pure function TBCI_InternalGetSiteCoordsPtr(OpaqueHandle) &
+      result(InternalHandle) &
+      bind(C, name="TBCI_InternalGetSiteCoordsPtr")
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: InternalHandle
+    end function TBCI_InternalGetSiteCoordsPtr
+  end interface
+
+  interface
+    pure function TBCI_InternalGetTBHamiltonianPtr(OpaqueHandle) &
+      result(InternalHandle) &
+      bind(C, name="TBCI_InternalGetTBHamiltonianPtr")
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: InternalHandle
+    end function TBCI_InternalGetTBHamiltonianPtr
+  end interface
+
+  interface
+    pure function TBCI_InternalGetPositionOpPtr(OpaqueHandle) &
+      result(InternalHandle) &
+      bind(C, name="TBCI_InternalGetPositionOpPtr")
+      import C_PTR
+      type(C_PTR), intent(in), value :: OpaqueHandle
+
+      type(C_PTR) :: InternalHandle
+    end function TBCI_InternalGetPositionOpPtr
+  end interface
+
+end submodule TBCI_C_Interfaces
+
+#endif

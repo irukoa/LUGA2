@@ -129,6 +129,10 @@ cp src/GRTP/GraphUtilities.h "${DESTDIR}${INCDIR}/GraphUtilities.h"
 cp src/GRTP/GraphUtilities.M90 "${DESTDIR}${INCDIR}/GraphUtilities.F90"
 cp discard/GraphUtilities/*.mod "${DESTDIR}${INCDIR}/Artifacts"
 cp obj/GraphUtilities.def "${DESTDIR}${INCDIR}/Artifacts"
+cp src/TBCI/TightBindingCrystalInterpolation.h "${DESTDIR}${INCDIR}/TightBindingCrystalInterpolation.h"
+cp src/TBCI/TightBindingCrystalInterpolation.M90 "${DESTDIR}${INCDIR}/TightBindingCrystalInterpolation.F90"
+cp discard/TightBindingCrystalInterpolation/*.mod "${DESTDIR}${INCDIR}/Artifacts"
+cp obj/TightBindingCrystalInterpolation.def "${DESTDIR}${INCDIR}/Artifacts"
 chmod 644 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h" \
   "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.F90" \
   "${DESTDIR}${INCDIR}/ExtrapolationIntegration.h" \
@@ -136,7 +140,9 @@ chmod 644 "${DESTDIR}${INCDIR}/MultidimensionalArrayContainers.h" \
   "${DESTDIR}${INCDIR}/LapackDeferredWrappers.h" \
   "${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90" \
   "${DESTDIR}${INCDIR}/GraphUtilities.h" \
-  "${DESTDIR}${INCDIR}/GraphUtilities.F90"
+  "${DESTDIR}${INCDIR}/GraphUtilities.F90" \
+  "${DESTDIR}${INCDIR}/TightBindingCrystalInterpolation.h" \
+  "${DESTDIR}${INCDIR}/TightBindingCrystalInterpolation.F90"
 
 echo
 echo "Installed:"
@@ -150,6 +156,8 @@ echo "  ${DESTDIR}${INCDIR}/LapackDeferredWrappers.h"
 echo "  ${DESTDIR}${INCDIR}/LapackDeferredWrappers.F90"
 echo "  ${DESTDIR}${INCDIR}/GraphUtilities.h"
 echo "  ${DESTDIR}${INCDIR}/GraphUtilities.F90"
+echo "  ${DESTDIR}${INCDIR}/TightBindingCrystalInterpolation.h"
+echo "  ${DESTDIR}${INCDIR}/TightBindingCrystalInterpolation.F90"
 echo "  Compilation-specific .mod artifacts"
 echo "  Interface-only module symbol lists"
 echo "  Cleaning..."

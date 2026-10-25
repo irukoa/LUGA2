@@ -1,0 +1,432 @@
+#ifndef TightBindingCrystalInterpolation_FH
+#define TightBindingCrystalInterpolation_FH
+
+module TightBindingCrystalInterpolation
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, C_DOUBLE_COMPLEX, &
+                                         C_LONG, &
+                                         C_NULL_PTR, C_PTR, C_SIZE_T
+
+  implicit none
+
+  private
+
+  public :: C_SIZE_T
+  public :: C_DOUBLE
+  public :: C_DOUBLE_COMPLEX
+  public :: C_LONG
+
+  !< A tight-binding crystal stores the direct lattice vectors a_l (length
+  !< units), the integer site offsets n_S (lattice units), the
+  !< lattice-resolved Hamiltonian H_{b1,b2}(S) (energy units) and the
+  !< lattice-resolved Berry connection A_{b1,b2,c}(S) (length units), where
+  !< b1 and b2 in [0, BandCount - 1] are band indexes, c in
+  !< [0, Dimensionality - 1] is a Cartesian component and S in
+  !< [0, SiteCount - 1] is a lattice translation. The Cartesian position of
+  !< translation S is
+  !<
+  !<     R_S = sum_{l = 0}^{D - 1} a_l * n_S(l).
+  !<
+  !< STORAGE LAYOUT
+  !< -------------------------------------------------------------------------
+  !<
+  !< H_{b1,b2}(S) is stored contiguously as [S][b1][b2] and
+  !< A_{b1,b2,c}(S) as [S][b1][b2][c], both in COLUMN_MAJOR order: the site
+  !< indexes run fastest.
+  !<
+  !< Every stored value starts at zero. A physical model requires
+  !< H_{b1,b2}(S) and H_{b2,b1}(S) at opposite
+  !< translations to be Hermitian conjugates.
+  !<
+  type, public :: TBCrystal
+    private
+    type(C_PTR)       :: OpaqueHandle   = C_NULL_PTR
+    logical           :: Init           = .false.
+    logical           :: Owner          = .true.
+    integer(C_SIZE_T) :: Dimensionality = 0_C_SIZE_T
+    integer(C_SIZE_T) :: SiteCount      = 0_C_SIZE_T
+    integer(C_SIZE_T) :: BandCount      = 0_C_SIZE_T
+    contains
+    procedure, public, pass(Crystal) :: Free                  => FortranFreeTBCrystal
+    procedure, public, pass(Crystal) :: New                   => FortranNewTBCrystal
+    procedure, public, pass(Crystal) :: Initialized           => FortranTBCrystalInitialized
+    procedure, public, pass(Crystal) :: GetDimensionality     => FortranTBCrystalGetDimensionality
+    procedure, public, pass(Crystal) :: GetSiteCount          => FortranTBCrystalGetSiteCount
+    procedure, public, pass(Crystal) :: GetBandCount          => FortranTBCrystalGetBandCount
+    procedure, public, pass(Crystal) :: SetDirectLatticeVal   => FortranTBCrystalSetDirectLatticeVal
+    procedure, public, pass(Crystal) :: GetDirectLatticeVal   => FortranTBCrystalGetDirectLatticeVal
+    procedure, public, pass(Crystal) :: SetSiteVal            => FortranTBCrystalSetSiteVal
+    procedure, public, pass(Crystal) :: GetSiteVal            => FortranTBCrystalGetSiteVal
+    procedure, public, pass(Crystal) :: SetTBHamiltonian      => FortranTBCrystalSetTBHamiltonian
+    procedure, public, pass(Crystal) :: GetTBHamiltonian      => FortranTBCrystalGetTBHamiltonian
+    procedure, public, pass(Crystal) :: SetTBPositionOperator => FortranTBCrystalSetTBPositionOperator
+    procedure, public, pass(Crystal) :: GetTBPositionOperator => FortranTBCrystalGetTBPositionOperator
+    procedure, public, pass(Crystal) :: Hamiltonian           => FortranTBCrystalHamiltonian
+    procedure, public, pass(Crystal) :: PositionOperator      => FortranTBPositionOperator
+    procedure                        :: FortranCopyTBCrystal
+    generic,   public                :: assignment(=)         => FortranCopyTBCrystal
+    final                            :: FortranFreeTBCrystal_Final
+  end type TBCrystal
+
+  interface
+    module subroutine FortranCopyTBCrystal(Copy, Original)
+      class(TBCrystal), intent(out) :: Copy
+      type(TBCrystal),  intent(in)  :: Original
+    end subroutine FortranCopyTBCrystal
+  end interface
+
+  interface
+    pure module subroutine FortranFreeTBCrystal(Crystal)
+      class(TBCrystal), intent(inout) :: Crystal
+    end subroutine FortranFreeTBCrystal
+  end interface
+
+  interface
+    pure module subroutine FortranFreeTBCrystal_Final(Crystal)
+      type(TBCrystal), intent(inout) :: Crystal
+    end subroutine FortranFreeTBCrystal_Final
+  end interface
+
+  !< Every stored value starts at zero, so the caller must populate the
+  !< direct lattice, the site offsets, the Hamiltonian and the Berry
+  !< connection afterwards.
+  !<
+  !< Dimensionality, SiteCount and BandCount must all be greater than zero;
+  !< a rejected construction leaves the crystal uninitialized.
+  !<
+  interface
+    pure module subroutine FortranNewTBCrystal(Crystal, Dimensionality, SiteCount, BandCount)
+      class(TBCrystal),  intent(inout) :: Crystal
+      integer(C_SIZE_T), intent(in)    :: Dimensionality
+      integer(C_SIZE_T), intent(in)    :: SiteCount
+      integer(C_SIZE_T), intent(in)    :: BandCount
+    end subroutine FortranNewTBCrystal
+  end interface
+
+  interface
+    pure module function FortranTBCrystalInitialized(Crystal) &
+      result(Initialized)
+      class(TBCrystal), intent(in) :: Crystal
+
+      logical :: Initialized
+    end function FortranTBCrystalInitialized
+  end interface
+
+  interface
+    pure module function FortranTBCrystalGetDimensionality(Crystal) &
+      result(Dimensionality)
+      class(TBCrystal), intent(in) :: Crystal
+
+      integer(C_SIZE_T) :: Dimensionality
+    end function FortranTBCrystalGetDimensionality
+  end interface
+
+  interface
+    pure module function FortranTBCrystalGetSiteCount(Crystal) &
+      result(SiteCount)
+      class(TBCrystal), intent(in) :: Crystal
+
+      integer(C_SIZE_T) :: SiteCount
+    end function FortranTBCrystalGetSiteCount
+  end interface
+
+  interface
+    pure module function FortranTBCrystalGetBandCount(Crystal) &
+      result(BandCount)
+      class(TBCrystal), intent(in) :: Crystal
+
+      integer(C_SIZE_T) :: BandCount
+    end function FortranTBCrystalGetBandCount
+  end interface
+
+  !< VectorId in [0, Dimensionality - 1] selects the lattice vector, and
+  !< ComponentId in [0, Dimensionality - 1] selects its Cartesian component.
+  !< Val is in length units.
+  !<
+  interface
+    pure module function FortranTBCrystalSetDirectLatticeVal(Crystal, VectorId, &
+                                                             ComponentId, Val) &
+      result(Success)
+      class(TBCrystal),  intent(in) :: Crystal
+      integer(C_SIZE_T), intent(in) :: VectorId
+      integer(C_SIZE_T), intent(in) :: ComponentId
+      real(C_DOUBLE),    intent(in) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalSetDirectLatticeVal
+  end interface
+
+  !< VectorId in [0, Dimensionality - 1] selects the lattice vector, and
+  !< ComponentId in [0, Dimensionality - 1] selects its Cartesian component.
+  !< Val is in length units.
+  !<
+  interface
+    module function FortranTBCrystalGetDirectLatticeVal(Crystal, VectorId, &
+                                                        ComponentId, Val) &
+      result(Success)
+      class(TBCrystal),  intent(in)  :: Crystal
+      integer(C_SIZE_T), intent(in)  :: VectorId
+      integer(C_SIZE_T), intent(in)  :: ComponentId
+      real(C_DOUBLE),    intent(out) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalGetDirectLatticeVal
+  end interface
+
+  !< SiteId in [0, SiteCount - 1] selects the site, whose position is
+  !<
+  !<     R = sum_j SiteCoords(j, SiteId) * a_j,
+  !<
+  !< and ComponentId in [0, Dimensionality - 1] selects the lattice vector
+  !< along which the signed integer offset is measured.
+  !< Val is SiteCoords(ComponentId, SiteId).
+  !<
+  interface
+    pure module function FortranTBCrystalSetSiteVal(Crystal, SiteId, &
+                                                    ComponentId, Val) &
+      result(Success)
+      class(TBCrystal),  intent(in) :: Crystal
+      integer(C_SIZE_T), intent(in) :: SiteId
+      integer(C_SIZE_T), intent(in) :: ComponentId
+      integer(C_LONG),   intent(in) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalSetSiteVal
+  end interface
+
+  !< SiteId in [0, SiteCount - 1] selects the site, whose position is
+  !<
+  !<     R = sum_j SiteCoords(j, SiteId) * a_j,
+  !<
+  !< and ComponentId in [0, Dimensionality - 1] selects the lattice vector
+  !< along which the signed integer offset is measured.
+  !< Val is SiteCoords(ComponentId, SiteId).
+  !<
+  interface
+    module function FortranTBCrystalGetSiteVal(Crystal, SiteId, &
+                                               ComponentId, Val) &
+      result(Success)
+      class(TBCrystal),  intent(in)  :: Crystal
+      integer(C_SIZE_T), intent(in)  :: SiteId
+      integer(C_SIZE_T), intent(in)  :: ComponentId
+      integer(C_LONG),   intent(out) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalGetSiteVal
+  end interface
+
+  !< BandId1 and BandId2 in [0, BandCount - 1] select the entry within the
+  !< B x B block, and SiteId in [0, SiteCount - 1] selects the lattice
+  !< translation carrying it.
+  !< The block is stored as given: neither transposition nor a hermiticity
+  !< check is performed.
+  !< Val is H_{BandId1, BandId2}(R).
+  !<
+  interface
+    pure module function FortranTBCrystalSetTBHamiltonian(Crystal, BandId1, &
+                                                          BandId2, SiteId, Val) &
+      result(Success)
+      class(TBCrystal),          intent(in) :: Crystal
+      integer(C_SIZE_T),         intent(in) :: BandId1
+      integer(C_SIZE_T),         intent(in) :: BandId2
+      integer(C_SIZE_T),         intent(in) :: SiteId
+      complex(C_DOUBLE_COMPLEX), intent(in) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalSetTBHamiltonian
+  end interface
+
+  !< BandId1 and BandId2 in [0, BandCount - 1] select the entry within the
+  !< B x B block, and SiteId in [0, SiteCount - 1] selects the lattice
+  !< translation carrying it.
+  !< The block is stored as given: neither transposition nor a hermiticity
+  !< check is performed.
+  !< Val is H_{BandId1, BandId2}(R).
+  !<
+  interface
+    module function FortranTBCrystalGetTBHamiltonian(Crystal, BandId1, &
+                                                     BandId2, SiteId, Val) &
+      result(Success)
+      class(TBCrystal),          intent(in)  :: Crystal
+      integer(C_SIZE_T),         intent(in)  :: BandId1
+      integer(C_SIZE_T),         intent(in)  :: BandId2
+      integer(C_SIZE_T),         intent(in)  :: SiteId
+      complex(C_DOUBLE_COMPLEX), intent(out) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalGetTBHamiltonian
+  end interface
+
+  !< BandId1 and BandId2 in [0, BandCount - 1] select the entry within the
+  !< B x B block, ComponentId in [0, Dimensionality - 1] selects the Cartesian
+  !< direction of the block, and SiteId in [0, SiteCount - 1] selects the
+  !< lattice translation carrying it.
+  !< The block is stored as given: neither transposition nor a hermiticity
+  !< check is performed.
+  !< Val is A_{BandId1, BandId2, ComponentId}(R).
+  !<
+  interface
+    pure module function FortranTBCrystalSetTBPositionOperator(Crystal, BandId1, &
+                                                               BandId2, SiteId, &
+                                                               ComponentId, Val) &
+      result(Success)
+      class(TBCrystal),          intent(in) :: Crystal
+      integer(C_SIZE_T),         intent(in) :: BandId1
+      integer(C_SIZE_T),         intent(in) :: BandId2
+      integer(C_SIZE_T),         intent(in) :: SiteId
+      integer(C_SIZE_T),         intent(in) :: ComponentId
+      complex(C_DOUBLE_COMPLEX), intent(in) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalSetTBPositionOperator
+  end interface
+
+  !< BandId1 and BandId2 in [0, BandCount - 1] select the entry within the
+  !< B x B block, ComponentId in [0, Dimensionality - 1] selects the Cartesian
+  !< direction of the block, and SiteId in [0, SiteCount - 1] selects the
+  !< lattice translation carrying it.
+  !< The block is stored as given: neither transposition nor a hermiticity
+  !< check is performed.
+  !< Val is A_{BandId1, BandId2, ComponentId}(R).
+  !<
+  interface
+    module function FortranTBCrystalGetTBPositionOperator(Crystal, BandId1, &
+                                                          BandId2, SiteId, &
+                                                          ComponentId, Val) &
+      result(Success)
+      class(TBCrystal),          intent(in)  :: Crystal
+      integer(C_SIZE_T),         intent(in)  :: BandId1
+      integer(C_SIZE_T),         intent(in)  :: BandId2
+      integer(C_SIZE_T),         intent(in)  :: SiteId
+      integer(C_SIZE_T),         intent(in)  :: ComponentId
+      complex(C_DOUBLE_COMPLEX), intent(out) :: Val
+
+      logical :: Success
+    end function FortranTBCrystalGetTBPositionOperator
+  end interface
+
+  !< The routine evaluates:
+  !<
+  !<     d^m H(k) / dk^m =
+  !<     d^m/dk^m sum_S H_{b1, b2}(S) * exp(i * k * R_S),
+  !<
+  !< in units of energy * length^m for m = Derivative, where H_{b1, b2}(S) is
+  !< the stored Hamiltonian block (see TBCrystal). Here
+  !<
+  !<     k = sum_{j = 0}^{D - 1} KPoint(j) * b_j,
+  !<     b_j . a_l = 2 * pi * delta_jl,
+  !<
+  !< so KPoint holds the dimensionless coordinates of k in the reciprocal
+  !< lattice basis. KPoint is conventionally restricted to [-0.5, 0.5] in every
+  !< direction (reduced zone); any real value is accepted, since the phase is
+  !< periodic in every KPoint(j) with period 1.
+  !<
+  !< Derivative is optional and defaults to 0, which reduces the expression to
+  !< H(k) itself.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ARRAY LAYOUT
+  !< -------------------------------------------------------------------------
+  !<
+  !< ArrayShape receives the shape of Array, which is
+  !<
+  !<     ArrayShape(1)     = BandCount,
+  !<     ArrayShape(2)     = BandCount,
+  !<     ArrayShape(3 + t) = Dimensionality,   t = 0, ..., Derivative - 1,
+  !<
+  !< so the result is a (Derivative + 2)-ranked array with
+  !<
+  !<     ArraySize = BandCount^2 * Dimensionality^Derivative
+  !<
+  !< elements. The layout is COLUMN_MAJOR: the first index is
+  !< contiguous. The result carries units of energy * length^Derivative.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< - The routine performs no Brillouin-zone folding, no hermitization and no
+  !<   symmetrization of the supplied blocks.
+  !< - The cost is O(BandCount^2 * Dimensionality^Derivative * SiteCount).
+  !< - Working storage is O(Derivative + 2).
+  !< - The routine keeps no state; concurrent calls are safe.
+  !< - On failure, Array and ArrayShape are left in an unspecified state.
+  !<
+  interface
+    module function FortranTBCrystalHamiltonian(Crystal, KPoint, Derivative, Array, ArrayShape) &
+      result(Success)
+      class(TBCrystal),          intent(in)           :: Crystal
+      real(C_DOUBLE),            intent(in)           :: KPoint(:)
+      integer(C_SIZE_T),         intent(in), optional :: Derivative
+      complex(C_DOUBLE_COMPLEX), intent(out)          :: Array(:)
+      integer(C_SIZE_T),         intent(out)          :: ArrayShape(:)
+
+      logical :: Success
+    end function FortranTBCrystalHamiltonian
+  end interface
+
+  !< The routine evaluates:
+  !<
+  !<     d^m A_c(k) / dk^m =
+  !<     d^m/dk^m sum_S A_{b1, b2, c}(S) * exp(i * k * R_S),
+  !<
+  !< in units of length^(m+1) for m = Derivative, where A_{b1, b2, c}(S) is
+  !< Cartesian component c of the stored Berry connection (see TBCrystal).
+  !< Here
+  !<
+  !<     k = sum_{j = 0}^{D - 1} KPoint(j) * b_j,
+  !<     b_j . a_l = 2 * pi * delta_jl,
+  !<
+  !< so KPoint holds the dimensionless coordinates of k in the reciprocal
+  !< lattice basis. KPoint is conventionally restricted to [-0.5, 0.5] in every
+  !< direction (reduced zone); any real value is accepted, since the phase is
+  !< periodic in every KPoint(j) with period 1.
+  !<
+  !< Derivative is optional and defaults to 0, which reduces the expression to
+  !< the Berry connection A_c(k) itself.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ARRAY LAYOUT
+  !< -------------------------------------------------------------------------
+  !<
+  !< ArrayShape receives the shape of Array, which is
+  !<
+  !<     ArrayShape(1)     = BandCount,
+  !<     ArrayShape(2)     = BandCount,
+  !<     ArrayShape(3)     = Dimensionality (cartesian index c),
+  !<     ArrayShape(4 + t) = Dimensionality,   t = 0, ..., Derivative - 1,
+  !<
+  !< so the result is a (Derivative + 3)-ranked array with
+  !<
+  !<     ArraySize = BandCount^2 * Dimensionality^(Derivative + 1)
+  !<
+  !< elements. The layout is COLUMN_MAJOR: the first index is
+  !< contiguous. The result carries units of length^(Derivative + 1).
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< - The routine performs no Brillouin-zone folding, no hermitization and no
+  !<   symmetrization of the supplied blocks.
+  !< - The cost is O(BandCount^2 * Dimensionality^(Derivative + 1) * SiteCount).
+  !< - Working storage is O(Derivative + 3).
+  !< - The routine keeps no state; concurrent calls are safe.
+  !< - On failure, Array and ArrayShape are left in an unspecified state.
+  !<
+  interface
+    module function FortranTBPositionOperator(Crystal, KPoint, Derivative, Array, ArrayShape) &
+      result(Success)
+      class(TBCrystal),          intent(in)           :: Crystal
+      real(C_DOUBLE),            intent(in)           :: KPoint(:)
+      integer(C_SIZE_T),         intent(in), optional :: Derivative
+      complex(C_DOUBLE_COMPLEX), intent(out)          :: Array(:)
+      integer(C_SIZE_T),         intent(out)          :: ArrayShape(:)
+
+      logical :: Success
+    end function FortranTBPositionOperator
+  end interface
+
+end module TightBindingCrystalInterpolation
+
+#endif
