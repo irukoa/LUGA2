@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1415859549.svg)](https://doi.org/10.5281/zenodo.23647496)
+
 # LUGA2 Modules
 
 LUGA2 provides the following modules.
