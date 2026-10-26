@@ -51,7 +51,7 @@ Directed graph topology construction and shortest-path algorithms.
 
 ## Tight-Binding Crystal Interpolation (TBCI)
 
-Fourier interpolation of a lattice-resolved tight-binding model. A `TBCrystal` stores the set of direct lattice vectors $\{\textbf{a}_i\}$, the set of integer site offsets $\{\textbf{n}\}$, the lattice-resolved Hamiltonian blocks $H_{nm}(\textbf{R})$ and the lattice-resolved Berry connection blocks $A^j_{nm}(\textbf{R})$, where $n$ and $m$ index the bands, $j$ is a Cartesian component and $\textbf{R}$ is a lattice translation
+Fourier interpolation of a lattice-resolved tight-binding model. A `TBCrystal` stores the set of direct lattice vectors $`\{\textbf{a}_i\}`$, the set of integer site offsets $\{\textbf{n}\}$, the lattice-resolved Hamiltonian blocks $H_{nm}(\textbf{R})$ and the lattice-resolved Berry connection blocks $A^j_{nm}(\textbf{R})$, where $n$ and $m$ index the bands, $j$ is a Cartesian component and $\textbf{R}$ is a lattice translation
 
 $$
 \textbf{R} = \sum_{i}\textbf{a}_i n_i.
@@ -60,7 +60,7 @@ $$
 The Bloch Hamiltonian and the Berry connection at a reciprocal-space point $\textbf{k}$ are the Fourier sums
 
 $$
-H(\textbf{k}) = \sum_{R}H(\textbf{R})e^{i\textbf{k}\textbf{R}}, \qquad A^j(\textbf{k}) = \sum_{R}A^j(R)e^{i\textbf{k}\textbf{R}}.
+H(\textbf{k}) = \sum_{R}H(\textbf{R})e^{i\textbf{k}\textbf{R}}, \qquad A^j(\textbf{k}) = \sum_{R}A^j(\textbf{R})e^{i\textbf{k}\textbf{R}}.
 $$
 
 `TBCrystalHamiltonian` and `TBPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
