@@ -325,6 +325,121 @@ module LapackDeferredWrappers
   public :: ZGESDDInterface
   public :: SVDDecomposition
 
+  abstract interface
+    !< Abstract interface for the reference LAPACK ZGGES routine.
+    !<
+    !< Type mapping (reference LAPACK, LP64):
+    !<   COMPLEX*16       -> complex(REAL64)
+    !<   DOUBLE PRECISION -> real(REAL64)
+    !<   INTEGER          -> integer(INT32)
+    !<   LOGICAL          -> logical(LOGICAL32)
+    !<
+    !< ILP64 LAPACK is not compatible with this interface.
+    !<
+    !< Reference documentation:
+    !< https://netlib.org/lapack/explore-html/d7/d25/group__gges_ga4943e11fd632761e645ce1e5161f9f51.html
+    subroutine ZGGESInterface(JOBVSL, JOBVSR, SORT, SELCTG, &
+                              N, A, LDA, B, LDB, &
+                              SDIM, ALPHA, BETA, &
+                              VSL, LDVSL, VSR, LDVSR, &
+                              WORK, LWORK, RWORK, BWORK, INFO)
+      import INT32, REAL64, LOGICAL32
+      character,           intent(in)    :: JOBVSL
+      character,           intent(in)    :: JOBVSR
+      character,           intent(in)    :: SORT
+      interface
+        logical(LOGICAL32) function SELCTG(ALPHA, BETA)
+          import REAL64, LOGICAL32
+          complex(REAL64), intent(in)    :: ALPHA
+          complex(REAL64), intent(in)    :: BETA
+        end function SELCTG
+      end interface
+      integer(INT32),      intent(in)    :: N
+      complex(REAL64),     intent(inout) :: A(LDA, N)
+      integer(INT32),      intent(in)    :: LDA
+      complex(REAL64),     intent(inout) :: B(LDB, N)
+      integer(INT32),      intent(in)    :: LDB
+      integer(INT32),      intent(out)   :: SDIM
+      complex(REAL64),     intent(out)   :: ALPHA(N)
+      complex(REAL64),     intent(out)   :: BETA(N)
+      complex(REAL64),     intent(out)   :: VSL(LDVSL, N)
+      integer(INT32),      intent(in)    :: LDVSL
+      complex(REAL64),     intent(out)   :: VSR(LDVSR, N)
+      integer(INT32),      intent(in)    :: LDVSR
+      complex(REAL64),     intent(out)   :: WORK(max(1_INT32, LWORK))
+      integer(INT32),      intent(in)    :: LWORK
+      real(REAL64),        intent(out)   :: RWORK(8 * N)
+      logical(LOGICAL32),  intent(out)   :: BWORK(N)
+      integer(INT32),      intent(out)   :: INFO
+    end subroutine ZGGESInterface
+  end interface
+
+  !< GeneralizedSchurDecomposition computes the generalized Schur
+  !< decomposition of the complex matrix pair (A, B). The LAPACK ZGGES
+  !< implementation is supplied by the caller at run time.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< For a pair of complex matrices A, B of order N, the routine computes
+  !<
+  !<     U^H * A * V = S,   U^H * B * V = T
+  !<
+  !<     U^H * U = I,   V^H * V = I,
+  !<
+  !< where S, T are the upper triangular Schur forms, and the columns
+  !< of U and V are the corresponding orthonormal left and right
+  !< eigenvectors.
+  !<
+  !< The working set is O(Dimension^2).
+  !<
+  !< -------------------------------------------------------------------------
+  !< DEFERRED LAPACK BINDING AND ABI CONTRACT
+  !< -------------------------------------------------------------------------
+  !<
+  !< The caller supplies ZGGESProcedure, a procedure with the interface
+  !< ZGGESInterface.
+  !<
+  !< -------------------------------------------------------------------------
+  !< Info
+  !< -------------------------------------------------------------------------
+  !<
+  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
+  !< query or from the computational call is propagated unchanged.
+  !< If Dimension exceeds huge(1_INT32), Info is set to huge(1_INT32).
+  !< If Dimension == 0, Info is 0.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< - UnitaryU, EigenvaluesA, EigenvaluesB and UnitaryVH are valid only
+  !<   when Info == 0.
+  !< - This routine returns conjugate(transpose(V)) = V^(-1), not V.
+  !< - The routine has no global state. Concurrent calls are safe provided
+  !<   the supplied ZGGES implementation is thread-safe.
+  !<
+  interface
+    module subroutine GeneralizedSchurDecomposition(Dimension, MatrixA, MatrixB, &
+                                                    UnitaryU, EigenvaluesA, EigenvaluesB, UnitaryVH, &
+                                                    ZGGESProcedure, &
+                                                    Info)
+      integer(C_SIZE_T),         intent(in)            :: Dimension
+      complex(C_DOUBLE_COMPLEX), intent(in)            :: MatrixA(Dimension, Dimension)
+      complex(C_DOUBLE_COMPLEX), intent(in)            :: MatrixB(Dimension, Dimension)
+      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryU(Dimension, Dimension)
+      complex(C_DOUBLE_COMPLEX), intent(out), optional :: EigenvaluesA(Dimension)
+      complex(C_DOUBLE_COMPLEX), intent(out), optional :: EigenvaluesB(Dimension)
+      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryVH(Dimension, Dimension)
+      procedure(ZGGESInterface)                        :: ZGGESProcedure
+      integer(C_INT),            intent(out)           :: Info
+    end subroutine GeneralizedSchurDecomposition
+  end interface
+
+  public :: ZGGESInterface
+  public :: GeneralizedSchurDecomposition
+
   !< Identifies degenerate levels in an ascending list of eigenvalues.
   !< Consecutive levels belong to the same group if their difference is
   !< less than or equal to DegeneracyThreshold.
@@ -419,6 +534,32 @@ module LapackDeferredWrappers
       type(C_FUNPTR),    intent(in), value :: ZGESDDProcedure
       type(C_PTR),       intent(in), value :: Info
     end subroutine SVDDecomposition_C
+  end interface
+
+  !< GeneralizedSchurDecomposition, as called from C.
+  !<
+  !< UnitaryU and UnitaryVH receive the unitary factors when they are associated,
+  !< while EigenvaluesA/B are the generalized eigenvalues.
+  !< Null pointers behave as in DiagHermitian_C.
+  interface
+    module subroutine GeneralizedSchurDecomposition_C(Dimension, MatrixA, MatrixB, &
+                                                      UnitaryU, EigenvaluesA, EigenvaluesB, UnitaryVH, &
+                                                      ZGGESProcedure, &
+                                                      Info) &
+      bind(C, name="GeneralizedSchurDecomposition")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
+                                             C_FUNPTR
+
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: MatrixA
+      type(C_PTR),       intent(in), value :: MatrixB
+      type(C_PTR),       intent(in), value :: UnitaryU
+      type(C_PTR),       intent(in), value :: EigenvaluesA
+      type(C_PTR),       intent(in), value :: EigenvaluesB
+      type(C_PTR),       intent(in), value :: UnitaryVH
+      type(C_FUNPTR),    intent(in), value :: ZGGESProcedure
+      type(C_PTR),       intent(in), value :: Info
+    end subroutine GeneralizedSchurDecomposition_C
   end interface
 
   !< DegeneracyGroup, as called from C.

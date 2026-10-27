@@ -7,6 +7,7 @@
 
 extern void zheevd_(void);
 extern void zgees_(void);
+extern void zgges_(void);
 extern void zgesdd_(void);
 
 void DummyZHEEVD(void) {
@@ -18,6 +19,10 @@ void DummyZGEES(void) {
 }
 
 void DummyZGESDD(void) {
+  // Dummy.
+}
+
+void DummyZGGES(void) {
   // Dummy.
 }
 
@@ -273,6 +278,199 @@ TEST_SUITE(LDWSVDEdgeCaseSuite,
            LDWSVDNullInfo,
            LDWSVDTooLargeRowCount,
            LDWSVDTooLargeColumnCount);
+
+TEST(LDWGSZeroCount) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH,
+                                DummyZGGES, &Info);
+  ASSERT(Info == 0);
+}
+
+TEST(LDWGSZeroCountNoEigenvalues) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  // Both eigenvalue arrays are optional and may be omitted together.
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU, NULL,
+                                NULL, UnitaryVH, DummyZGGES, &Info);
+  ASSERT(Info == 0);
+}
+
+TEST(LDWGSZeroCountEigenvaluesA) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  // The denominator output is optional on its own.
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, NULL, UnitaryVH, DummyZGGES,
+                                &Info);
+  ASSERT(Info == 0);
+}
+
+TEST(LDWGSZeroCountEigenvaluesB) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  // The numerator output is optional on its own.
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU, NULL,
+                                EigenvaluesB, UnitaryVH, DummyZGGES, &Info);
+  ASSERT(Info == 0);
+}
+
+TEST(LDWGSZeroCountNullUnitaryU) {
+  double complex MatrixA[1], MatrixB[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  UnitaryVH[0]        = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, NULL, EigenvaluesA,
+                                EigenvaluesB, UnitaryVH, DummyZGGES, &Info);
+  ASSERT(Info == 1); // Info unchanged.
+  // A rejected call leaves every output untouched.
+  ASSERT(UnitaryVH[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
+
+TEST(LDWGSZeroCountNullMatrixA) {
+  double complex MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixB[0]          = 0.0;
+  UnitaryU[0]         = 42.0;
+  UnitaryVH[0]        = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)0, NULL, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH,
+                                DummyZGGES, &Info);
+  ASSERT(Info == 1); // Info unchanged.
+  // A rejected call leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
+
+TEST(LDWGSZeroCountNullMatrixB) {
+  double complex MatrixA[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  UnitaryU[0]         = 42.0;
+  UnitaryVH[0]        = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, NULL, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH,
+                                DummyZGGES, &Info);
+  ASSERT(Info == 1); // Info unchanged.
+  // A rejected call leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
+
+TEST(LDWGSZeroCountNullUnitaryVH) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  UnitaryU[0]         = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, NULL, DummyZGGES,
+                                &Info);
+  ASSERT(Info == 1); // Info unchanged.
+  // A rejected call leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
+
+TEST(LDWGSZeroCountNullZGGESProcedure) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  UnitaryU[0]         = 42.0;
+  UnitaryVH[0]        = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH, NULL,
+                                &Info);
+  ASSERT(Info == 1); // Info unchanged.
+  // A rejected call leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
+
+TEST(LDWGSZeroCountNullInfo) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  MatrixA[0] = 0.0;
+  MatrixB[0] = 0.0;
+  GeneralizedSchurDecomposition((size_t)0, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH,
+                                DummyZGGES, NULL);
+}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+TEST(LDWGSTooLargeMatrix) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  UnitaryU[0]         = 42.0;
+  UnitaryVH[0]        = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)(INT_MAX) + (size_t)1, MatrixA, MatrixB,
+                                UnitaryU, EigenvaluesA, EigenvaluesB, UnitaryVH,
+                                DummyZGGES, &Info);
+  ASSERT(Info == INT_MAX);
+  // The rejected dimension leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
+#pragma GCC diagnostic pop
+
+TEST_SUITE(LDWGSEdgeCaseSuite,
+           LDWGSZeroCount,
+           LDWGSZeroCountNoEigenvalues,
+           LDWGSZeroCountEigenvaluesA,
+           LDWGSZeroCountEigenvaluesB,
+           LDWGSZeroCountNullUnitaryU,
+           LDWGSZeroCountNullMatrixA,
+           LDWGSZeroCountNullMatrixB,
+           LDWGSZeroCountNullUnitaryVH,
+           LDWGSZeroCountNullZGGESProcedure,
+           LDWGSZeroCountNullInfo,
+           LDWGSTooLargeMatrix);
 
 TEST(LDWDegenZeroCount) {
   double E[1] = {0.0};
@@ -827,6 +1025,343 @@ TEST(LDWSVDCongruenceTall) {
   }
 }
 
+// Triangular pair with the known generalized eigenvalues 2, 3/2 and 4/3.
+// Both matrices have non-zero sub-diagonal entries, so ZGGES must actually
+// reduce the pair to upper triangular Schur forms.
+TEST(LDWGeneralizedSchurReference) {
+  const size_t Dimension = 3;
+  const double Tolerance = 1000.0 * DBL_EPSILON;
+
+  double complex MatrixA[Dimension * Dimension];
+  double complex MatrixB[Dimension * Dimension];
+  double complex AOriginal[Dimension * Dimension];
+  double complex BOriginal[Dimension * Dimension];
+  double complex UnitaryU[Dimension * Dimension];
+  double complex UnitaryVH[Dimension * Dimension];
+  double complex V[Dimension * Dimension];
+  double complex EigenvaluesA[Dimension], EigenvaluesB[Dimension];
+  double complex AdjointU[Dimension * Dimension];
+  double complex Product[Dimension * Dimension];
+  double complex Transformed[Dimension * Dimension];
+  double complex S[Dimension * Dimension], T[Dimension * Dimension];
+  double complex Expected[Dimension];
+  int            Used[Dimension];
+  int            Info, Found;
+  size_t         i, j;
+
+  MatrixA[0] = 2.0; // (1, 1)
+  MatrixA[1] = 1.0; // (2, 1)
+  MatrixA[2] = 4.0; // (3, 1)
+  MatrixA[3] = 0.0; // (1, 2)
+  MatrixA[4] = 3.0; // (2, 2)
+  MatrixA[5] = 5.0; // (3, 2)
+  MatrixA[6] = 0.0; // (1, 3)
+  MatrixA[7] = 0.0; // (2, 3)
+  MatrixA[8] = 4.0; // (3, 3)
+
+  MatrixB[0] = 1.0; // (1, 1)
+  MatrixB[1] = 2.0; // (2, 1)
+  MatrixB[2] = 1.0; // (3, 1)
+  MatrixB[3] = 0.0; // (1, 2)
+  MatrixB[4] = 2.0; // (2, 2)
+  MatrixB[5] = 1.0; // (3, 2)
+  MatrixB[6] = 0.0; // (1, 3)
+  MatrixB[7] = 0.0; // (2, 3)
+  MatrixB[8] = 3.0; // (3, 3)
+
+  for (i = 0; i < Dimension * Dimension; i++) {
+    AOriginal[i] = MatrixA[i];
+    BOriginal[i] = MatrixB[i];
+  }
+
+  GeneralizedSchurDecomposition(Dimension, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH, zgges_,
+                                &Info);
+  ASSERT(Info == 0);
+  if (Info != 0) {
+    return;
+  }
+
+  // MatrixA and MatrixB are input-only arguments.
+  for (i = 0; i < Dimension * Dimension; i++) {
+    ASSERT(cabs(MatrixA[i] - AOriginal[i]) <= 0.0);
+    ASSERT(cabs(MatrixB[i] - BOriginal[i]) <= 0.0);
+  }
+
+  // The columns of U and of V are orthonormal.
+  for (j = 0; j < Dimension; j++) {
+    for (i = 0; i < Dimension; i++) {
+      V[i + j * Dimension] = conj(UnitaryVH[j + i * Dimension]);
+    }
+  }
+
+  for (j = 0; j < Dimension; j++) {
+    for (i = 0; i < Dimension; i++) {
+      if (i == j) {
+        ASSERT(fabs(cabs(ColumnDot(Dimension, UnitaryU, i, j)) - 1.0) <
+               Tolerance);
+        ASSERT(fabs(cabs(ColumnDot(Dimension, V, i, j)) - 1.0) < Tolerance);
+      } else {
+        ASSERT(cabs(ColumnDot(Dimension, UnitaryU, i, j)) < Tolerance);
+        ASSERT(cabs(ColumnDot(Dimension, V, i, j)) < Tolerance);
+      }
+    }
+  }
+
+  // S = U^H*A*V and T = U^H*B*V.
+  for (j = 0; j < Dimension; j++) {
+    for (i = 0; i < Dimension; i++) {
+      AdjointU[i + j * Dimension] = conj(UnitaryU[j + i * Dimension]);
+    }
+  }
+
+  MultiplyMatrices(Dimension, AOriginal, V, Product);
+  MultiplyMatrices(Dimension, AdjointU, Product, S);
+  MultiplyMatrices(Dimension, BOriginal, V, Product);
+  MultiplyMatrices(Dimension, AdjointU, Product, T);
+
+  // Both Schur forms are upper triangular; diag(T) is real and non-negative.
+  for (j = 0; j < Dimension; j++) {
+    for (i = j + 1; i < Dimension; i++) {
+      ASSERT(cabs(S[i + j * Dimension]) < Tolerance);
+      ASSERT(cabs(T[i + j * Dimension]) < Tolerance);
+    }
+    ASSERT(fabs(cimag(T[j + j * Dimension])) < Tolerance);
+    ASSERT(creal(T[j + j * Dimension]) >= 0.0);
+  }
+
+  // A = U*S*V^H and B = U*T*V^H.
+  MultiplyMatrices(Dimension, UnitaryU, S, Product);
+  MultiplyMatrices(Dimension, Product, UnitaryVH, Transformed);
+  for (i = 0; i < Dimension * Dimension; i++) {
+    ASSERT(cabs(Transformed[i] - AOriginal[i]) < Tolerance);
+  }
+
+  MultiplyMatrices(Dimension, UnitaryU, T, Product);
+  MultiplyMatrices(Dimension, Product, UnitaryVH, Transformed);
+  for (i = 0; i < Dimension * Dimension; i++) {
+    ASSERT(cabs(Transformed[i] - BOriginal[i]) < Tolerance);
+  }
+
+  // The returned pairs reproduce the known generalized eigenvalues 2, 3/2
+  // and 4/3. Their order is implementation-defined, so match them as a set.
+  Expected[0] = 2.0;
+  Expected[1] = 1.5;
+  Expected[2] = 4.0 / 3.0;
+
+  for (i = 0; i < Dimension; i++) {
+    EigenvaluesA[i] = EigenvaluesA[i] / EigenvaluesB[i];
+    Used[i]         = 0;
+  }
+
+  for (i = 0; i < Dimension; i++) {
+    Found = 0;
+    for (j = 0; j < Dimension; j++) {
+      if (!Used[j] && cabs(EigenvaluesA[j] - Expected[i]) < Tolerance) {
+        Used[j] = 1;
+        Found   = 1;
+        break;
+      }
+    }
+    ASSERT(Found);
+  }
+}
+
+// An arbitrary dense pair: neither matrix is triangular or normal, so both
+// Schur forms have a non-trivial upper triangle. The test proves the
+// defining identities S = U^H*A*V and T = U^H*B*V.
+TEST(LDWGeneralizedSchurCongruence) {
+  const size_t Dimension = 3;
+  const double Tolerance = 1000.0 * DBL_EPSILON;
+
+  double complex MatrixA[Dimension * Dimension];
+  double complex MatrixB[Dimension * Dimension];
+  double complex AOriginal[Dimension * Dimension];
+  double complex BOriginal[Dimension * Dimension];
+  double complex UnitaryU[Dimension * Dimension];
+  double complex UnitaryVH[Dimension * Dimension];
+  double complex V[Dimension * Dimension];
+  double complex EigenvaluesA[Dimension], EigenvaluesB[Dimension];
+  double complex AdjointU[Dimension * Dimension];
+  double complex Product[Dimension * Dimension];
+  double complex Transformed[Dimension * Dimension];
+  double complex S[Dimension * Dimension], T[Dimension * Dimension];
+  int            Info;
+  size_t         i, j;
+
+  MatrixA[0] = 1.0 + 1.0 * I; // (1, 1)
+  MatrixA[1] = 0.0;           // (2, 1)
+  MatrixA[2] = 2.0 * I;       // (3, 1)
+  MatrixA[3] = 2.0;           // (1, 2)
+  MatrixA[4] = 3.0 - 1.0 * I; // (2, 2)
+  MatrixA[5] = 1.0;           // (3, 2)
+  MatrixA[6] = -1.0 * I;      // (1, 3)
+  MatrixA[7] = 1.0;           // (2, 3)
+  MatrixA[8] = 4.0;           // (3, 3)
+
+  MatrixB[0] = 2.0;           // (1, 1)
+  MatrixB[1] = 1.0;           // (2, 1)
+  MatrixB[2] = 0.0;           // (3, 1)
+  MatrixB[3] = 1.0 * I;       // (1, 2)
+  MatrixB[4] = 3.0;           // (2, 2)
+  MatrixB[5] = 2.0 * I;       // (3, 2)
+  MatrixB[6] = 0.0;           // (1, 3)
+  MatrixB[7] = 1.0 - 1.0 * I; // (2, 3)
+  MatrixB[8] = 5.0;           // (3, 3)
+
+  for (i = 0; i < Dimension * Dimension; i++) {
+    AOriginal[i] = MatrixA[i];
+    BOriginal[i] = MatrixB[i];
+  }
+
+  GeneralizedSchurDecomposition(Dimension, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH, zgges_,
+                                &Info);
+  ASSERT(Info == 0);
+  if (Info != 0) {
+    return;
+  }
+
+  for (i = 0; i < Dimension * Dimension; i++) {
+    ASSERT(cabs(MatrixA[i] - AOriginal[i]) <= 0.0);
+    ASSERT(cabs(MatrixB[i] - BOriginal[i]) <= 0.0);
+  }
+
+  // The columns of U and of V are orthonormal.
+  for (j = 0; j < Dimension; j++) {
+    for (i = 0; i < Dimension; i++) {
+      V[i + j * Dimension]        = conj(UnitaryVH[j + i * Dimension]);
+      AdjointU[i + j * Dimension] = conj(UnitaryU[j + i * Dimension]);
+    }
+  }
+
+  for (j = 0; j < Dimension; j++) {
+    for (i = 0; i < Dimension; i++) {
+      if (i == j) {
+        ASSERT(fabs(cabs(ColumnDot(Dimension, UnitaryU, i, j)) - 1.0) <
+               Tolerance);
+        ASSERT(fabs(cabs(ColumnDot(Dimension, V, i, j)) - 1.0) < Tolerance);
+      } else {
+        ASSERT(cabs(ColumnDot(Dimension, UnitaryU, i, j)) < Tolerance);
+        ASSERT(cabs(ColumnDot(Dimension, V, i, j)) < Tolerance);
+      }
+    }
+  }
+
+  MultiplyMatrices(Dimension, AOriginal, V, Product);
+  MultiplyMatrices(Dimension, AdjointU, Product, S);
+  MultiplyMatrices(Dimension, BOriginal, V, Product);
+  MultiplyMatrices(Dimension, AdjointU, Product, T);
+
+  for (j = 0; j < Dimension; j++) {
+    for (i = j + 1; i < Dimension; i++) {
+      ASSERT(cabs(S[i + j * Dimension]) < Tolerance);
+      ASSERT(cabs(T[i + j * Dimension]) < Tolerance);
+    }
+    ASSERT(fabs(cimag(T[j + j * Dimension])) < Tolerance);
+    ASSERT(creal(T[j + j * Dimension]) >= 0.0);
+  }
+
+  // A = U*S*V^H and B = U*T*V^H.
+  MultiplyMatrices(Dimension, UnitaryU, S, Product);
+  MultiplyMatrices(Dimension, Product, UnitaryVH, Transformed);
+  for (i = 0; i < Dimension * Dimension; i++) {
+    ASSERT(cabs(Transformed[i] - AOriginal[i]) < Tolerance);
+  }
+
+  MultiplyMatrices(Dimension, UnitaryU, T, Product);
+  MultiplyMatrices(Dimension, Product, UnitaryVH, Transformed);
+  for (i = 0; i < Dimension * Dimension; i++) {
+    ASSERT(cabs(Transformed[i] - BOriginal[i]) < Tolerance);
+  }
+
+  // The pair ratios agree with the diagonal of the Schur forms.
+  for (j = 0; j < Dimension; j++) {
+    ASSERT(cabs(EigenvaluesA[j] / EigenvaluesB[j] -
+                S[j + j * Dimension] / T[j + j * Dimension]) < Tolerance);
+  }
+}
+
+// Both eigenvalue outputs are optional; omitting them must not change the
+// Schur vectors or the status, and either one may be omitted on its own.
+TEST(LDWGeneralizedSchurOptionalEigenvalues) {
+  const size_t Dimension = 3;
+  const double Tolerance = 1000.0 * DBL_EPSILON;
+
+  double complex MatrixA[Dimension * Dimension];
+  double complex MatrixB[Dimension * Dimension];
+  double complex UnitaryU[Dimension * Dimension];
+  double complex UnitaryVH[Dimension * Dimension];
+  double complex EigenvaluesA[Dimension], EigenvaluesB[Dimension];
+  double complex V[Dimension * Dimension], AdjointU[Dimension * Dimension];
+  double complex Product[Dimension * Dimension];
+  double complex S[Dimension * Dimension], T[Dimension * Dimension];
+  int            Info;
+  size_t         i, j;
+
+  MatrixA[0] = 2.0; // (1, 1)
+  MatrixA[1] = 1.0; // (2, 1)
+  MatrixA[2] = 4.0; // (3, 1)
+  MatrixA[3] = 0.0; // (1, 2)
+  MatrixA[4] = 3.0; // (2, 2)
+  MatrixA[5] = 5.0; // (3, 2)
+  MatrixA[6] = 0.0; // (1, 3)
+  MatrixA[7] = 0.0; // (2, 3)
+  MatrixA[8] = 4.0; // (3, 3)
+
+  MatrixB[0] = 1.0; // (1, 1)
+  MatrixB[1] = 2.0; // (2, 1)
+  MatrixB[2] = 1.0; // (3, 1)
+  MatrixB[3] = 0.0; // (1, 2)
+  MatrixB[4] = 2.0; // (2, 2)
+  MatrixB[5] = 1.0; // (3, 2)
+  MatrixB[6] = 0.0; // (1, 3)
+  MatrixB[7] = 0.0; // (2, 3)
+  MatrixB[8] = 3.0; // (3, 3)
+
+  // Both eigenvalue arrays omitted: the Schur vectors are still computed.
+  GeneralizedSchurDecomposition(Dimension, MatrixA, MatrixB, UnitaryU, NULL,
+                                NULL, UnitaryVH, zgges_, &Info);
+  ASSERT(Info == 0);
+  if (Info != 0) {
+    return;
+  }
+
+  for (j = 0; j < Dimension; j++) {
+    for (i = 0; i < Dimension; i++) {
+      V[i + j * Dimension]        = conj(UnitaryVH[j + i * Dimension]);
+      AdjointU[i + j * Dimension] = conj(UnitaryU[j + i * Dimension]);
+    }
+  }
+
+  MultiplyMatrices(Dimension, MatrixA, V, Product);
+  MultiplyMatrices(Dimension, AdjointU, Product, S);
+  MultiplyMatrices(Dimension, MatrixB, V, Product);
+  MultiplyMatrices(Dimension, AdjointU, Product, T);
+
+  for (j = 0; j < Dimension; j++) {
+    for (i = j + 1; i < Dimension; i++) {
+      ASSERT(cabs(S[i + j * Dimension]) < Tolerance);
+      ASSERT(cabs(T[i + j * Dimension]) < Tolerance);
+    }
+  }
+
+  // Only the numerators omitted: the denominators are still returned.
+  GeneralizedSchurDecomposition(Dimension, MatrixA, MatrixB, UnitaryU, NULL,
+                                EigenvaluesB, UnitaryVH, zgges_, &Info);
+  ASSERT(Info == 0);
+  if (Info == 0) {
+    for (j = 0; j < Dimension; j++) {
+      ASSERT(cabs(EigenvaluesB[j]) > 0.0);
+    }
+  }
+
+  // Only the denominators omitted: the numerators are still returned.
+  GeneralizedSchurDecomposition(Dimension, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, NULL, UnitaryVH, zgges_, &Info);
+  ASSERT(Info == 0);
+}
+
 TEST(LDWDegeneracyGroupReference) {
   double E[9] = {0.0, 0.2, 0.5, 0.9, 0.95, 1.1, 1.2, 7.1, 7.2};
   size_t D[9], i;
@@ -842,6 +1377,9 @@ TEST_SUITE(LDWNominalSuite,
            LDWDiagHermitianReference,
            LDWSchurReference,
            LDWSchurCongruence,
+           LDWGeneralizedSchurReference,
+           LDWGeneralizedSchurCongruence,
+           LDWGeneralizedSchurOptionalEigenvalues,
            LDWSVDReference,
            LDWSVDCongruenceTall,
            LDWDegeneracyGroupReference);

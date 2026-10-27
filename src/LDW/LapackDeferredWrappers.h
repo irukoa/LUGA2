@@ -126,7 +126,7 @@ void DiagHermitian(const size_t         Dimension,
  * - The interface assumes IEEE-754 binary64 DOUBLE PRECISION and
  *   COMPLEX*16. Double maps to REAL64 and double complex to
  *   complex(REAL64). It also assumes 32-bit INTEGER, and 32-bit LOGICAL as in
- * reference LAPACK and the usual LP64 builds.
+ *   reference LAPACK and the usual LP64 builds.
  * - The supplied procedure must be thread-safe if concurrent calls are
  *   intended; LDW itself keeps no global state.
  */
@@ -301,6 +301,115 @@ void SVDDecomposition(const size_t         DimensionR,
                       double complex       UnitaryVH[DimensionC * DimensionC],
                       const ZGESDDSymbol   ZGESDDProcedure,
                       int                 *Info);
+
+/**
+ * @brief Opaque address of a LAPACK ZGGES implementation.
+ *
+ * @details
+ * LDW does not link against LAPACK. The caller supplies the address of a
+ * Fortran procedure implementing the LAPACK ZGGES ABI, and the final
+ * application links the chosen LAPACK implementation.
+ *
+ * @note
+ * - The caller must review the ABI contract of the supplied LAPACK
+ *   implementation.
+ * - The interface assumes IEEE-754 binary64 DOUBLE PRECISION and
+ *   COMPLEX*16. Double maps to REAL64 and double complex to
+ *   complex(REAL64). It also assumes 32-bit INTEGER, and 32-bit LOGICAL as in
+ *   reference LAPACK and the usual LP64 builds.
+ * - The supplied procedure must be thread-safe if concurrent calls are
+ *   intended; LDW itself keeps no global state.
+ */
+typedef void (*ZGGESSymbol)(void);
+
+/**
+ * @brief Computes the generalized Schur decomposition of a complex matrix
+ * pair (A, B). The LAPACK ZGGES implementation is supplied by the caller at run
+ * time.
+ *
+ * @details
+ * For a pair of complex matrices A, B of order N, the routine computes
+ *
+ *     U^H * A * V = S,   U^H * B * V = T,
+ *
+ *     U^H * U = I,   V^H * V = I,
+ *
+ * where S, T are the upper triangular Schur forms, and the columns
+ * of U and V are the corresponding orthonormal left and right
+ * eigenvectors.
+ *
+ * Storage is column-major:
+ *
+ *     Matrix(i, j) = Matrix[(i-1) + Dimension * (j-1)].
+ *
+ * The working set is O(Dimension^2).
+ *
+ * @param[in] Dimension
+ *     Order N of the matrices. N >= 0. Values greater than INT32_MAX are
+ *     rejected; Dimension = 0 is a valid no-op.
+ *
+ * @param[in] MatrixA
+ *     Input N-by-N complex matrix A in column-major order. MatrixA is not
+ *     modified. Must not overlap MatrixB, UnitaryU, EigenvaluesA,
+ *     EigenvaluesB, UnitaryVH, or Info.
+ *
+ * @param[in] MatrixB
+ *     Input N-by-N complex matrix B in column-major order. MatrixB is not
+ *     modified. Must not overlap MatrixA, UnitaryU, EigenvaluesA,
+ *     EigenvaluesB, UnitaryVH, or Info.
+ *
+ * @param[out] UnitaryU
+ *     Output N-by-N unitary matrix in column-major order whose columns are
+ *     the left eigenvectors. The array is overwritten.
+ *
+ * @param[out] EigenvaluesA
+ *     Optional output array of N complex values holding the generalized
+ *     eigenvalues of MatrixA. May be NULL, in which case the eigenvalues are
+ *     not returned.
+ *
+ * @param[out] EigenvaluesB
+ *     Optional output array of N complex values holding the generalized
+ *     eigenvalues of MatrixB. May be NULL, in which case the eigenvalues are
+ *     not returned.
+ *
+ * @param[out] UnitaryVH
+ *     Output N-by-N unitary matrix in column-major order holding
+ *     conjugate(transpose(V)), where the columns of V are the right
+ *     eigenvectors. The array is overwritten.
+ *
+ * @param[in] ZGGESProcedure
+ *     Address of a Fortran LAPACK ZGGES implementation. See ZGGESSymbol.
+ *     Must not be NULL.
+ *
+ * @param[out] Info
+ *     LAPACK's Status code. 0 on success. A nonzero status from the workspace
+ *     query or from the computational call is propagated unchanged. If
+ *     Dimension > INT32_MAX, Info is set to INT32_MAX. If Dimension == 0, Info
+ *     is 0.
+ *
+ * @note
+ * - All pointer arguments are required and must be non-NULL, except
+ *   EigenvaluesA and EigenvaluesB, which may be NULL independently.
+ * - MatrixA, MatrixB, UnitaryU, EigenvaluesA, EigenvaluesB, UnitaryVH, and
+ *   Info must not overlap.
+ * - This routine returns conjugate(transpose(V)) = V^(-1), not V.
+ * - The caller is responsible for the ABI contract of the supplied
+ *   symbol: Fortran symbol and calling convention.
+ * - LDW has no global state. Concurrent calls are safe provided the
+ *   supplied ZGGES implementation is thread-safe.
+ *
+ * @see ZGGESSymbol
+ */
+void GeneralizedSchurDecomposition(
+    const size_t         Dimension,
+    const double complex MatrixA[Dimension * Dimension],
+    const double complex MatrixB[Dimension * Dimension],
+    double complex       UnitaryU[Dimension * Dimension],
+    double complex       EigenvaluesA[Dimension],
+    double complex       EigenvaluesB[Dimension],
+    double complex       UnitaryVH[Dimension * Dimension],
+    const ZGGESSymbol    ZGGESProcedure,
+    int                 *Info);
 
 /**
  * @brief Identifies degenerate levels in an ascending list of eigenvalues.
