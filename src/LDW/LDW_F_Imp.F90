@@ -353,11 +353,13 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                        RWORK, &
                        [Dimension])
 
-      !Logical workspace.
-      if (logical(FortranMulOverflow(A   = int(C_SIZEOF(.false._LOGICAL32), C_SIZE_T), &
+      !Logical workspace. LOGICAL32 is not a C interoperable kind, so the
+      !element size comes from STORAGE_SIZE rather than C_SIZEOF.
+      if (logical(FortranMulOverflow(A   = int(storage_size(.false._LOGICAL32) / 8, C_SIZE_T), &
                                      B   = Dimension, &
                                      Res = BufferSize))) exit Body
 
+      !Ex profeso Fortran standard extension: BWORK is not C interoperable.
       BWORKHandle = FortranMalloc(BufferSize)
       if (.not.C_ASSOCIATED(BWORKHandle)) exit Body
       call C_F_POINTER(BWORKHandle, &

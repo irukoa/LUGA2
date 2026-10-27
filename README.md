@@ -79,6 +79,7 @@ Building and installing require:
 - GNU Binutils (`ar`, `nm`, `objcopy`).
 - A GCC-compatible C and Fortran toolchain (e.g. GCC/GFortran); dependency generation invokes `gcc` directly.
 - A POSIX shell and standard utilities (`mkdir`, `cp`, `mv`, `rm`, `printf`, `sed`, `awk`).
+- A Fortran2023 (ISO/IEC 1539:2023) compliant compiler (GFortran preferred).
 
 ## Installing
 

@@ -506,6 +506,28 @@ module GraphUtilities
 
   public :: GraphBellmanFord
 
+  !< Bridge from a C weight function to the Fortran one. All the call state
+  !< travels through the opaque user context pointer.
+  !<
+  !< Explicitly RECURSIVE so that each invocation owns its locals even when
+  !< the Fortran weight function starts a nested algorithm run.
+  !<
+  interface
+    recursive module function FortranWeightCallback(FSideCSupport, &
+                                                    FSideCOrigin, &
+                                                    FSideCDestination, &
+                                                    FSideCUserContext) &
+      bind(C, name="LUGA2_GRTP_WeightCallback") &
+      result(FSideCWeight)
+      type(C_PTR),       intent(in), value :: FSideCSupport
+      integer(C_SIZE_T), intent(in), value :: FSideCOrigin
+      integer(C_SIZE_T), intent(in), value :: FSideCDestination
+      type(C_PTR),       intent(in), value :: FSideCUserContext
+
+      real(C_DOUBLE) :: FSideCWeight
+    end function FortranWeightCallback
+  end interface
+
 end module GraphUtilities
 
 #endif

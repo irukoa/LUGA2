@@ -89,6 +89,38 @@ module ExtrapolationIntegration
   public :: EINT
   public :: EINT_P
 
+  !< EINT, as called from C.
+  !<
+  !< Array is a C array of Count C_DOUBLEs and Base is the base index, as in
+  !< the Fortran interface. The result is 0 when Array is not associated
+  !< or Count is zero.
+  !<
+  interface
+    real(C_DOUBLE) module function EINT_C(Count, Array, Base) &
+      bind(C, name="EINT")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR
+
+      integer(C_SIZE_T), intent(in), value :: Count
+      type(C_PTR),       intent(in), value :: Array
+      integer(C_SIZE_T), intent(in), value :: Base
+    end function EINT_C
+  end interface
+
+  !< EINT_P, as called from C.
+  !<
+  !< Same contract as EINT_C, with the parallel reduction.
+  !<
+  interface
+    real(C_DOUBLE) module function EINT_PC(Count, Array, Base) &
+      bind(C, name="EINT_P")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR
+
+      integer(C_SIZE_T), intent(in), value :: Count
+      type(C_PTR),       intent(in), value :: Array
+      integer(C_SIZE_T), intent(in), value :: Base
+    end function EINT_PC
+  end interface
+
 end module ExtrapolationIntegration
 
 #endif

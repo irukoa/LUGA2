@@ -363,21 +363,7 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
   end procedure FortranTBCrystalHamiltonian
 
-  function TBCrystalHamiltonian_C(Crystal, Dimensionality, KPoint, Derivative, ArraySize, Array, ArrayShapeSize, ArrayShape) &
-    bind(C, name="TBCrystalHamiltonian") &
-    result(Success)
-    import C_PTR, C_SIZE_T, C_BOOL, C_DOUBLE, C_DOUBLE_COMPLEX
-    type(C_PTR),       intent(in), value :: Crystal
-    integer(C_SIZE_T), intent(in), value :: Dimensionality
-    type(C_PTR),       intent(in), value :: KPoint
-    integer(C_SIZE_T), intent(in), value :: Derivative
-    integer(C_SIZE_T), intent(in), value :: ArraySize
-    type(C_PTR),       intent(in), value :: Array
-    integer(C_SIZE_T), intent(in), value :: ArrayShapeSize
-    type(C_PTR),       intent(in), value :: ArrayShape
-
-    logical(C_BOOL) :: Success
-
+  module procedure TBCrystalHamiltonian_C
     type(TBCrystal)                    :: FortranCrystal
     real(C_DOUBLE),            pointer :: KPointFPtr(:)
     complex(C_DOUBLE_COMPLEX), pointer :: ArrayFPtr(:)
@@ -427,7 +413,7 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
                                                  Array = ArrayFPtr, &
                                                  ArrayShape = ArrayShapeFPtr), C_BOOL)
 
-  end function TBCrystalHamiltonian_C
+  end procedure TBCrystalHamiltonian_C
 
   module procedure FortranTBPositionOperator
     integer(C_SIZE_T) :: LocalDerivative
@@ -648,21 +634,7 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
   end procedure FortranTBPositionOperator
 
-  function TBPositionOperator_C(Crystal, Dimensionality, KPoint, Derivative, ArraySize, Array, ArrayShapeSize, ArrayShape) &
-    bind(C, name="TBPositionOperator") &
-    result(Success)
-    import C_PTR, C_SIZE_T, C_BOOL, C_DOUBLE, C_DOUBLE_COMPLEX
-    type(C_PTR),       intent(in), value :: Crystal
-    integer(C_SIZE_T), intent(in), value :: Dimensionality
-    type(C_PTR),       intent(in), value :: KPoint
-    integer(C_SIZE_T), intent(in), value :: Derivative
-    integer(C_SIZE_T), intent(in), value :: ArraySize
-    type(C_PTR),       intent(in), value :: Array
-    integer(C_SIZE_T), intent(in), value :: ArrayShapeSize
-    type(C_PTR),       intent(in), value :: ArrayShape
-
-    logical(C_BOOL) :: Success
-
+  module procedure TBPositionOperator_C
     type(TBCrystal)                    :: FortranCrystal
     real(C_DOUBLE),            pointer :: KPointFPtr(:)
     complex(C_DOUBLE_COMPLEX), pointer :: ArrayFPtr(:)
@@ -712,6 +684,6 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
                                                       Array = ArrayFPtr, &
                                                       ArrayShape = ArrayShapeFPtr), C_BOOL)
 
-  end function TBPositionOperator_C
+  end procedure TBPositionOperator_C
 
 end submodule TBCI_F_Implementation

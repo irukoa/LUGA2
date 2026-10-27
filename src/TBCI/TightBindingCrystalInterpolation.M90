@@ -463,6 +463,61 @@ module TightBindingCrystalInterpolation
     end function FortranTBPositionOperator
   end interface
 
+  !< TBCrystalHamiltonian, as called from C.
+  !<
+  !< Crystal is an opaque handle, KPoint a C array of Dimensionality
+  !< doubles and Array / ArrayShape C buffers of ArraySize and
+  !< ArrayShapeSize elements. The result reports success. A null pointer
+  !< makes the wrapper return .FALSE. without touching the buffers.
+  !<
+  interface
+    module function TBCrystalHamiltonian_C(Crystal, Dimensionality, &
+                                           KPoint, Derivative, ArraySize, &
+                                           Array, ArrayShapeSize, &
+                                           ArrayShape) &
+      bind(C, name="TBCrystalHamiltonian") &
+      result(Success)
+      use, intrinsic :: ISO_C_BINDING, only: C_BOOL
+
+      type(C_PTR),       intent(in), value :: Crystal
+      integer(C_SIZE_T), intent(in), value :: Dimensionality
+      type(C_PTR),       intent(in), value :: KPoint
+      integer(C_SIZE_T), intent(in), value :: Derivative
+      integer(C_SIZE_T), intent(in), value :: ArraySize
+      type(C_PTR),       intent(in), value :: Array
+      integer(C_SIZE_T), intent(in), value :: ArrayShapeSize
+      type(C_PTR),       intent(in), value :: ArrayShape
+
+      logical(C_BOOL) :: Success
+    end function TBCrystalHamiltonian_C
+  end interface
+
+  !< TBPositionOperator, as called from C.
+  !<
+  !< Same contract as TBCrystalHamiltonian_C, with the position operator in
+  !< place of the Hamiltonian blocks.
+  !<
+  interface
+    module function TBPositionOperator_C(Crystal, Dimensionality, &
+                                         KPoint, Derivative, ArraySize, &
+                                         Array, ArrayShapeSize, ArrayShape) &
+      bind(C, name="TBPositionOperator") &
+      result(Success)
+      use, intrinsic :: ISO_C_BINDING, only: C_BOOL
+
+      type(C_PTR),       intent(in), value :: Crystal
+      integer(C_SIZE_T), intent(in), value :: Dimensionality
+      type(C_PTR),       intent(in), value :: KPoint
+      integer(C_SIZE_T), intent(in), value :: Derivative
+      integer(C_SIZE_T), intent(in), value :: ArraySize
+      type(C_PTR),       intent(in), value :: Array
+      integer(C_SIZE_T), intent(in), value :: ArrayShapeSize
+      type(C_PTR),       intent(in), value :: ArrayShape
+
+      logical(C_BOOL) :: Success
+    end function TBPositionOperator_C
+  end interface
+
 end module TightBindingCrystalInterpolation
 
 #endif

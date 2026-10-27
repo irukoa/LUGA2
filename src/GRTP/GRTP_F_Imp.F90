@@ -22,21 +22,13 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
   contains
 
   !< Weighting callback exposed to C.
-  !< Declared at submodule scope with the BIND attribute, thus reachable through
-  !< a plain code address. All the call state travels through the opaque user
-  !< context pointer. Shared by every graph algorithm.
+  !< Declared in the ancestor module with the BIND attribute and implemented
+  !< here as a separate module procedure, thus reachable through a plain code
+  !< address. All the call state travels through the opaque user context
+  !< pointer. Shared by every graph algorithm.
   !< RECURSIVE so that each invocation owns its locals even when a weight
   !< function starts a nested algorithm run.
-  recursive function FortranWeightCallback(FSideCSupport, FSideCOrigin, FSideCDestination, &
-                                           FSideCUserContext) &
-    bind(C, name="LUGA2_GRTP_WeightCallback") &
-    result(FSideCWeight)
-    type(C_PTR),       intent(in), value :: FSideCSupport
-    integer(C_SIZE_T), intent(in), value :: FSideCOrigin
-    integer(C_SIZE_T), intent(in), value :: FSideCDestination
-    type(C_PTR),       intent(in), value :: FSideCUserContext
-
-    real(C_DOUBLE) :: FSideCWeight
+  module procedure FortranWeightCallback
 
     type(GraphSupport)                      :: LocalSupport
     type(FortranContextWrapper),    pointer :: LocalWrapper
@@ -59,7 +51,7 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
                                          Origin = FSideCOrigin, &
                                          Destination = FSideCDestination)
     endif
-  end function FortranWeightCallback
+  end procedure FortranWeightCallback
 
   module procedure FortranCopyGraphSupportBuilder
     Copy%OpaqueHandle = Original%OpaqueHandle

@@ -2,9 +2,7 @@
 
 submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
-  use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
-                                         C_FUNPTR, &
-                                         C_F_PROCPOINTER, &
+  use, intrinsic :: ISO_C_BINDING, only: C_F_PROCPOINTER, &
                                          C_ASSOCIATED, &
                                          C_F_POINTER
 
@@ -12,15 +10,7 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
   contains
 
-  subroutine DiagHermitian_C(Dimension, Matrix, Unitary, Eigenvalues, ZHEEVDProcedure, Info) &
-    bind(C, name="DiagHermitian")
-    integer(C_SIZE_T), intent(in), value :: Dimension
-    type(C_PTR),       intent(in), value :: Matrix
-    type(C_PTR),       intent(in), value :: Unitary
-    type(C_PTR),       intent(in), value :: Eigenvalues
-    type(C_FUNPTR),    intent(in), value :: ZHEEVDProcedure
-    type(C_PTR),       intent(in), value :: Info
-
+  module procedure DiagHermitian_C
     complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
     complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryFPtr(:, :)
     real(C_DOUBLE),             pointer :: EigenvaluesFPtr(:)
@@ -89,17 +79,9 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
                          Info = InfoFPtr)
     endif
 
-  end subroutine DiagHermitian_C
+  end procedure DiagHermitian_C
 
-  subroutine SchurDecomposition_C(Dimension, Matrix, Unitary, SchurForm, ZGEESProcedure, Info) &
-    bind(C, name="SchurDecomposition")
-    integer(C_SIZE_T), intent(in), value :: Dimension
-    type(C_PTR),       intent(in), value :: Matrix
-    type(C_PTR),       intent(in), value :: Unitary
-    type(C_PTR),       intent(in), value :: SchurForm
-    type(C_FUNPTR),    intent(in), value :: ZGEESProcedure
-    type(C_PTR),       intent(in), value :: Info
-
+  module procedure SchurDecomposition_C
     complex(C_DOUBLE_COMPLEX), pointer :: MatrixFPtr(:, :)
     complex(C_DOUBLE_COMPLEX), pointer :: UnitaryFPtr(:, :)
     complex(C_DOUBLE_COMPLEX), pointer :: SchurFormFPtr(:, :)
@@ -168,19 +150,9 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
                               Info = InfoFPtr)
     endif
 
-  end subroutine SchurDecomposition_C
+  end procedure SchurDecomposition_C
 
-  subroutine SVDDecomposition_C(DimensionR, DimensionC, Matrix, UnitaryU, DiagSigma, UnitaryVH, ZGESDDProcedure, Info) &
-    bind(C, name="SVDDecomposition")
-    integer(C_SIZE_T), intent(in), value :: DimensionR
-    integer(C_SIZE_T), intent(in), value :: DimensionC
-    type(C_PTR),       intent(in), value :: Matrix
-    type(C_PTR),       intent(in), value :: UnitaryU
-    type(C_PTR),       intent(in), value :: DiagSigma
-    type(C_PTR),       intent(in), value :: UnitaryVH
-    type(C_FUNPTR),    intent(in), value :: ZGESDDProcedure
-    type(C_PTR),       intent(in), value :: Info
-
+  module procedure SVDDecomposition_C
     complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
     complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryUFPtr(:, :)
     real(C_DOUBLE),             pointer :: DiagSigmaFPtr(:)
@@ -263,15 +235,9 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
                             Info = InfoFPtr)
     endif
 
-  end subroutine SVDDecomposition_C
+  end procedure SVDDecomposition_C
 
-  subroutine DegeneracyGroup_C(Dimension, Eigenvalues, DegeneracyThreshold, Degeneracies) &
-    bind(C, name="DegeneracyGroup")
-    integer(C_SIZE_T), intent(in), value :: Dimension
-    type(C_PTR),       intent(in), value :: Eigenvalues
-    real(C_DOUBLE),    intent(in), value :: DegeneracyThreshold
-    type(C_PTR),       intent(in), value :: Degeneracies
-
+  module procedure DegeneracyGroup_C
     real(C_DOUBLE),    pointer :: EigenvaluesFPtr(:)
     integer(C_SIZE_T), pointer :: DegeneraciesFPtr(:)
 
@@ -296,6 +262,6 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
                          DegeneracyThreshold = DegeneracyThreshold, &
                          Degeneracies = DegeneraciesFPtr)
 
-  end subroutine DegeneracyGroup_C
+  end procedure DegeneracyGroup_C
 
 end submodule LDW_C_Interfaces

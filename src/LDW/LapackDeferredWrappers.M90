@@ -349,6 +349,97 @@ module LapackDeferredWrappers
 
   public :: DegeneracyGroup
 
+  !< DiagHermitian, as called from C.
+  !<
+  !< Matrix, Unitary and Eigenvalues are C pointers to Dimension-sized
+  !< arrays; Info receives the LAPACK error code, and a dimension that does
+  !< not fit a default integer is reported there. A null pointer makes the
+  !< wrapper return without touching the other arguments.
+  !<
+  interface
+    module subroutine DiagHermitian_C(Dimension, Matrix, Unitary, &
+                                      Eigenvalues, ZHEEVDProcedure, Info) &
+      bind(C, name="DiagHermitian")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
+                                             C_FUNPTR
+
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: Matrix
+      type(C_PTR),       intent(in), value :: Unitary
+      type(C_PTR),       intent(in), value :: Eigenvalues
+      type(C_FUNPTR),    intent(in), value :: ZHEEVDProcedure
+      type(C_PTR),       intent(in), value :: Info
+    end subroutine DiagHermitian_C
+  end interface
+
+  !< SchurDecomposition, as called from C.
+  !<
+  !< Unitary receives the Schur vectors when it is associated, while
+  !< SchurForm is the triangular factor. Null pointers behave as in
+  !< DiagHermitian_C.
+  !<
+  interface
+    module subroutine SchurDecomposition_C(Dimension, Matrix, Unitary, &
+                                           SchurForm, ZGEESProcedure, &
+                                           Info) &
+      bind(C, name="SchurDecomposition")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
+                                             C_FUNPTR
+
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: Matrix
+      type(C_PTR),       intent(in), value :: Unitary
+      type(C_PTR),       intent(in), value :: SchurForm
+      type(C_FUNPTR),    intent(in), value :: ZGEESProcedure
+      type(C_PTR),       intent(in), value :: Info
+    end subroutine SchurDecomposition_C
+  end interface
+
+  !< SVDDecomposition, as called from C.
+  !<
+  !< Matrix is a DimensionR by DimensionC C array; DiagSigma receives the
+  !< smallest of the two dimensions singular values, while UnitaryU and
+  !< UnitaryVH receive the unitary factors when they are associated. Null
+  !< pointers behave as in DiagHermitian_C.
+  !<
+  interface
+    module subroutine SVDDecomposition_C(DimensionR, DimensionC, Matrix, &
+                                         UnitaryU, DiagSigma, UnitaryVH, &
+                                         ZGESDDProcedure, Info) &
+      bind(C, name="SVDDecomposition")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
+                                             C_FUNPTR
+
+      integer(C_SIZE_T), intent(in), value :: DimensionR
+      integer(C_SIZE_T), intent(in), value :: DimensionC
+      type(C_PTR),       intent(in), value :: Matrix
+      type(C_PTR),       intent(in), value :: UnitaryU
+      type(C_PTR),       intent(in), value :: DiagSigma
+      type(C_PTR),       intent(in), value :: UnitaryVH
+      type(C_FUNPTR),    intent(in), value :: ZGESDDProcedure
+      type(C_PTR),       intent(in), value :: Info
+    end subroutine SVDDecomposition_C
+  end interface
+
+  !< DegeneracyGroup, as called from C.
+  !<
+  !< Eigenvalues is a C array of Dimension doubles and Degeneracies
+  !< receives, for each eigenvalue, the index of the group it belongs to.
+  !< Either pointer being null makes the wrapper return immediately.
+  !<
+  interface
+    module subroutine DegeneracyGroup_C(Dimension, Eigenvalues, &
+                                        DegeneracyThreshold, Degeneracies) &
+      bind(C, name="DegeneracyGroup")
+      use, intrinsic :: ISO_C_BINDING, only: C_PTR
+
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: Eigenvalues
+      real(C_DOUBLE),    intent(in), value :: DegeneracyThreshold
+      type(C_PTR),       intent(in), value :: Degeneracies
+    end subroutine DegeneracyGroup_C
+  end interface
+
 end module LapackDeferredWrappers
 
 #endif
