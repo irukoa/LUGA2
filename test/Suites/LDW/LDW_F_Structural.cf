@@ -63,16 +63,19 @@ module LDWStructuralZHEEVDStubs
     ZHEEVDNegativeRWork = 6_INT32, &
     ZHEEVDNaNRWork      = 7_INT32, &
     ZHEEVDHugeRWork     = 8_INT32, &
-    ZHEEVDZeroIWork     = 9_INT32
+    ZHEEVDZeroIWork     = 9_INT32, &
+    ZHEEVDZeroWork      = 10_INT32, &
+    ZHEEVDShortWork     = 11_INT32
 
   !Status codes reported by the failing stubs.
   integer(INT32), parameter, public :: &
     ZHEEVDQueryStatus   = 7_INT32, &
     ZHEEVDComputeStatus = -6_INT32
 
-  !Nominal workspace sizes.
+  !Nominal workspace sizes. NominalLWork is 2*N for the 3x3 cases, the floor
+  !that every LDW driver enforces on a queried complex workspace.
   integer(INT32), parameter :: &
-    NominalLWork  = 5_INT32, &
+    NominalLWork  = 6_INT32, &
     NominalLRWork = 7_INT32, &
     NominalLIWork = 9_INT32
 
@@ -193,6 +196,14 @@ contains
                          0.0_REAL64, REAL64)
         RWORK(1) = real(NominalLRWork, REAL64)
         IWORK(1) = NominalLIWork
+      case (ZHEEVDZeroWork)
+        WORK(1)  = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = NominalLIWork
+      case (ZHEEVDShortWork)
+        WORK(1)  = cmplx(real(2 * N - 1, REAL64), 0.0_REAL64, REAL64)
+        RWORK(1) = real(NominalLRWork, REAL64)
+        IWORK(1) = NominalLIWork
       case (ZHEEVDNegativeRWork)
         WORK(1)  = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
         RWORK(1) = -1.0_REAL64
@@ -272,15 +283,18 @@ module LDWStructuralZGEESStubs
     ZGEESFailCompute  = 2_INT32, &
     ZGEESNegativeWork = 3_INT32, &
     ZGEESNaNWork      = 4_INT32, &
-    ZGEESHugeWork     = 5_INT32
+    ZGEESHugeWork     = 5_INT32, &
+    ZGEESZeroWork     = 6_INT32, &
+    ZGEESShortWork    = 7_INT32
 
   !Status codes reported by the failing stubs.
   integer(INT32), parameter, public :: &
     ZGEESQueryStatus   = 7_INT32, &
     ZGEESComputeStatus = -6_INT32
 
-  !Nominal workspace size.
-  integer(INT32), parameter :: NominalLWork = 5_INT32
+  !Nominal workspace size: 2*N for the 3x3 cases, the floor that every LDW
+  !driver enforces on a queried complex workspace.
+  integer(INT32), parameter :: NominalLWork = 6_INT32
 
   integer(INT32) :: StubMode = ZGEESNominal
 
@@ -428,6 +442,10 @@ contains
       case (ZGEESHugeWork)
         WORK(1) = cmplx(2.0_REAL64 * real(huge(1_INT32), REAL64), &
                         0.0_REAL64, REAL64)
+      case (ZGEESZeroWork)
+        WORK(1) = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      case (ZGEESShortWork)
+        WORK(1) = cmplx(real(2 * N - 1, REAL64), 0.0_REAL64, REAL64)
       case default
         WORK(1) = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
       end select
@@ -827,15 +845,17 @@ module LDWStructuralZGESDDStubs
     ZGESDDNegativeWork = 3_INT32, &
     ZGESDDNaNWork      = 4_INT32, &
     ZGESDDHugeWork     = 5_INT32, &
-    ZGESDDZeroWork     = 6_INT32
+    ZGESDDZeroWork     = 6_INT32, &
+    ZGESDDShortWork    = 7_INT32
 
   !Status codes reported by the failing stubs.
   integer(INT32), parameter, public :: &
     ZGESDDQueryStatus   = 7_INT32, &
     ZGESDDComputeStatus = -6_INT32
 
-  !Nominal workspace size.
-  integer(INT32), parameter :: NominalLWork = 5_INT32
+  !Nominal workspace size: 2*min(M, N) for the 3x3 cases, the floor that every
+  !LDW driver enforces on a queried complex workspace.
+  integer(INT32), parameter :: NominalLWork = 6_INT32
 
   integer(INT32) :: StubMode = ZGESDDNominal
 
@@ -1013,6 +1033,8 @@ contains
                         0.0_REAL64, REAL64)
       case (ZGESDDZeroWork)
         WORK(1) = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
+      case (ZGESDDShortWork)
+        WORK(1) = cmplx(real(2 * MinMN - 1, REAL64), 0.0_REAL64, REAL64)
       case default
         WORK(1) = cmplx(real(NominalLWork, REAL64), 0.0_REAL64, REAL64)
       end select
@@ -1429,6 +1451,50 @@ TEST_EF(StructuralCtx, LDWStructuralHugeWorkQuery)
   ASSERT(Info == int(huge(1_INT32), C_INT))
 #endif
 END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZeroWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDZeroWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !ZHEEVD documents LWORK >= 2*N + N**2 for N > 1, but LDW only enforces the
+  !max(1, 2*N) floor shared by every driver. A zero-sized workspace is
+  !rejected after the query instead of being allocated.
+  call RunDiagHermitian(ZHEEVDZeroWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralShortWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZHEEVDStubs, only: RunDiagHermitian, ZHEEVDShortWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A queried size one element short of max(1, 2*N) is rejected instead of
+  !being allocated.
+  call RunDiagHermitian(ZHEEVDShortWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
 
 TEST_EF(StructuralCtx, LDWStructuralNegativeRWorkQuery)
 #ifdef TSD_FORTRAN_IMPL
@@ -2071,6 +2137,49 @@ TEST_EF(StructuralCtx, LDWStructuralZGEESHugeWorkQuery)
   ASSERT(Info == int(huge(1_INT32), C_INT))
 #endif
 END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESZeroWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESZeroWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !ZGEES requires LWORK >= max(1, 2*N), so a zero-sized workspace is rejected
+  !after the query instead of being allocated.
+  call RunSchurDecomposition(ZGEESZeroWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGEESShortWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGEESStubs, only: RunSchurDecomposition, ZGEESShortWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !ZGEES requires LWORK >= max(1, 2*N), so a queried size one element short
+  !of the requirement is rejected instead of being allocated.
+  call RunSchurDecomposition(ZGEESShortWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
 
 TEST_EF(StructuralCtx, LDWStructuralZGEESComputeStatusFail)
 #ifdef TSD_FORTRAN_IMPL
@@ -3878,7 +3987,8 @@ TEST_EF(StructuralCtx, LDWStructuralZGESDDZeroWorkQuery)
 
   CCtx = ContextData !Unused.
 
-  !An LWORK below one element must be rejected after the query.
+  !A queried LWORK below the max(1, 2*min(M, N)) floor must be rejected after
+  !the query.
   call RunSVDDecomposition(ZGESDDZeroWork, Info)
 
   ASSERT(Info == int(huge(1_INT32), C_INT))
@@ -3940,6 +4050,27 @@ TEST_EF(StructuralCtx, LDWStructuralZGESDDHugeWorkQuery)
 
   !An LWORK which does not fit in INT32 must be rejected after the query.
   call RunSVDDecomposition(ZGESDDHugeWork, Info)
+
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
+TEST_EF(StructuralCtx, LDWStructuralZGESDDShortWorkQuery)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT
+  use LDWStructuralZGESDDStubs, only: RunSVDDecomposition, ZGESDDShortWork
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_INT) :: Info
+  type(C_PTR)    :: CCtx
+
+  CCtx = ContextData !Unused.
+
+  !A queried size one element short of max(1, 2*min(M, N)) is rejected instead
+  !of being allocated.
+  call RunSVDDecomposition(ZGESDDShortWork, Info)
 
   ASSERT(Info == int(huge(1_INT32), C_INT))
 #endif
@@ -4188,6 +4319,8 @@ TEST_SUITE(LDWStructuralSuite,
            LDWStructuralNegativeWorkQuery,
            LDWStructuralNaNWorkQuery,
            LDWStructuralHugeWorkQuery,
+           LDWStructuralZeroWorkQuery,
+           LDWStructuralShortWorkQuery,
            LDWStructuralNegativeRWorkQuery,
            LDWStructuralNaNRWorkQuery,
            LDWStructuralHugeRWorkQuery,
@@ -4216,6 +4349,8 @@ TEST_SUITE(LDWStructuralSuite,
            LDWStructuralZGEESNegativeWorkQuery,
            LDWStructuralZGEESNaNWorkQuery,
            LDWStructuralZGEESHugeWorkQuery,
+           LDWStructuralZGEESZeroWorkQuery,
+           LDWStructuralZGEESShortWorkQuery,
            LDWStructuralZGEESComputeStatusFail,
            LDWStructuralZGEESAllocatorCallsExhausted,
            LDWStructuralZGEESMultiplierCallsExhausted,
@@ -4296,6 +4431,7 @@ TEST_SUITE(LDWStructuralSuite,
            LDWStructuralZGESDDNegativeWorkQuery,
            LDWStructuralZGESDDNaNWorkQuery,
            LDWStructuralZGESDDHugeWorkQuery,
+           LDWStructuralZGESDDShortWorkQuery,
            LDWStructuralZGESDDComputeStatusFail,
            LDWStructuralZGESDDAllocatorCallsExhausted,
            LDWStructuralZGESDDMultiplierCallsExhausted,

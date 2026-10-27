@@ -126,6 +126,14 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
       LRWORK = int(nint(QueryRWORK(1)), INT32)
       LIWORK = QueryIWORK(1)
 
+      !LWORK must reach max(1, 2*N), the same floor enforced by every LDW
+      !driver. ZHEEVD documents 2*N + N**2 for N > 1 and a single element for
+      !N == 1, so a conforming query is never rejected.
+      if (int(LWORK, C_SIZE_T) < merge(max(1_C_SIZE_T, &
+                                           2_C_SIZE_T * Dimension), &
+                                       1_C_SIZE_T, &
+                                       Dimension > 1_C_SIZE_T)) exit Body
+
       !Complex workspace.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
                                      B   = int(LWORK, C_SIZE_T), &
@@ -343,6 +351,11 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
           real(QueryWORK(1), REAL64) > real(huge(1_INT32), REAL64)) exit Body
 
       LWORK = int(nint(real(QueryWORK(1), REAL64)), INT32)
+
+      !LWORK must reach max(1, 2*N), the same floor enforced by every LDW
+      !driver, and that is exactly the ZGEES minimum.
+      if (int(LWORK, C_SIZE_T) < max(1_C_SIZE_T, &
+                                     2_C_SIZE_T * Dimension)) exit Body
 
       !Complex workspace.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
@@ -625,12 +638,18 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
       Info = int(huge(1_INT32), C_INT)
 
       !The queried LWORK must be a usable buffer length. A callback which
-      !leaves WORK(1) untouched reports zero and is rejected here.
+      !leaves WORK(1) untouched reports zero and is rejected below.
       if (.not.IEEE_IS_FINITE(real(QueryWORK(1), REAL64)) .or. &
-          real(QueryWORK(1), REAL64) < 1.0_REAL64 .or. &
+          real(QueryWORK(1), REAL64) < 0.0_REAL64 .or. &
           real(QueryWORK(1), REAL64) > real(huge(1_INT32), REAL64)) exit Body
 
       LWORK = int(nint(real(QueryWORK(1), REAL64)), INT32)
+
+      !LWORK must reach max(1, 2*min(M, N)), the same floor enforced by every
+      !LDW driver. ZGESDD documents a larger minimum, so a conforming query
+      !is never rejected.
+      if (int(LWORK, C_SIZE_T) < max(1_C_SIZE_T, &
+                                     2_C_SIZE_T * int(MinMN, C_SIZE_T))) exit Body
 
       !Complex workspace.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &

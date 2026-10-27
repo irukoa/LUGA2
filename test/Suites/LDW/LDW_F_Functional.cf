@@ -108,8 +108,9 @@ contains
     Computations = ComputeCalls
   end subroutine GetZHEEVDStubCalls
 
-  !< Minimal ZHEEVD stand-in. The query reports N workspace elements; the
-  !< computational call overwrites the matrix and the eigenvalue buffers.
+  !< Minimal ZHEEVD stand-in. The query reports 2*N workspace elements, the
+  !< smallest value the wrapper accepts; the computational call overwrites the
+  !< matrix and the eigenvalue buffers.
   subroutine ZHEEVDStub(JOBZ, UPLO, &
                         N, A, LDA, &
                         W, &
@@ -137,7 +138,7 @@ contains
     if (IsQuery) then
       QueryCalls = QueryCalls + 1_INT32
       !A single element is enough for the workspace validation.
-      WORK(1)  = cmplx(real(N, REAL64), 0.0_REAL64, REAL64)
+      WORK(1)  = cmplx(real(2 * N, REAL64), 0.0_REAL64, REAL64)
       RWORK(1) = real(N, REAL64)
       IWORK(1) = N
       INFO     = QueryStatus
@@ -181,10 +182,11 @@ contains
     Computations = ZGEESComputeCalls
   end subroutine GetZGEESStubCalls
 
-  !< Minimal ZGEES stand-in. The query reports N workspace elements; the
-  !< computational call overwrites every output buffer. The argument checks
-  !< fail the call when LDW does not use the documented JOBVS/SORT contract
-  !< or when the SELECT callback accepts an eigenvalue.
+  !< Minimal ZGEES stand-in. The query reports 2*N workspace elements, the
+  !< smallest value the wrapper accepts; the computational call overwrites every
+  !< output buffer. The argument checks fail the call when LDW does not use the
+  !< documented JOBVS/SORT contract or when the SELECT callback accepts an
+  !< eigenvalue.
   subroutine ZGEESStub(JOBVS, SORT, SELECT, &
                        N, A, LDA, &
                        SDIM, W, &
@@ -226,7 +228,7 @@ contains
     if (LWORK < 0_INT32) then
       ZGEESQueryCalls = ZGEESQueryCalls + 1_INT32
       !A single element is enough for the workspace validation.
-      WORK(1)  = cmplx(real(N, REAL64), 0.0_REAL64, REAL64)
+      WORK(1)  = cmplx(real(2 * N, REAL64), 0.0_REAL64, REAL64)
       RWORK(1) = 0.0_REAL64
       BWORK(1) = .false.
       INFO     = ZGEESQueryStatus
@@ -389,9 +391,10 @@ contains
     Computations = ZGESDDComputeCalls
   end subroutine GetZGESDDStubCalls
 
-  !< Minimal ZGESDD stand-in. The query reports max(M, N) workspace elements;
-  !< the computational call overwrites every output buffer. The argument
-  !< checks fail the call when LDW does not request the full factor shapes.
+  !< Minimal ZGESDD stand-in. The query reports 2*min(M, N) workspace elements,
+  !< the smallest value the wrapper accepts; the computational call overwrites
+  !< every output buffer. The argument checks fail the call when LDW does not
+  !< request the full factor shapes.
   subroutine ZGESDDStub(JOBZ, M, N, A, LDA, S, U, LDU, VT, LDVT, &
                         WORK, LWORK, RWORK, IWORK, INFO)
     character,       intent(in)    :: JOBZ
@@ -423,7 +426,7 @@ contains
     if (LWORK < 0_INT32) then
       ZGESDDQueryCalls = ZGESDDQueryCalls + 1_INT32
       !A single element is enough for the workspace validation.
-      WORK(1)  = cmplx(real(max(M, N), REAL64), 0.0_REAL64, REAL64)
+      WORK(1)  = cmplx(real(2 * MinMN, REAL64), 0.0_REAL64, REAL64)
       RWORK(1) = 0.0_REAL64
       IWORK(1) = 0_INT32
       INFO     = ZGESDDQueryStatus
