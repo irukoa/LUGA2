@@ -237,8 +237,9 @@ Other rules:
 - Comment blocks never contain a line with a trailing space, and the `!` column of a block never moves.
 - The documentation block of a header (`.h`) carries, in Doxygen form, the content of the `!<` block of the corresponding `.M90` interface:
   - `@brief` holds one or two sentences: what the routine does and, when the implementation is supplied at run time, the notice that the caller provides it. Everything else goes in `@details`, which directly follows it; `@param`, `@return` or `@retval`, `@note` and `@see` come afterwards, in that order.
+  - A header may open with a block that documents the file rather than the declaration below it: its first line is `@file` followed by the name of the header, the next line is a blank ` *`, and `@brief` summarises the module. The tag is load-bearing, not decoration: Doxygen attaches a block that lacks it to the first declaration that follows, so the overview of the module would silently become the documentation of that declaration. Only `src/GRTP/GraphUtilities.h` carries such a block today; the other headers open directly with the block of their first declaration, which is the normal case and the one a new header follows.
   - The prose of `@brief` and `@details` starts in the first column of the comment, like the prose of a `!<` block; the description of a `@param` or of a `@return` is indented by four spaces under its tag.
-  - A `@details` that covers more than one topic is split by the section banners of the `.M90` blocks (`MATHEMATICAL PROBLEM`, `STORAGE LAYOUT`, `NUMERICAL METHOD`, `ACCURACY`, `ARRAY LAYOUT`, `NOTES`): the row of dashes, the title in upper case, the row of dashes, and one blank ` *` line on each side. A block that documents a single topic carries no banner, as in `src/GRTP/GraphUtilities.h`.
+  - A `@details` that covers more than one topic is split by the section banners of the `.M90` blocks (`MATHEMATICAL PROBLEM`, `STORAGE LAYOUT`, `NUMERICAL METHOD`, `ACCURACY`, `ARRAY LAYOUT`, `NOTES`): the row of dashes, the title in upper case, the row of dashes, and one blank ` *` line before and after — except that the first banner of a `@details` may open directly under its tag, as in `src/LDW/LapackDeferredWrappers.h`. A block that documents a single topic carries no banner, as in `src/GRTP/GraphUtilities.h`.
 
 ## 10. Exemptions
 
@@ -252,7 +253,7 @@ The following constructs are intentionally left as they are; a reviewer must not
 
 ## 11. Checking
 
-`style/FortranStyleCheck.py` encodes the rules a machine can decide and reports every violation with the identifier of the rule and the column it expected:
+Two scripts encode the rules a machine can decide and report every violation with the identifier of the rule and the column it expected. `style/FortranStyleCheck.py` decides the Fortran of sections 1 to 8 and 10:
 
 ```sh
 python3 style/FortranStyleCheck.py                    # the whole corpus
@@ -261,8 +262,18 @@ python3 style/FortranStyleCheck.py --fix src/TBCI     # apply the mechanical fix
 python3 style/FortranStyleCheck.py --rules            # list the rules
 ```
 
-The checker reads `.M90` and `.F90` as Fortran; in a `.cf` suite it reads the Fortran bodies of the `#ifdef TSD_FORTRAN_IMPL` regions and leaves the C part and the framework macros to `clang-format`. The weak rules (the 80-column limit, the period of a comment) are warnings: they are reported but do not change the exit status. The exit status is 0 when no violation is found.
+`style/CDocStyleCheck.py` decides the Doxygen block of section 9 on the headers of `src`:
+
+```sh
+python3 style/CDocStyleCheck.py                       # every header of src
+python3 style/CDocStyleCheck.py src/LDW               # one module
+python3 style/CDocStyleCheck.py --rules               # list the rules
+```
+
+The Fortran checker reads `.M90` and `.F90` as Fortran; in a `.cf` suite it reads the Fortran bodies of the `#ifdef TSD_FORTRAN_IMPL` regions and leaves the C part and the framework macros to `clang-format`. The weak rules (the 80-column limit, the period of a comment) are warnings: they are reported but do not change the exit status. The exit status is 0 when no violation is found.
 
 `--fix` applies the rewrites that have a single answer: the alignment of the continuations, of the `::` and attribute columns, of the assignment operators and of the keywords of a continued call; the spacing of the operators and separators; the one-line form of `if (...)`; `endif` and `enddo`; the comment markers; the trailing whitespace and the blank lines. It never renames an identifier, never re-breaks a line and never touches a construct of section 10, so running it twice changes nothing; review the diff anyway, because a fix can move a comment or expose a line that a human should re-wrap.
 
-The `.h` files are only half checked. `clang-format` fixes their code and, with `ReflowComments: Always` and `ColumnLimit: 80`, rewraps the prose of a comment at the column limit; it also keeps a description on its own line under its tag. It does not re-indent what it finds inside a comment, so the four spaces of a description under a `@param`, the rows of a section banner and the column where the prose of `@brief` and `@details` starts are not enforced by anything: they are conventions of this guide that a reviewer checks. Keep an eye on them when a block is edited, because no tool will repair them.
+A header is read by both tools, and this is the division of labour. `clang-format` owns the code and the physical shape of a comment: with `ReflowComments: Always` and `ColumnLimit: 80` it rewraps the prose of a block at the column limit, it keeps one space after `*` and it keeps the `*` column aligned. It does not re-indent what it finds inside a comment, and that is deliberate, so the interior of a block — the column of a tag and of the prose of `@brief` and `@details`, the four spaces of a description under its tag, the rows of a section banner, the order of the tags — is decided by `style/CDocStyleCheck.py`, which reports a lapse where the reviewer would otherwise have to look for it. Neither tool edits a comment of a header, so the two cannot fight.
+
+Both scripts run before a commit: `.pre-commit-config.yaml` declares them as local hooks (`fortran-style`, `cdoc-style`) next to `clang-format`, so a violation is reported before the review rather than during it.
