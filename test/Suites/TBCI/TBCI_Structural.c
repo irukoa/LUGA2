@@ -254,14 +254,15 @@ TEST_F(StructuralCtx,
   ASSERT(!Crystal);
 }
 
-// TBPositionOperator evaluates the Derivative-th Cartesian k-derivative of the
-// Bloch Berry connection and specifies the shape of the result on the way, so
-// it allocates and it checks arithmetic. The tests below fail each of those
-// operations in turn: every failure must come back through the return value,
-// and the first fault-free attempt must produce the result. The result carries
-// the extra Cartesian component index of the stored connection, so its rank is
-// one higher than that of the Hamiltonian kernel. The accessors of the stored
-// Berry connection share the TBCrystal prefix, hence the Bloch qualifier.
+// TBCrystalPositionOperator evaluates the Derivative-th Cartesian k-derivative
+// of the Bloch Berry connection and specifies the shape of the result on the
+// way, so it allocates and it checks arithmetic. The tests below fail each of
+// those operations in turn: every failure must come back through the return
+// value, and the first fault-free attempt must produce the result. The result
+// carries the extra Cartesian component index of the stored connection, so its
+// rank is one higher than that of the Hamiltonian kernel. The accessors of the
+// stored Berry connection share the TBCrystal prefix, hence the Bloch
+// qualifier.
 
 TEST_F(StructuralCtx,
        TBCrystalBlochPositionOperator_MallocFail) {
@@ -280,8 +281,8 @@ TEST_F(StructuralCtx,
 
   for (FailAt = 1; FailAt <= 64; FailAt++) {
     SetFallibleMalloc(FailAt);
-    Success =
-        TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+    Success = TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                        ArrayShape);
     if (Success) {
       break;
     }
@@ -327,8 +328,8 @@ TEST_F(StructuralCtx,
     Success = false;
     for (FailAt = 1; FailAt <= 64; FailAt++) {
       SetFallibleMulOverflow(FailAt);
-      Success = TBPositionOperator(Crystal, 1, KPoint, Derivative, 1, Array,
-                                   Derivative + 3, ArrayShape);
+      Success = TBCrystalPositionOperator(Crystal, 1, KPoint, Derivative, 1,
+                                          Array, Derivative + 3, ArrayShape);
       if (Success) {
         break;
       }
@@ -373,8 +374,8 @@ TEST_F(StructuralCtx,
   // A single checked sum on the path, the shape rank Derivative + 3.
   for (FailAt = 1; FailAt <= 64; FailAt++) {
     SetFallibleAddOverflow(FailAt);
-    Success =
-        TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+    Success = TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                        ArrayShape);
     if (Success) {
       break;
     }
@@ -384,8 +385,8 @@ TEST_F(StructuralCtx,
 
   // A rank that cannot be represented is rejected, never truncated.
   ResetFallibleAddOverflow();
-  ASSERT(!TBPositionOperator(Crystal, 1, KPoint, SIZE_MAX, 1, Array, 3,
-                             ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, 1, KPoint, SIZE_MAX, 1, Array, 3,
+                                    ArrayShape));
 
   FreeTBCrystal(&Crystal);
   ASSERT(!Crystal);
@@ -585,14 +586,16 @@ TEST(TBCIStructuralDefectiveObjectTest) {
   Tmp                       = CrystalPtr->DirectLattice;
   CrystalPtr->DirectLattice = NULL;
   ASSERT(!TBCrystalHamiltonian(Crystal, 1, KPoint, 0, 1, Array, 2, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                    ArrayShape));
   CrystalPtr->DirectLattice = Tmp;
 
   // Corrupt field: SiteCoords.
   Tmp                    = CrystalPtr->SiteCoords;
   CrystalPtr->SiteCoords = NULL;
   ASSERT(!TBCrystalHamiltonian(Crystal, 1, KPoint, 0, 1, Array, 2, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                    ArrayShape));
   CrystalPtr->SiteCoords = Tmp;
 
   // Corrupt field: Hamiltonian.
@@ -604,13 +607,15 @@ TEST(TBCIStructuralDefectiveObjectTest) {
   // Corrupt field: PositionOp.
   Tmp                    = CrystalPtr->PositionOp;
   CrystalPtr->PositionOp = NULL;
-  ASSERT(!TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                    ArrayShape));
   CrystalPtr->PositionOp = Tmp;
 
   // The repaired object evaluates both kernels again.
   ASSERT(TBCrystalHamiltonian(Crystal, 1, KPoint, 0, 1, Array, 2, ArrayShape));
   ASSERT(creal(Array[0]) == 1.0);
-  ASSERT(TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape));
+  ASSERT(TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                   ArrayShape));
   ASSERT(creal(Array[0]) == 2.0);
 
   FreeTBCrystal(&Crystal);

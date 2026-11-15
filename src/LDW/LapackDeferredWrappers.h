@@ -50,6 +50,10 @@ typedef void (*ZHEEVDSymbol)(void);
  * time.
  *
  * @details
+ * -------------------------------------------------------------------------
+ * MATHEMATICAL PROBLEM
+ * -------------------------------------------------------------------------
+ *
  * For a complex Hermitian matrix A of order N,
  *
  *     A = A^H,
@@ -61,11 +65,15 @@ typedef void (*ZHEEVDSymbol)(void);
  * where W contains the eigenvalues in ascending order and the columns
  * of U are the corresponding orthonormal eigenvectors.
  *
- * Storage is column-major:
+ * The working set is O(Dimension^2).
+ *
+ * -------------------------------------------------------------------------
+ * STORAGE LAYOUT
+ * -------------------------------------------------------------------------
+ *
+ * Inputs and outputs are stored in column-major order:
  *
  *     Matrix(i, j) = Matrix[(i-1) + Dimension * (j-1)].
- *
- * The working set is O(Dimension^2).
  *
  * @param[in] Dimension
  *     Order N of the matrix. N >= 0. Values greater than INT32_MAX are
@@ -89,10 +97,10 @@ typedef void (*ZHEEVDSymbol)(void);
  *     ZHEEVDSymbol. Must not be NULL.
  *
  * @param[out] Info
- *     LAPACK's Status code. 0 on success. A nonzero status from the workspace
- *     query or from the computational call is propagated unchanged. If
- *     Dimension > INT32_MAX, Info is set to INT32_MAX. If Dimension == 0, Info
- *     is 0.
+ *     Status code returned by LAPACK. 0 on success. A nonzero status from
+ *     the workspace query or from the computational call is propagated
+ *     unchanged. If Dimension > INT32_MAX, Info is set to INT32_MAX. If
+ *     Dimension == 0, Info is 0.
  *
  * @note
  * - All pointer arguments are required and must be non-NULL, except
@@ -105,12 +113,13 @@ typedef void (*ZHEEVDSymbol)(void);
  *
  * @see ZHEEVDSymbol
  */
-void DiagHermitian(const size_t         Dimension,
-                   const double complex Matrix[Dimension * Dimension],
-                   double complex       Unitary[Dimension * Dimension],
-                   double               Eigenvalues[Dimension],
-                   const ZHEEVDSymbol   ZHEEVDProcedure,
-                   int                 *Info);
+void HermitianEigendecomposition(const size_t Dimension,
+                                 const double complex
+                                                Matrix[Dimension * Dimension],
+                                 double complex Unitary[Dimension * Dimension],
+                                 double         Eigenvalues[Dimension],
+                                 const ZHEEVDSymbol ZHEEVDProcedure,
+                                 int               *Info);
 
 /**
  * @brief Opaque address of a LAPACK ZGEES implementation.
@@ -138,6 +147,10 @@ typedef void (*ZGEESSymbol)(void);
  * time.
  *
  * @details
+ * -------------------------------------------------------------------------
+ * MATHEMATICAL PROBLEM
+ * -------------------------------------------------------------------------
+ *
  * For a complex matrix A of order N, the routine computes
  *
  *     U^H * A * U = S,   U^H * U = I,
@@ -145,11 +158,15 @@ typedef void (*ZGEESSymbol)(void);
  * where S is the upper triangular Schur form, and the columns
  * of U are the corresponding orthonormal eigenvectors.
  *
- * Storage is column-major:
+ * The working set is O(Dimension^2).
+ *
+ * -------------------------------------------------------------------------
+ * STORAGE LAYOUT
+ * -------------------------------------------------------------------------
+ *
+ * Inputs and outputs are stored in column-major order:
  *
  *     Matrix(i, j) = Matrix[(i-1) + Dimension * (j-1)].
- *
- * The working set is O(Dimension^2).
  *
  * @param[in] Dimension
  *     Order N of the matrix. N >= 0. Values greater than INT32_MAX are
@@ -171,13 +188,13 @@ typedef void (*ZGEESSymbol)(void);
  *
  * @param[in] ZGEESProcedure
  *     Address of a Fortran LAPACK ZGEES implementation. See
- *     ZGEESymbol. Must not be NULL.
+ *     ZGEESSymbol. Must not be NULL.
  *
  * @param[out] Info
- *     LAPACK's Status code. 0 on success. A nonzero status from the workspace
- *     query or from the computational call is propagated unchanged. If
- *     Dimension > INT32_MAX, Info is set to INT32_MAX. If Dimension == 0, Info
- *     is 0.
+ *     Status code returned by LAPACK. 0 on success. A nonzero status from
+ *     the workspace query or from the computational call is propagated
+ *     unchanged. If Dimension > INT32_MAX, Info is set to INT32_MAX. If
+ *     Dimension == 0, Info is 0.
  *
  * @note
  * - All pointer arguments are required and must be non-NULL, except
@@ -188,7 +205,7 @@ typedef void (*ZGEESSymbol)(void);
  * - LDW has no global state. Concurrent calls are safe provided the
  *   supplied ZGEES implementation is thread-safe.
  *
- * @see ZGEESymbol
+ * @see ZGEESSymbol
  */
 void SchurDecomposition(const size_t         Dimension,
                         const double complex Matrix[Dimension * Dimension],
@@ -223,67 +240,75 @@ typedef void (*ZGESDDSymbol)(void);
  * time.
  *
  * @details
- * For a complex DimensionR-by-DimensionC matrix A, the routine computes
+ * -------------------------------------------------------------------------
+ * MATHEMATICAL PROBLEM
+ * -------------------------------------------------------------------------
+ *
+ * For a complex Rows-by-Columns matrix A, the routine computes
  *
  *     U^H * A * V = diag(S),   U^H * U = I, V^H * V = I,
  *
  * where S contains the singular values in ascending order, and the columns
  * of U and V are the corresponding orthonormal left and right singular
- * vectors. For j = 1 .. min(DimensionR, DimensionC), DiagSigma[j-1] pairs
+ * vectors. For j = 1 .. min(Rows, Columns), SingularValues[j-1] pairs
  * with column j of UnitaryU and row j of UnitaryVH; the remaining columns
  * of U and V complete the orthonormal bases.
  *
- * Storage is column-major:
+ * The working set is O(Rows * Columns).
  *
- *     Matrix(i, j) = Matrix[(i-1) + DimensionR * (j-1)].
+ * -------------------------------------------------------------------------
+ * STORAGE LAYOUT
+ * -------------------------------------------------------------------------
  *
- * The working set is O(DimensionR * DimensionC).
+ * Inputs and outputs are stored in column-major order:
  *
- * @param[in] DimensionR
- *     Number of rows of the matrix. DimensionR >= 0. Values greater than
- *     INT32_MAX are rejected; DimensionR = 0 is a valid no-op.
+ *     Matrix(i, j) = Matrix[(i-1) + Rows * (j-1)].
  *
- * @param[in] DimensionC
- *     Number of columns of the matrix. DimensionC >= 0. Values greater than
- *     INT32_MAX are rejected; DimensionC = 0 is a valid no-op.
+ * @param[in] Rows
+ *     Number of rows of the matrix. Rows >= 0. Values greater than
+ *     INT32_MAX are rejected; Rows = 0 is a valid no-op.
+ *
+ * @param[in] Columns
+ *     Number of columns of the matrix. Columns >= 0. Values greater than
+ *     INT32_MAX are rejected; Columns = 0 is a valid no-op.
  *
  * @param[in] Matrix
- *     Input DimensionR-by-DimensionC complex matrix in column-major order.
- *     Matrix is not modified. Must not overlap UnitaryU, DiagSigma, UnitaryVH,
- *     or Info.
+ *     Input Rows-by-Columns complex matrix in column-major order.
+ *     Matrix is not modified. Must not overlap UnitaryU, SingularValues,
+ *     UnitaryVH, or Info.
  *
  * @param[out] UnitaryU
- *     Output DimensionR-by-DimensionR unitary matrix in column-major order.
- *     For j = 1 .. min(DimensionR, DimensionC), column j is the orthonormal
- *     left singular vector associated with DiagSigma[j-1]; the remaining
+ *     Output Rows-by-Rows unitary matrix in column-major order.
+ *     For j = 1 .. min(Rows, Columns), column j is the orthonormal
+ *     left singular vector associated with SingularValues[j-1]; the remaining
  *     columns complete the orthonormal basis. The array is overwritten.
  *
- * @param[out] DiagSigma
- *     Optional output array of min(DimensionR, DimensionC) singular values in
+ * @param[out] SingularValues
+ *     Optional output array of min(Rows, Columns) singular values in
  *     ascending order. May be NULL, in which case the singular values are not
  *     returned.
  *
  * @param[out] UnitaryVH
- *     Output DimensionC-by-DimensionC unitary matrix in column-major order.
- *     For j = 1 .. min(DimensionR, DimensionC), row j is the
+ *     Output Columns-by-Columns unitary matrix in column-major order.
+ *     For j = 1 .. min(Rows, Columns), row j is the
  *     complex-conjugated orthonormal right singular vector associated with
- *     DiagSigma[j-1]; the remaining rows complete the orthonormal basis. The
- *     array is overwritten.
+ *     SingularValues[j-1]; the remaining rows complete the orthonormal basis.
+ *     The array is overwritten.
  *
  * @param[in] ZGESDDProcedure
  *     Address of a Fortran LAPACK ZGESDD implementation. See
  *     ZGESDDSymbol. Must not be NULL.
  *
  * @param[out] Info
- *     LAPACK's Status code. 0 on success. A nonzero status from the workspace
- *     query or from the computational call is propagated unchanged. If either
- *     dimension exceeds INT32_MAX, Info is set to INT32_MAX. If either
- *     dimension is 0, Info is 0.
+ *     Status code returned by LAPACK. 0 on success. A nonzero status from
+ *     the workspace query or from the computational call is propagated
+ *     unchanged. If either dimension exceeds INT32_MAX, Info is set to
+ *     INT32_MAX. If either dimension is 0, Info is 0.
  *
  * @note
  * - All pointer arguments are required and must be non-NULL, except
- *   DiagSigma, which may be NULL.
- * - Matrix, UnitaryU, DiagSigma, UnitaryVH, and Info must not overlap.
+ *   SingularValues, which may be NULL.
+ * - Matrix, UnitaryU, SingularValues, UnitaryVH, and Info must not overlap.
  * - The caller is responsible for the ABI contract of the supplied
  *   symbol: Fortran symbol and calling convention.
  * - This routine returns conjugate(transpose(V)) = V^(-1), not V.
@@ -292,15 +317,15 @@ typedef void (*ZGESDDSymbol)(void);
  *
  * @see ZGESDDSymbol
  */
-void SVDDecomposition(const size_t         DimensionR,
-                      const size_t         DimensionC,
-                      const double complex Matrix[DimensionR * DimensionC],
-                      double complex       UnitaryU[DimensionR * DimensionR],
-                      double               DiagSigma[LDW_MIN(DimensionR,
-                                                             DimensionC)],
-                      double complex       UnitaryVH[DimensionC * DimensionC],
-                      const ZGESDDSymbol   ZGESDDProcedure,
-                      int                 *Info);
+void SVDecomposition(const size_t         Rows,
+                     const size_t         Columns,
+                     const double complex Matrix[Rows * Columns],
+                     double complex       UnitaryU[Rows * Rows],
+                     double               SingularValues[LDW_MIN(Rows,
+                                                                 Columns)],
+                     double complex       UnitaryVH[Columns * Columns],
+                     const ZGESDDSymbol   ZGESDDProcedure,
+                     int                 *Info);
 
 /**
  * @brief Opaque address of a LAPACK ZGGES implementation.
@@ -328,6 +353,10 @@ typedef void (*ZGGESSymbol)(void);
  * time.
  *
  * @details
+ * -------------------------------------------------------------------------
+ * MATHEMATICAL PROBLEM
+ * -------------------------------------------------------------------------
+ *
  * For a pair of complex matrices A, B of order N, the routine computes
  *
  *     U^H * A * V = S,   U^H * B * V = T,
@@ -338,11 +367,15 @@ typedef void (*ZGGESSymbol)(void);
  * of U and V are the corresponding orthonormal left and right
  * eigenvectors.
  *
- * Storage is column-major:
+ * The working set is O(Dimension^2).
+ *
+ * -------------------------------------------------------------------------
+ * STORAGE LAYOUT
+ * -------------------------------------------------------------------------
+ *
+ * Inputs and outputs are stored in column-major order:
  *
  *     Matrix(i, j) = Matrix[(i-1) + Dimension * (j-1)].
- *
- * The working set is O(Dimension^2).
  *
  * @param[in] Dimension
  *     Order N of the matrices. N >= 0. Values greater than INT32_MAX are
@@ -382,10 +415,10 @@ typedef void (*ZGGESSymbol)(void);
  *     Must not be NULL.
  *
  * @param[out] Info
- *     LAPACK's Status code. 0 on success. A nonzero status from the workspace
- *     query or from the computational call is propagated unchanged. If
- *     Dimension > INT32_MAX, Info is set to INT32_MAX. If Dimension == 0, Info
- *     is 0.
+ *     Status code returned by LAPACK. 0 on success. A nonzero status from
+ *     the workspace query or from the computational call is propagated
+ *     unchanged. If Dimension > INT32_MAX, Info is set to INT32_MAX. If
+ *     Dimension == 0, Info is 0.
  *
  * @note
  * - All pointer arguments are required and must be non-NULL, except
@@ -413,11 +446,12 @@ void GeneralizedSchurDecomposition(
 
 /**
  * @brief Identifies degenerate levels in an ascending list of eigenvalues.
+ *
+ * @details
  * Consecutive levels belong to the same group if their difference is
  * less than or equal to DegeneracyThreshold.
  *
- * @details
- *     Degeneracy propagates transitively along consecutive levels.
+ * Degeneracy propagates transitively along consecutive levels.
  * If Degeneracies[i] = N, then Eigenvalues[i:i+N-1] forms a degenerate group.
  * The first element of each group stores the group size;
  * the remaining ones are zero.
@@ -439,9 +473,9 @@ void GeneralizedSchurDecomposition(
  * - All pointer arguments are required and must be non-NULL. If any is
  *   NULL, the function returns immediately.
  */
-void DegeneracyGroup(const size_t Dimension,
-                     const double Eigenvalues[Dimension],
-                     const double DegeneracyThreshold,
-                     size_t       Degeneracies[Dimension]);
+void DegeneracyGrouping(const size_t Dimension,
+                        const double Eigenvalues[Dimension],
+                        const double DegeneracyThreshold,
+                        size_t       Degeneracies[Dimension]);
 
 #endif

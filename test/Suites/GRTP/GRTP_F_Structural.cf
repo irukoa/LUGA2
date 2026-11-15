@@ -90,7 +90,7 @@ TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMulOverflow)
   !Nothing was written: the failure happens before the C entry point is reached.
   ASSERT(all(Path == 42_C_SIZE_T))
   ASSERT(Count == 99_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Forward%Free()
   ASSERT(.not.Forward%Initialized())
@@ -162,7 +162,7 @@ TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMallocFailure)
   !Nothing was written either.
   ASSERT(all(Path == 42_C_SIZE_T))
   ASSERT(Count == 99_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
   !The allocator resets itself when it fires, so repeating the call now succeeds
   !and proves that the rejected run left both workspaces in working order.
@@ -176,7 +176,7 @@ TEST_EF(StructuralCtx, GRTPStructuralBidirectionalMallocFailure)
   ASSERT(Path(1) == 0_C_SIZE_T)
   ASSERT(Path(3) == 3_C_SIZE_T)
   ASSERT((Path(2) == 1_C_SIZE_T) .or. (Path(2) == 2_C_SIZE_T))
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Forward%Free()
   ASSERT(.not.Forward%Initialized())
@@ -250,7 +250,7 @@ TEST_EF(StructuralCtx, GRTPStructuralBidirectionalNominal)
   ASSERT(Path(1) == 0_C_SIZE_T)
   ASSERT(Path(3) == 3_C_SIZE_T)
   ASSERT((Path(2) == 1_C_SIZE_T) .or. (Path(2) == 2_C_SIZE_T))
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !Only the first Count entries belong to the path: the tail stays untouched.
   ASSERT(Path(4) == 42_C_SIZE_T)
@@ -269,7 +269,7 @@ TEST_EF(StructuralCtx, GRTPStructuralBidirectionalNominal)
 
   ASSERT_X(Success)
   ASSERT(Count == 3_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Forward%Free()
   ASSERT(.not.Forward%Initialized())

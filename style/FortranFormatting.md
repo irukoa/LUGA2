@@ -58,12 +58,12 @@ The rules are derived from the corpus itself and mirror the options of `.clang-f
 - `&` closes the line, and a comma precedes it when the statement is a list:
 
 ```fortran
-    call DiagHermitian(Dimension = Dimension, &
-                       Matrix = MatrixFPtr, &
-                       Unitary = UnitaryFPtr, &
-                       Eigenvalues = EigenvaluesFPtr, &
-                       ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
-                       Info = InfoFPtr)
+    call HermitianEigendecomposition(Dimension = Dimension, &
+                                     Matrix = MatrixFPtr, &
+                                     Unitary = UnitaryFPtr, &
+                                     Eigenvalues = EigenvaluesFPtr, &
+                                     ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
+                                     Info = InfoFPtr)
 ```
 
 - A continued line is aligned one column after the opening bracket it continues, so the items line up under the first item of the list.
@@ -212,10 +212,10 @@ Three kinds of comment exist; the marker identifies the kind.
 
 ```fortran
   !< Sentinel value representing the distance to an unreachable vertex.
-  !< Used by shortest-path algorithms to indicate that no parent vertex
-  !< exists for a particular vertex.
+  !< Used by shortest-path algorithms to indicate that no path from the
+  !< source vertex exists.
   !< Values are provided by the C implementation.
-  real(C_DOUBLE), protected, bind(C, name="C_INFINITY"), public :: INFINITY
+  real(C_DOUBLE), protected, bind(C, name="C_INFINITY"), public :: UnreachableDistance
 ```
 
 - `!Note:` — a behavioural note attached to an interface or a procedure. The continuation of a note is indented so that its text starts under the text of the `!Note:` line:
@@ -235,6 +235,10 @@ Other rules:
 - A trailing comment is separated from the code by exactly one space: `CCtx = ContextData !Unused.`
 - Comments end with a period and use sentence case.
 - Comment blocks never contain a line with a trailing space, and the `!` column of a block never moves.
+- The documentation block of a header (`.h`) carries, in Doxygen form, the content of the `!<` block of the corresponding `.M90` interface:
+  - `@brief` holds one or two sentences: what the routine does and, when the implementation is supplied at run time, the notice that the caller provides it. Everything else goes in `@details`, which directly follows it; `@param`, `@return` or `@retval`, `@note` and `@see` come afterwards, in that order.
+  - The prose of `@brief` and `@details` starts in the first column of the comment, like the prose of a `!<` block; the description of a `@param` or of a `@return` is indented by four spaces under its tag.
+  - A `@details` that covers more than one topic is split by the section banners of the `.M90` blocks (`MATHEMATICAL PROBLEM`, `STORAGE LAYOUT`, `NUMERICAL METHOD`, `ACCURACY`, `ARRAY LAYOUT`, `NOTES`): the row of dashes, the title in upper case, the row of dashes, and one blank ` *` line on each side. A block that documents a single topic carries no banner, as in `src/GRTP/GraphUtilities.h`.
 
 ## 10. Exemptions
 
@@ -260,3 +264,5 @@ python3 style/FortranStyleCheck.py --rules            # list the rules
 The checker reads `.M90` and `.F90` as Fortran; in a `.cf` suite it reads the Fortran bodies of the `#ifdef TSD_FORTRAN_IMPL` regions and leaves the C part and the framework macros to `clang-format`. The weak rules (the 80-column limit, the period of a comment) are warnings: they are reported but do not change the exit status. The exit status is 0 when no violation is found.
 
 `--fix` applies the rewrites that have a single answer: the alignment of the continuations, of the `::` and attribute columns, of the assignment operators and of the keywords of a continued call; the spacing of the operators and separators; the one-line form of `if (...)`; `endif` and `enddo`; the comment markers; the trailing whitespace and the blank lines. It never renames an identifier, never re-breaks a line and never touches a construct of section 10, so running it twice changes nothing; review the diff anyway, because a fix can move a comment or expose a line that a human should re-wrap.
+
+The `.h` files are only half checked. `clang-format` fixes their code and, with `ReflowComments: Always` and `ColumnLimit: 80`, rewraps the prose of a comment at the column limit; it also keeps a description on its own line under its tag. It does not re-indent what it finds inside a comment, so the four spaces of a description under a `@param`, the rows of a section banner and the column where the prose of `@brief` and `@details` starts are not enforced by anything: they are conventions of this guide that a reviewer checks. Keep an eye on them when a block is edited, because no tool will repair them.

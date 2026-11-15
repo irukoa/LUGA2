@@ -10,7 +10,7 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
   contains
 
-  module procedure DiagHermitian_C
+  module procedure HermitianEigendecomposition_C
     complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
     complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryFPtr(:, :)
     real(C_DOUBLE),             pointer :: EigenvaluesFPtr(:)
@@ -65,21 +65,21 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     InfoFPtr = 0_C_INT
 
     if (StoreValues) then
-      call DiagHermitian(Dimension = Dimension, &
-                         Matrix = MatrixFPtr, &
-                         Unitary = UnitaryFPtr, &
-                         Eigenvalues = EigenvaluesFPtr, &
-                         ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
-                         Info = InfoFPtr)
+      call HermitianEigendecomposition(Dimension = Dimension, &
+                                       Matrix = MatrixFPtr, &
+                                       Unitary = UnitaryFPtr, &
+                                       Eigenvalues = EigenvaluesFPtr, &
+                                       ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
+                                       Info = InfoFPtr)
     else
-      call DiagHermitian(Dimension = Dimension, &
-                         Matrix = MatrixFPtr, &
-                         Unitary = UnitaryFPtr, &
-                         ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
-                         Info = InfoFPtr)
+      call HermitianEigendecomposition(Dimension = Dimension, &
+                                       Matrix = MatrixFPtr, &
+                                       Unitary = UnitaryFPtr, &
+                                       ZHEEVDProcedure = ZHEEVDProcedureFPtr, &
+                                       Info = InfoFPtr)
     endif
 
-  end procedure DiagHermitian_C
+  end procedure HermitianEigendecomposition_C
 
   module procedure SchurDecomposition_C
     complex(C_DOUBLE_COMPLEX), pointer :: MatrixFPtr(:, :)
@@ -152,10 +152,10 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
   end procedure SchurDecomposition_C
 
-  module procedure SVDDecomposition_C
+  module procedure SVDecomposition_C
     complex(C_DOUBLE_COMPLEX),  pointer :: MatrixFPtr(:, :)
     complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryUFPtr(:, :)
-    real(C_DOUBLE),             pointer :: DiagSigmaFPtr(:)
+    real(C_DOUBLE),             pointer :: SingularValuesFPtr(:)
     complex(C_DOUBLE_COMPLEX),  pointer :: UnitaryVHFPtr(:, :)
     procedure(ZGESDDInterface), pointer :: ZGESDDProcedureFPtr
     integer(C_INT),             pointer :: InfoFPtr
@@ -165,8 +165,8 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
                        InfoFPtr)
-      if ((DimensionR > int(huge(1_INT32), C_SIZE_T)) .or. &
-          (DimensionC > int(huge(1_INT32), C_SIZE_T))) then
+      if ((Rows > int(huge(1_INT32), C_SIZE_T)) .or. &
+          (Columns > int(huge(1_INT32), C_SIZE_T))) then
         InfoFPtr = int(huge(1_INT32), C_INT)
         return
       endif
@@ -177,7 +177,7 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(Matrix)) then
       call C_F_POINTER(Matrix, &
                        MatrixFPtr, &
-                       [DimensionR, DimensionC])
+                       [Rows, Columns])
     else
       return
     endif
@@ -185,15 +185,15 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(UnitaryU)) then
       call C_F_POINTER(UnitaryU, &
                        UnitaryUFPtr, &
-                       [DimensionR, DimensionR])
+                       [Rows, Rows])
     else
       return
     endif
 
-    if (C_ASSOCIATED(DiagSigma)) then
-      call C_F_POINTER(DiagSigma, &
-                       DiagSigmaFPtr, &
-                       [min(DimensionR, DimensionC)])
+    if (C_ASSOCIATED(SingularValues)) then
+      call C_F_POINTER(SingularValues, &
+                       SingularValuesFPtr, &
+                       [min(Rows, Columns)])
       StoreValues = .true.
     else
       StoreValues = .false.
@@ -202,7 +202,7 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(UnitaryVH)) then
       call C_F_POINTER(UnitaryVH, &
                        UnitaryVHFPtr, &
-                       [DimensionC, DimensionC])
+                       [Columns, Columns])
     else
       return
     endif
@@ -217,25 +217,25 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     InfoFPtr = 0_C_INT
 
     if (StoreValues) then
-      call SVDDecomposition(DimensionR = DimensionR, &
-                            DimensionC = DimensionC, &
-                            Matrix = MatrixFPtr, &
-                            UnitaryU = UnitaryUFPtr, &
-                            DiagSigma = DiagSigmaFPtr, &
-                            UnitaryVH = UnitaryVHFPtr, &
-                            ZGESDDProcedure = ZGESDDProcedureFPtr, &
-                            Info = InfoFPtr)
+      call SVDecomposition(Rows = Rows, &
+                           Columns = Columns, &
+                           Matrix = MatrixFPtr, &
+                           UnitaryU = UnitaryUFPtr, &
+                           SingularValues = SingularValuesFPtr, &
+                           UnitaryVH = UnitaryVHFPtr, &
+                           ZGESDDProcedure = ZGESDDProcedureFPtr, &
+                           Info = InfoFPtr)
     else
-      call SVDDecomposition(DimensionR = DimensionR, &
-                            DimensionC = DimensionC, &
-                            Matrix = MatrixFPtr, &
-                            UnitaryU = UnitaryUFPtr, &
-                            UnitaryVH = UnitaryVHFPtr, &
-                            ZGESDDProcedure = ZGESDDProcedureFPtr, &
-                            Info = InfoFPtr)
+      call SVDecomposition(Rows = Rows, &
+                           Columns = Columns, &
+                           Matrix = MatrixFPtr, &
+                           UnitaryU = UnitaryUFPtr, &
+                           UnitaryVH = UnitaryVHFPtr, &
+                           ZGESDDProcedure = ZGESDDProcedureFPtr, &
+                           Info = InfoFPtr)
     endif
 
-  end procedure SVDDecomposition_C
+  end procedure SVDecomposition_C
 
   module procedure GeneralizedSchurDecomposition_C
     complex(C_DOUBLE_COMPLEX),  pointer :: MatrixAFPtr(:, :)
@@ -364,7 +364,7 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
 
   end procedure GeneralizedSchurDecomposition_C
 
-  module procedure DegeneracyGroup_C
+  module procedure DegeneracyGrouping_C
     real(C_DOUBLE),    pointer :: EigenvaluesFPtr(:)
     integer(C_SIZE_T), pointer :: DegeneraciesFPtr(:)
 
@@ -384,11 +384,11 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
       return
     endif
 
-    call DegeneracyGroup(Dimension = Dimension, &
-                         Eigenvalues = EigenvaluesFPtr, &
-                         DegeneracyThreshold = DegeneracyThreshold, &
-                         Degeneracies = DegeneraciesFPtr)
+    call DegeneracyGrouping(Dimension = Dimension, &
+                            Eigenvalues = EigenvaluesFPtr, &
+                            DegeneracyThreshold = DegeneracyThreshold, &
+                            Degeneracies = DegeneraciesFPtr)
 
-  end procedure DegeneracyGroup_C
+  end procedure DegeneracyGrouping_C
 
 end submodule LDW_C_Interfaces

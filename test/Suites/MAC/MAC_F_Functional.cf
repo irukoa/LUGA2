@@ -15,7 +15,7 @@ TEST_E(MACFortranTypeCopyOwnership)
 
   ShapeVector = int([1, 2, 3], C_SIZE_T)
 
-  call ContainerA%Specify(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  call ContainerA%New(Shape = ShapeVector, Layout = COLUMN_MAJOR)
   ASSERT_X(ContainerA%Initialized())
 
   ContainerB = ContainerA
@@ -53,7 +53,7 @@ TEST_E(MACFortranNominalColumnMajor)
 
   ShapeVector = int([1, 2, 3], C_SIZE_T)
 
-  call Container%Specify(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  call Container%New(Shape = ShapeVector, Layout = COLUMN_MAJOR)
   ASSERT_X(Container%Initialized())
 
   ASSERT(Container%Rank() == 3)
@@ -92,7 +92,7 @@ TEST_E(MACFortranNominalRowMajor)
 
   ShapeVector = int([1, 2, 3], C_SIZE_T)
 
-  call Container%Specify(Shape = ShapeVector, Layout = ROW_MAJOR)
+  call Container%New(Shape = ShapeVector, Layout = ROW_MAJOR)
   ASSERT_X(Container%Initialized())
 
   ASSERT(Container%Rank() == 3)
@@ -140,25 +140,25 @@ TEST_E(MACFortranLayoutSpecification)
 
   ShapeVector = int([1, 2, 3], C_SIZE_T)
 
-  call Container%Specify(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  call Container%New(Shape = ShapeVector, Layout = COLUMN_MAJOR)
   ASSERT_X(Container%Initialized())
   ASSERT(Container%Layout() == COLUMN_MAJOR)
   call Container%Free()
   ASSERT(.not.Container%Initialized())
 
-  call Container%Specify(Shape = ShapeVector, Layout = ROW_MAJOR)
+  call Container%New(Shape = ShapeVector, Layout = ROW_MAJOR)
   ASSERT_X(Container%Initialized())
   ASSERT(Container%Layout() == ROW_MAJOR)
   call Container%Free()
   ASSERT(.not.Container%Initialized())
 
-  call Container%Specify(Shape = ShapeVector, Layout = ROW_MAJOR + 1_MACLayout)
+  call Container%New(Shape = ShapeVector, Layout = ROW_MAJOR + 1_MACLayout)
   ASSERT_X(Container%Initialized())
   ASSERT(Container%Layout() == COLUMN_MAJOR)
   call Container%Free()
   ASSERT(.not.Container%Initialized())
 
-  call Container%Specify(Shape = ShapeVector)
+  call Container%New(Shape = ShapeVector)
   ASSERT_X(Container%Initialized())
   ASSERT(Container%Layout() == COLUMN_MAJOR)
   call Container%Free()

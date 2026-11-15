@@ -63,9 +63,9 @@ module LapackDeferredWrappers
     end subroutine ZHEEVDInterface
   end interface
 
-  !< DiagHermitian computes the eigenvalues and orthonormal eigenvectors
-  !< of a complex Hermitian matrix. The LAPACK ZHEEVD implementation is
-  !< supplied by the caller at run time.
+  !< HermitianEigendecomposition computes the eigenvalues and orthonormal
+  !< eigenvectors of a complex Hermitian matrix. The LAPACK ZHEEVD
+  !< implementation is supplied by the caller at run time.
   !<
   !< -------------------------------------------------------------------------
   !< MATHEMATICAL PROBLEM
@@ -92,11 +92,11 @@ module LapackDeferredWrappers
   !< ZHEEVDInterface.
   !<
   !< -------------------------------------------------------------------------
-  !< Info
+  !< INFO CONVENTION
   !< -------------------------------------------------------------------------
   !<
-  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
-  !< query or from the computational call is propagated unchanged.
+  !< Status code returned by LAPACK. 0 on success. A nonzero status from the
+  !< workspace query or from the computational call is propagated unchanged.
   !< If Dimension > huge(1_INT32), Info is set to huge(1_INT32).
   !< If Dimension == 0, Info is 0.
   !<
@@ -109,21 +109,21 @@ module LapackDeferredWrappers
   !<   the supplied ZHEEVD implementation is thread-safe.
   !<
   interface
-    module subroutine DiagHermitian(Dimension, Matrix, &
-                                    Unitary, Eigenvalues, &
-                                    ZHEEVDProcedure, &
-                                    Info)
+    module subroutine HermitianEigendecomposition(Dimension, Matrix, &
+                                                  Unitary, Eigenvalues, &
+                                                  ZHEEVDProcedure, &
+                                                  Info)
       integer(C_SIZE_T),          intent(in)            :: Dimension
       complex(C_DOUBLE_COMPLEX),  intent(in)            :: Matrix(Dimension, Dimension)
       complex(C_DOUBLE_COMPLEX),  intent(out)           :: Unitary(Dimension, Dimension)
       real(C_DOUBLE),             intent(out), optional :: Eigenvalues(Dimension)
       procedure(ZHEEVDInterface)                        :: ZHEEVDProcedure
       integer(C_INT),             intent(out)           :: Info
-    end subroutine DiagHermitian
+    end subroutine HermitianEigendecomposition
   end interface
 
   public :: ZHEEVDInterface
-  public :: DiagHermitian
+  public :: HermitianEigendecomposition
 
   abstract interface
     !< Abstract interface for the reference LAPACK ZGEES routine.
@@ -192,11 +192,11 @@ module LapackDeferredWrappers
   !< ZGEESInterface.
   !<
   !< -------------------------------------------------------------------------
-  !< Info
+  !< INFO CONVENTION
   !< -------------------------------------------------------------------------
   !<
-  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
-  !< query or from the computational call is propagated unchanged.
+  !< Status code returned by LAPACK. 0 on success. A nonzero status from the
+  !< workspace query or from the computational call is propagated unchanged.
   !< If Dimension > huge(1_INT32), Info is set to huge(1_INT32).
   !< If Dimension == 0, Info is 0.
   !<
@@ -261,7 +261,7 @@ module LapackDeferredWrappers
     end subroutine ZGESDDInterface
   end interface
 
-  !< SVDDecomposition computes the singular value decomposition of a
+  !< SVDecomposition computes the singular value decomposition (SVD) of a
   !< complex matrix. The LAPACK ZGESDD implementation is supplied by the
   !< caller at run time.
   !<
@@ -269,17 +269,17 @@ module LapackDeferredWrappers
   !< MATHEMATICAL PROBLEM
   !< -------------------------------------------------------------------------
   !<
-  !< For a complex DimensionR-by-DimensionC matrix A, the routine computes
+  !< For a complex Rows-by-Columns matrix A, the routine computes
   !<
   !<     U^H * A * V = diag(S),   U^H * U = I, V^H * V = I,
   !<
   !< where S contains the singular values in ascending order, and the columns
   !< of U and V are the corresponding orthonormal left and right singular
-  !< vectors. For j = 1 .. min(DimensionR, DimensionC), DiagSigma(j) pairs
+  !< vectors. For j = 1 .. min(Rows, Columns), SingularValues(j) pairs
   !< with column j of UnitaryU and row j of UnitaryVH; the remaining columns
   !< of U and V complete the orthonormal bases.
   !<
-  !< The working set is O(DimensionR * DimensionC).
+  !< The working set is O(Rows * Columns).
   !<
   !< -------------------------------------------------------------------------
   !< DEFERRED LAPACK BINDING AND ABI CONTRACT
@@ -289,11 +289,11 @@ module LapackDeferredWrappers
   !< ZGESDDInterface.
   !<
   !< -------------------------------------------------------------------------
-  !< Info
+  !< INFO CONVENTION
   !< -------------------------------------------------------------------------
   !<
-  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
-  !< query or from the computational call is propagated unchanged.
+  !< Status code returned by LAPACK. 0 on success. A nonzero status from the
+  !< workspace query or from the computational call is propagated unchanged.
   !< If either dimension exceeds huge(1_INT32), Info is set to huge(1_INT32).
   !< If either dimension is 0, Info is 0.
   !<
@@ -301,29 +301,29 @@ module LapackDeferredWrappers
   !< NOTES
   !< -------------------------------------------------------------------------
   !<
-  !< - UnitaryU, DiagSigma and UnitaryVH are valid only when Info == 0.
+  !< - UnitaryU, SingularValues and UnitaryVH are valid only when Info == 0.
   !< - This routine returns conjugate(transpose(V)) = V^(-1), not V.
   !< - The routine has no global state. Concurrent calls are safe provided
   !<   the supplied ZGESDD implementation is thread-safe.
   !<
   interface
-    module subroutine SVDDecomposition(DimensionR, DimensionC, Matrix, &
-                                       UnitaryU, DiagSigma, UnitaryVH, &
-                                       ZGESDDProcedure, &
-                                       Info)
-      integer(C_SIZE_T),         intent(in)            :: DimensionR
-      integer(C_SIZE_T),         intent(in)            :: DimensionC
-      complex(C_DOUBLE_COMPLEX), intent(in)            :: Matrix(DimensionR, DimensionC)
-      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryU(DimensionR, DimensionR)
-      real(C_DOUBLE),            intent(out), optional :: DiagSigma(min(DimensionR, DimensionC))
-      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryVH(DimensionC, DimensionC)
+    module subroutine SVDecomposition(Rows, Columns, Matrix, &
+                                      UnitaryU, SingularValues, UnitaryVH, &
+                                      ZGESDDProcedure, &
+                                      Info)
+      integer(C_SIZE_T),         intent(in)            :: Rows
+      integer(C_SIZE_T),         intent(in)            :: Columns
+      complex(C_DOUBLE_COMPLEX), intent(in)            :: Matrix(Rows, Columns)
+      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryU(Rows, Rows)
+      real(C_DOUBLE),            intent(out), optional :: SingularValues(min(Rows, Columns))
+      complex(C_DOUBLE_COMPLEX), intent(out)           :: UnitaryVH(Columns, Columns)
       procedure(ZGESDDInterface)                       :: ZGESDDProcedure
       integer(C_INT),            intent(out)           :: Info
-    end subroutine SVDDecomposition
+    end subroutine SVDecomposition
   end interface
 
   public :: ZGESDDInterface
-  public :: SVDDecomposition
+  public :: SVDecomposition
 
   abstract interface
     !< Abstract interface for the reference LAPACK ZGGES routine.
@@ -402,11 +402,11 @@ module LapackDeferredWrappers
   !< ZGGESInterface.
   !<
   !< -------------------------------------------------------------------------
-  !< Info
+  !< INFO CONVENTION
   !< -------------------------------------------------------------------------
   !<
-  !< LAPACKs Status code. 0 on success. A nonzero status from the workspace
-  !< query or from the computational call is propagated unchanged.
+  !< Status code returned by LAPACK. 0 on success. A nonzero status from the
+  !< workspace query or from the computational call is propagated unchanged.
   !< If Dimension exceeds huge(1_INT32), Info is set to huge(1_INT32).
   !< If Dimension == 0, Info is 0.
   !<
@@ -443,28 +443,30 @@ module LapackDeferredWrappers
   !< Identifies degenerate levels in an ascending list of eigenvalues.
   !< Consecutive levels belong to the same group if their difference is
   !< less than or equal to DegeneracyThreshold.
+  !<
   !< Degeneracy propagates transitively along consecutive levels.
   !< If Degeneracies(i) = N, then Eigenvalues(i:i+N-1) forms a degenerate
   !< group.
+  !<
   !< The first element of each group stores the group size;
   !< the remaining ones are zero.
   !< DegeneracyThreshold <= 0 is a no-op.
   !<
   interface
-    pure module subroutine DegeneracyGroup(Dimension, &
-                                           Eigenvalues, &
-                                           DegeneracyThreshold, &
-                                           Degeneracies)
+    pure module subroutine DegeneracyGrouping(Dimension, &
+                                              Eigenvalues, &
+                                              DegeneracyThreshold, &
+                                              Degeneracies)
       integer(C_SIZE_T), intent(in)  :: Dimension
       real(C_DOUBLE),    intent(in)  :: Eigenvalues(Dimension)
       real(C_DOUBLE),    intent(in)  :: DegeneracyThreshold
       integer(C_SIZE_T), intent(out) :: Degeneracies(Dimension)
-    end subroutine DegeneracyGroup
+    end subroutine DegeneracyGrouping
   end interface
 
-  public :: DegeneracyGroup
+  public :: DegeneracyGrouping
 
-  !< DiagHermitian, as called from C.
+  !< HermitianEigendecomposition, as called from C.
   !<
   !< Matrix, Unitary and Eigenvalues are C pointers to Dimension-sized
   !< arrays; Info receives the LAPACK error code, and a dimension that does
@@ -472,9 +474,9 @@ module LapackDeferredWrappers
   !< wrapper return without touching the other arguments.
   !<
   interface
-    module subroutine DiagHermitian_C(Dimension, Matrix, Unitary, &
-                                      Eigenvalues, ZHEEVDProcedure, Info) &
-      bind(C, name="DiagHermitian")
+    module subroutine HermitianEigendecomposition_C(Dimension, Matrix, Unitary, &
+                                                    Eigenvalues, ZHEEVDProcedure, Info) &
+      bind(C, name="HermitianEigendecomposition")
       use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
                                              C_FUNPTR
 
@@ -484,14 +486,14 @@ module LapackDeferredWrappers
       type(C_PTR),       intent(in), value :: Eigenvalues
       type(C_FUNPTR),    intent(in), value :: ZHEEVDProcedure
       type(C_PTR),       intent(in), value :: Info
-    end subroutine DiagHermitian_C
+    end subroutine HermitianEigendecomposition_C
   end interface
 
   !< SchurDecomposition, as called from C.
   !<
   !< Unitary receives the Schur vectors when it is associated, while
   !< SchurForm is the triangular factor. Null pointers behave as in
-  !< DiagHermitian_C.
+  !< HermitianEigendecomposition_C.
   !<
   interface
     module subroutine SchurDecomposition_C(Dimension, Matrix, Unitary, &
@@ -510,37 +512,37 @@ module LapackDeferredWrappers
     end subroutine SchurDecomposition_C
   end interface
 
-  !< SVDDecomposition, as called from C.
+  !< SVDecomposition, as called from C.
   !<
-  !< Matrix is a DimensionR by DimensionC C array; DiagSigma receives the
-  !< smallest of the two dimensions singular values, while UnitaryU and
-  !< UnitaryVH receive the unitary factors when they are associated. Null
-  !< pointers behave as in DiagHermitian_C.
+  !< Matrix is a Rows-by-Columns C array; SingularValues receives
+  !< min(Rows, Columns) singular values, while UnitaryU and UnitaryVH receive
+  !< the unitary factors when they are associated. Null pointers behave as in
+  !< HermitianEigendecomposition_C.
   !<
   interface
-    module subroutine SVDDecomposition_C(DimensionR, DimensionC, Matrix, &
-                                         UnitaryU, DiagSigma, UnitaryVH, &
-                                         ZGESDDProcedure, Info) &
-      bind(C, name="SVDDecomposition")
+    module subroutine SVDecomposition_C(Rows, Columns, Matrix, &
+                                        UnitaryU, SingularValues, UnitaryVH, &
+                                        ZGESDDProcedure, Info) &
+      bind(C, name="SVDecomposition")
       use, intrinsic :: ISO_C_BINDING, only: C_PTR, &
                                              C_FUNPTR
 
-      integer(C_SIZE_T), intent(in), value :: DimensionR
-      integer(C_SIZE_T), intent(in), value :: DimensionC
+      integer(C_SIZE_T), intent(in), value :: Rows
+      integer(C_SIZE_T), intent(in), value :: Columns
       type(C_PTR),       intent(in), value :: Matrix
       type(C_PTR),       intent(in), value :: UnitaryU
-      type(C_PTR),       intent(in), value :: DiagSigma
+      type(C_PTR),       intent(in), value :: SingularValues
       type(C_PTR),       intent(in), value :: UnitaryVH
       type(C_FUNPTR),    intent(in), value :: ZGESDDProcedure
       type(C_PTR),       intent(in), value :: Info
-    end subroutine SVDDecomposition_C
+    end subroutine SVDecomposition_C
   end interface
 
   !< GeneralizedSchurDecomposition, as called from C.
   !<
   !< UnitaryU and UnitaryVH receive the unitary factors when they are associated,
   !< while EigenvaluesA/B are the generalized eigenvalues.
-  !< Null pointers behave as in DiagHermitian_C.
+  !< Null pointers behave as in HermitianEigendecomposition_C.
   interface
     module subroutine GeneralizedSchurDecomposition_C(Dimension, MatrixA, MatrixB, &
                                                       UnitaryU, EigenvaluesA, EigenvaluesB, UnitaryVH, &
@@ -562,23 +564,23 @@ module LapackDeferredWrappers
     end subroutine GeneralizedSchurDecomposition_C
   end interface
 
-  !< DegeneracyGroup, as called from C.
+  !< DegeneracyGrouping, as called from C.
   !<
   !< Eigenvalues is a C array of Dimension doubles and Degeneracies
   !< receives, for each eigenvalue, the index of the group it belongs to.
   !< Either pointer being null makes the wrapper return immediately.
   !<
   interface
-    module subroutine DegeneracyGroup_C(Dimension, Eigenvalues, &
-                                        DegeneracyThreshold, Degeneracies) &
-      bind(C, name="DegeneracyGroup")
+    module subroutine DegeneracyGrouping_C(Dimension, Eigenvalues, &
+                                           DegeneracyThreshold, Degeneracies) &
+      bind(C, name="DegeneracyGrouping")
       use, intrinsic :: ISO_C_BINDING, only: C_PTR
 
       integer(C_SIZE_T), intent(in), value :: Dimension
       type(C_PTR),       intent(in), value :: Eigenvalues
       real(C_DOUBLE),    intent(in), value :: DegeneracyThreshold
       type(C_PTR),       intent(in), value :: Degeneracies
-    end subroutine DegeneracyGroup_C
+    end subroutine DegeneracyGrouping_C
   end interface
 
 end module LapackDeferredWrappers

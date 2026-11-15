@@ -746,6 +746,25 @@ def alignment_blocks(statements: list[Statement]) -> list[list[Statement]]:
     return blocks
 
 
+def diagram_lines(views: list[LineView]) -> set[int]:
+    """Return the numbers of the lines of the ASCII diagrams of a file (section 10).
+
+    A block of comment lines that draws a row of dashes or a vertical bar is a
+    diagram, whose spacing is part of the drawing and is left alone.
+    """
+    diagrams: set[int] = set()
+    block: list[LineView] = []
+    for view in [*views, None]:
+        if view is None or not view.fortran or view.blank or not view.comment:
+            text = " ".join(item.comment[1:].strip() for item in block)
+            if "-----" in text or "|" in text:
+                diagrams.update(item.number for item in block)
+            block = []
+            continue
+        block.append(view)
+    return diagrams
+
+
 class Checker:
     """Report the violations of the formatting guide in one file."""
 
@@ -1124,6 +1143,7 @@ class Checker:
     def comments(self) -> None:
         anchor = 0
         block: list[LineView] = []
+        diagrams = diagram_lines(self.views)
         for view in self.views:
             if not view.fortran or view.blank or not view.comment:
                 if block:
@@ -1142,7 +1162,12 @@ class Checker:
                         "doc/doc-space",
                         "a documentation comment keeps one space after !<",
                     )
-            elif len(comment) > 1 and comment[1] == " " and not comment.startswith("!  "):
+            elif (
+                len(comment) > 1
+                and comment[1] == " "
+                and not comment.startswith("!  ")
+                and view.number not in diagrams
+            ):
                 self.report(
                     view.number,
                     "doc/dash-space",
@@ -1388,6 +1413,7 @@ def fix_keyword_equalities(lines: list[str], statement: Statement) -> bool:
 def fix_lines(lines: list[str], fortran: list[bool]) -> bool:
     """Apply the mechanical rewrites of the guide to the Fortran lines."""
     changed = False
+    diagrams = diagram_lines(views_of(lines, fortran))
     for index, text in enumerate(lines):
         if not fortran[index]:
             continue
@@ -1397,7 +1423,7 @@ def fix_lines(lines: list[str], fortran: list[bool]) -> bool:
         rewritten = re.sub(r"\bend\s+do\b", "enddo", rewritten)
         rewritten = CONTROL_PAREN.sub(r"\1 (", rewritten)
         if comment.startswith("!") and not comment.startswith(("!$", "!<", "!  ")):
-            if comment.startswith("! "):
+            if comment.startswith("! ") and index + 1 not in diagrams:
                 comment = "!" + comment[2:]
         elif comment.startswith("!<") and len(comment) > 2 and comment[2] not in " <":
             comment = "!< " + comment[2:]

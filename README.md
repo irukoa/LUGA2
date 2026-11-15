@@ -40,7 +40,7 @@ Enabling OpenMP adds a runtime dependency on the OpenMP runtime (e.g. `libgomp`)
 
 Deferred LAPACK wrappers: LAPACK procedures are supplied by the application at runtime rather than linked into LUGA2.
 
-Provides Hermitian diagonalization (`DiagHermitian`), Schur decomposition (`SchurDecomposition`), singular value decomposition (`SVDDecomposition`), and generalized Schur decomposition (`GeneralizedSchurDecomposition`) through a caller-supplied `ZHEEVD`/`ZGEES`/`ZGESDD`/`ZGGES` procedure, and consecutive eigenvalue grouping (`DegeneracyGroup`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
+Provides Hermitian diagonalization (`HermitianEigendecomposition`), Schur decomposition (`SchurDecomposition`), singular value decomposition (`SVDecomposition`), and generalized Schur decomposition (`GeneralizedSchurDecomposition`) through a caller-supplied `ZHEEVD`/`ZGEES`/`ZGESDD`/`ZGGES` procedure, and consecutive eigenvalue grouping (`DegeneracyGrouping`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
 
 ## Graph Topologies and Shortest-path Algorithms (GRTP)
 
@@ -63,7 +63,7 @@ $$
 H(\textbf{k}) = \sum_{R}H(\textbf{R})e^{i\textbf{k}\textbf{R}}, \qquad A^j(\textbf{k}) = \sum_{R}A^j(\textbf{R})e^{i\textbf{k}\textbf{R}}.
 $$
 
-`TBCrystalHamiltonian` and `TBPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
+`TBCrystalHamiltonian` and `TBCrystalPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
 
 # Building and Installation
 
