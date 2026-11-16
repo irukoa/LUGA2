@@ -65,6 +65,22 @@ $$
 
 `TBCrystalHamiltonian` and `TBCrystalPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
 
+## Functional Optimization Algorithms (FOA)
+
+`BisectionRootFinding` locates a sign change of an objective function $f(\textbf{x})$ ($\mathbb{R}^n\to\mathbb{R}$) on the segment
+
+$$
+\textbf{x}(t) = \textbf{a} + t\left(\textbf{b} - \textbf{a}\right), \qquad t \in [0, 1],
+$$
+
+and returns the point at which the sign changes. Every iteration evaluates the objective at the midpoint of the current bracket and keeps the half which still holds the sign change, so after $k$ halvings the returned point lies within $|\textbf{b} - \textbf{a}| / 2^k$ of a sign change, in any norm.
+
+- **Assumptions** — only that the objective takes opposite signs at the two pivots; neither continuity nor differentiability is required.
+- **Numerical robustness** — the pivot values are compared through their sign, never through their product. A bracket which cannot be split is detected before evaluating; a NaN value terminates the search.
+- **Outcome** — no error code is returned. A rejected argument, a segment which does not bracket a sign change, or a NaN value leaves the result filled with NaN. `Tolerance` is a stopping rule on $|f|$ for this search, not a promise, so the caller validates the returned point.
+
+The objective is a callback, optionally carrying a caller-defined context. FOA keeps no global state and allocates no memory on the heap, so concurrent calls are safe provided the callback is thread-safe.
+
 # Building and Installation
 
 LUGA2 provides:
@@ -100,6 +116,7 @@ After installation, the generated artifacts are installed as follows:
   - `LapackDeferredWrappers.h`, `LapackDeferredWrappers.F90` (LDW)
   - `GraphUtilities.h`, `GraphUtilities.F90` (GRTP)
   - `TightBindingCrystalInterpolation.h`, `TightBindingCrystalInterpolation.F90` (TBCI)
+  - `FunctionalOptimizationAlgorithms.h`, `FunctionalOptimizationAlgorithms.F90` (FOA)
 
 ## Build targets
 
