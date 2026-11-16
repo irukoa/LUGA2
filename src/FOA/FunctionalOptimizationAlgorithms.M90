@@ -1,0 +1,239 @@
+#ifndef FunctionalOptimizationAlgorithms_FH
+#define FunctionalOptimizationAlgorithms_FH
+
+module FunctionalOptimizationAlgorithms
+
+  use, intrinsic :: ISO_C_BINDING, only: C_SIZE_T, &
+                                         C_DOUBLE, &
+                                         C_PTR, C_FUNPTR
+
+  implicit none
+
+  private
+
+  public :: C_SIZE_T
+  public :: C_DOUBLE
+
+  !< Objective function signature.
+  !<
+  !< Evaluates the objective at a point of R^n. It is the only assumption the
+  !< algorithms make about the function they work on: the point is a real
+  !< vector of arbitrary length, and the value is a real scalar consumed
+  !< through its sign and its magnitude.
+  !<
+  !< -EvaluationPoint is an assumed-shape array: the procedure reads the
+  !<  length of the point from the descriptor, so an objective need not know
+  !<  it in advance. The algorithms always pass the point contiguous.
+  !< -UserContext is forwarded verbatim from the algorithm, and is PRESENT
+  !<  only when the caller has supplied it.
+  !< -The value must be deterministic: the algorithms assume that the sign and
+  !<  the magnitude of the objective at a point do not depend on how many
+  !<  times the procedure has been invoked.
+  !< -A NaN value marks a point without a defined objective value: the
+  !<  algorithms stop and report the absence of an answer.
+  !< -The procedure must not be null: the algorithms reject a call which does
+  !<  not supply one, without evaluating it.
+  !<
+  !Note: Declare objective functions as module or external procedures;
+  !      an internal procedure gets a stack trampoline,
+  !      and makes the executable require an executable stack.
+  !Note: UserContext must be declared CLASS(*), POINTER: the standard requires
+  !      a polymorphic actual for an INTENT(INOUT) unlimited polymorphic
+  !      dummy. Objective functions must test PRESENT and ASSOCIATED before
+  !      selecting on it.
+  abstract interface
+    function ObjectiveFunctionInterface(EvaluationPoint, UserContext) &
+      result(Value)
+      import C_DOUBLE
+      real(C_DOUBLE),  intent(in) :: EvaluationPoint(:)
+
+      class(*), intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Value
+    end function ObjectiveFunctionInterface
+  end interface
+
+  public :: ObjectiveFunctionInterface
+
+  !< BisectionRootFinding locates a sign change of an objective function on
+  !< the segment which joins two pivots.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< For an objective f: R^n -> R and two pivots of R^n, the routine searches
+  !< the segment which joins them,
+  !<
+  !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
+  !<
+  !< and returns the point of the segment at which f changes sign.
+  !<
+  !< The only assumption on f is that the two pivots lie on opposite sides of
+  !< zero. Neither continuity nor differentiability is required, and the
+  !< pivots may be supplied in either order: the segment is the same.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NUMERICAL METHOD
+  !< -------------------------------------------------------------------------
+  !<
+  !< The sign change is located by bisection along the segment. Every
+  !< iteration evaluates f at the midpoint of the current bracket and retains
+  !< the half which still holds the sign change, so the bracket is halved at
+  !< each step.
+  !<
+  !< The objective is evaluated once at each pivot and at most once per
+  !< iteration: the iteration which finds that the bracket cannot be split
+  !< returns before evaluating. An iteration costs O(Dimension) floating-point
+  !< operations with a small constant, and it allocates no memory on the heap.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ACCURACY
+  !< -------------------------------------------------------------------------
+  !<
+  !< In exact arithmetic, after k halvings of the bracket the returned point
+  !< lies within
+  !<
+  !<     |RightPivot - LeftPivot| / 2^k
+  !<
+  !< of a sign change, for any norm of R^n: every bracket is a copy of the
+  !< segment scaled by a power of two.
+  !<
+  !< The search stops at whichever of the following conditions is met first: a
+  !< pivot at which the objective vanishes, a value which is NaN, a residual
+  !< |f(Root)| less than or equal to Tolerance, a bracket which cannot be
+  !< halved any further, or MaxIterations iterations. Root is the last
+  !< estimate in every case, and rounding is the only reason the bound above
+  !< may not be reached.
+  !<
+  !< In double precision, 53 halvings take a segment of unit width down to the
+  !< spacing of the type, so a larger cap only guards against a bracket which
+  !< refuses to shrink. A smaller cap is a deliberate trade of accuracy for
+  !< work.
+  !<
+  !< The routine reports no iteration count and no convergence flag: the
+  !< tolerance is a stopping rule, not a promise, so the caller validates
+  !< Root.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< Root is the returned point. It holds an answer when the objective takes
+  !< opposite signs at the pivots, or vanishes at one of them; when it does
+  !< neither, or when an argument is rejected, the returned vector is filled
+  !< with NaN.
+  !<
+  !< -The returned vector never shares storage with the pivots.
+  !< -The pivots are copied before the first evaluation, so an objective which
+  !<  reuses the buffers of the caller through UserContext cannot alter the
+  !<  search.
+  !< -A zero at a pivot is an exact answer and is returned unchanged.
+  !< -An objective which returns NaN terminates the search: the returned
+  !<  vector is NaN.
+  !< -The values at the pivots are compared through their sign, never through
+  !<  their product, so brackets whose product would over- or underflow are
+  !<  accepted.
+  !< -A size mismatch between the pivots, a negative or NaN Tolerance, and a
+  !<  MaxIterations of zero are rejections: the objective is not evaluated.
+  !< -A zero-length space is a valid no-op: the objective is not evaluated and
+  !<  the returned vector is empty, so the caller reads its size to tell the
+  !<  case apart from a rejection.
+  !< -The routine has no global state. Concurrent calls are safe provided the
+  !<  objective function is thread-safe.
+  !<
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      objective functions are invoked synchronously on the calling
+    !      thread.
+    !Note: UserContext must be declared CLASS(*), POINTER: the standard
+    !      requires a polymorphic actual for an INTENT(INOUT) unlimited
+    !      polymorphic dummy.
+    !Note: RECURSIVE guarantees that each activation keeps its own search
+    !      state, so an objective function may start another run (nested or
+    !      from a thread).
+    recursive module function BisectionRootFinding(LeftPivot, &
+                                                   RightPivot, &
+                                                   ObjectiveFunction, &
+                                                   MaxIterations, &
+                                                   Tolerance, &
+                                                   UserContext) &
+      result(Root)
+      real(C_DOUBLE),    intent(in)                       :: LeftPivot(:)
+      real(C_DOUBLE),    intent(in)                       :: RightPivot(:)
+      procedure(ObjectiveFunctionInterface),      pointer :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in)                       :: MaxIterations
+      real(C_DOUBLE),    intent(in)                       :: Tolerance
+      class(*),          intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Root(size(LeftPivot, KIND = C_SIZE_T))
+    end function BisectionRootFinding
+  end interface
+
+  public :: BisectionRootFinding
+
+  !< Objective function signature, as called by C.
+  !<
+  !< Same contract as ObjectiveFunctionInterface, expressed with the C
+  !< conventions: the length of the point is explicit and both the point and
+  !< the context are plain addresses.
+  !<
+  !< -EvaluationPoint addresses Dimension C_DOUBLE values.
+  !< -UserContext carries the address which was passed to the C entry point,
+  !<  and may be C_NULL_PTR.
+  !<
+  abstract interface
+    function ObjectiveFunctionInterface_C(Dimension, EvaluationPoint, UserContext) &
+      bind(C) &
+      result(Value)
+      import C_SIZE_T, C_PTR, C_DOUBLE
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: EvaluationPoint
+
+      type(C_PTR), intent(in), value :: UserContext
+
+      real(C_DOUBLE) :: Value
+    end function ObjectiveFunctionInterface_C
+  end interface
+
+  !< BisectionRootFinding, as called from C.
+  !<
+  !< Same contract as the Fortran function, with the C conventions: every
+  !< array is passed by address, and the result is written through the Root
+  !< address supplied by the caller.
+  !<
+  !< -Root is filled with NaN before any other argument is validated, so a
+  !<  rejected call still leaves the caller with a defined value.
+  !< -Root must not overlap either pivot: the NaN fill runs before the pivots
+  !<  are read, so an overlapping buffer would be overwritten and the call
+  !<  would report the absence of an answer.
+  !< -A NULL pivot, a NULL objective, or a NULL Root is a rejection.
+  !< -Dimension = 0 is a no-op: nothing is written, not even the NaN fill, and
+  !<  no objective is evaluated.
+  !<
+  interface
+    !Note: The caller retains the ownership of every buffer: the entry point
+    !      only borrows them for the duration of the call.
+    module subroutine BisectionRootFinding_C(Dimension, &
+                                             LeftPivot, &
+                                             RightPivot, &
+                                             ObjectiveFunction, &
+                                             MaxIterations, &
+                                             Tolerance, &
+                                             Root, &
+                                             UserContext) &
+      bind(C, name="BisectionRootFinding")
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: LeftPivot
+      type(C_PTR),       intent(in), value :: RightPivot
+      type(C_FUNPTR),    intent(in), value :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in), value :: MaxIterations
+      real(C_DOUBLE),    intent(in), value :: Tolerance
+      type(C_PTR),       intent(in), value :: Root
+      type(C_PTR),       intent(in), value :: UserContext
+    end subroutine BisectionRootFinding_C
+  end interface
+
+end module FunctionalOptimizationAlgorithms
+
+#endif
