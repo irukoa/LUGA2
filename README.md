@@ -76,10 +76,16 @@ $$
 and returns the point at which the sign changes. Every iteration evaluates the objective at the midpoint of the current bracket and keeps the half which still holds the sign change, so after $k$ halvings the returned point lies within $|\textbf{b} - \textbf{a}| / 2^k$ of a sign change, in any norm.
 
 - **Assumptions** — only that the objective takes opposite signs at the two pivots; neither continuity nor differentiability is required.
-- **Numerical robustness** — the pivot values are compared through their sign, never through their product. A bracket which cannot be split is detected before evaluating; a NaN value terminates the search.
+- **Numerical robustness** — the pivot values are compared through their sign, never through their product. A bracket which cannot be split is detected before evaluating. A NaN value terminates the search.
 - **Outcome** — no error code is returned. A rejected argument, a segment which does not bracket a sign change, or a NaN value leaves the result filled with NaN. `Tolerance` is a stopping rule on $|f|$ for this search, not a promise, so the caller validates the returned point.
 
-The objective is a callback, optionally carrying a caller-defined context. FOA keeps no global state and allocates no memory on the heap, so concurrent calls are safe provided the callback is thread-safe.
+`GoldenSectionMinimization` locates the minimum of an objective function on the same segment, and returns the point at which the objective is smallest.
+
+- **Assumptions** — only that the objective is unimodal along the segment. Neither continuity nor differentiability is required.
+- **Numerical robustness** — the bracket is kept in the parameter $t$, so its width is a fraction of the segment and cannot overflow, and a point of the segment is a convex combination of the pivots. A NaN value terminates the search.
+- **Outcome** — no error code is returned. A rejected argument or a NaN value leaves the result filled with NaN, and an objective which is not unimodal reports the minimum of the last bracket. `Tolerance` bounds the width of the bracket, in the units of the points, and not the value of the objective: the returned point lies within `Tolerance` / 2 of a minimizer of the objective on the segment, so the caller validates it.
+
+The objective is a callback, optionally carrying a caller-defined context. FOA keeps no global state and needs no storage beyond a few work arrays sized by the point, so concurrent calls are safe provided the callback is thread-safe.
 
 # Building and Installation
 

@@ -1,5 +1,6 @@
 #include "src/FOA/FunctionalOptimizationAlgorithms.h"
 #include "test/TSD/TSD.h"
+#include <fenv.h>
 #include <float.h>
 #include <math.h>
 
@@ -56,6 +57,18 @@ static double LineObjective(const size_t Dimension,
   (void)UserContext;
 
   return EvaluationPoint[0] - (double)2.0;
+}
+
+// x - Target, with Target read from the context: the zero can sit anywhere on
+// the segment, including between two pivots whose sum overflows.
+static double TargetLineObjective(const size_t Dimension,
+                                  const double EvaluationPoint[Dimension],
+                                  void        *UserContext) {
+  const double Target = *(const double *)UserContext;
+
+  (void)Dimension;
+
+  return EvaluationPoint[0] - Target;
 }
 
 // x0 + x1 - 5: the zero depends on both components, so a search which treats
@@ -172,6 +185,96 @@ static double GapNaNObjective(const size_t Dimension,
   return (double)NAN;
 }
 
+// (x - 1)^2, whose minimum is 1.
+static double SquareObjective(const size_t Dimension,
+                              const double EvaluationPoint[Dimension],
+                              void        *UserContext) {
+  (void)Dimension;
+  (void)UserContext;
+
+  return (EvaluationPoint[0] - (double)1.0) *
+         (EvaluationPoint[0] - (double)1.0);
+}
+
+// (x0 - 2)^2 + (x1 - 3)^2: the minimum depends on both components, so a search
+// which treats the point as a single scalar cannot find it.
+static double BowlObjective(const size_t Dimension,
+                            const double EvaluationPoint[Dimension],
+                            void        *UserContext) {
+  (void)Dimension;
+  (void)UserContext;
+
+  return (EvaluationPoint[0] - (double)2.0) *
+             (EvaluationPoint[0] - (double)2.0) +
+         (EvaluationPoint[1] - (double)3.0) *
+             (EvaluationPoint[1] - (double)3.0);
+}
+
+// 1e6 (x - 0.7)^2: a steep valley, whose value stays large close to the
+// minimum.
+static double SteepObjective(const size_t Dimension,
+                             const double EvaluationPoint[Dimension],
+                             void        *UserContext) {
+  (void)Dimension;
+  (void)UserContext;
+
+  return (double)1.0E6 * (EvaluationPoint[0] - (double)0.7) *
+         (EvaluationPoint[0] - (double)0.7);
+}
+
+// |x|, whose minimum sits between pivots of enormous size and opposite sign.
+static double AbsObjective(const size_t Dimension,
+                           const double EvaluationPoint[Dimension],
+                           void        *UserContext) {
+  (void)Dimension;
+  (void)UserContext;
+
+  return fabs(EvaluationPoint[0]);
+}
+
+// 0.5 (x - 2.5)^2 - exp(-((x - 1)/0.3)^2): a shallow valley at 2.5 and a deep
+// one at 1, so the global minimum is out of reach of a search which looks at
+// one valley at a time.
+static double DeceptiveObjective(const size_t Dimension,
+                                 const double EvaluationPoint[Dimension],
+                                 void        *UserContext) {
+  const double Offset = EvaluationPoint[0] - (double)1.0;
+
+  (void)Dimension;
+  (void)UserContext;
+
+  return (double)0.5 * (EvaluationPoint[0] - (double)2.5) *
+             (EvaluationPoint[0] - (double)2.5) -
+         exp(-(Offset / (double)0.3) * (Offset / (double)0.3));
+}
+
+// (x - C)^2, with C read from the context.
+static double TargetObjective(const size_t Dimension,
+                              const double EvaluationPoint[Dimension],
+                              void        *UserContext) {
+  const double Target = *(const double *)UserContext;
+
+  (void)Dimension;
+
+  return (EvaluationPoint[0] - Target) * (EvaluationPoint[0] - Target);
+}
+
+// Undefined everywhere, recorded like RecordingObjective so that the number of
+// evaluations can be counted.
+static double AlwaysNaNObjective(const size_t Dimension,
+                                 const double EvaluationPoint[Dimension],
+                                 void        *UserContext) {
+  (void)Dimension;
+  (void)UserContext;
+
+  if (RecordedCount < FOA_RecordLimit) {
+    RecordedPoints[RecordedCount] = EvaluationPoint[0];
+  }
+  RecordedCount++;
+
+  return (double)NAN;
+}
+
 // A single component, a moderate tolerance and enough iterations to reach it:
 // the residual stop is the binding rule.
 TEST(FOAOneDimensionalNominal) {
@@ -272,13 +375,331 @@ TEST(FOACallbackProtocolNominal) {
   ASSERT(Root[0] == (double)1.875);
 }
 
+// The minimum of a quadratic lies inside the segment: the estimate is the
+// minimum itself, and a zero tolerance asks for all the accuracy there is.
+TEST(FOASquareOneDimensionalNominal) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)2.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, SquareObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(fabs(Minimum[0] - (double)1.0) <= 1.0E-12);
+}
+
+// Two components, whose minimum depends on both: the search runs along the
+// segment which joins the pivots.
+TEST(FOABowlMultidimensionalNominal) {
+  double       A[2] = {(double)0.0, (double)0.0};
+  double       B[2] = {(double)4.0, (double)6.0};
+  double       Minimum[2];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(2, A, B, BowlObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(fabs(Minimum[0] - (double)2.0) <= 1.0E-12);
+  ASSERT(fabs(Minimum[1] - (double)3.0) <= 1.0E-12);
+}
+
+// The pivots may be supplied in either order: the segment is the same.
+TEST(FOAReversedPivotMinimizationNominal) {
+  double       A[2] = {(double)0.0, (double)0.0};
+  double       B[2] = {(double)4.0, (double)6.0};
+  double       ForwardMinimum[2], BackwardMinimum[2];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(2, A, B, BowlObjective, MaxIterations, Tolerance,
+                            ForwardMinimum, NULL);
+  GoldenSectionMinimization(2, B, A, BowlObjective, MaxIterations, Tolerance,
+                            BackwardMinimum, NULL);
+
+  ASSERT(fabs(ForwardMinimum[0] - (double)2.0) <= 1.0E-12);
+  ASSERT(fabs(ForwardMinimum[1] - (double)3.0) <= 1.0E-12);
+  ASSERT(fabs(BackwardMinimum[0] - (double)2.0) <= 1.0E-12);
+  ASSERT(fabs(BackwardMinimum[1] - (double)3.0) <= 1.0E-12);
+}
+
+// The context reaches the objective, which places the minimum at its value.
+TEST(FOAMinimumContextForwardingNominal) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  double       Target        = (double)3.0;
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)1.0E-12;
+
+  GoldenSectionMinimization(1, A, B, TargetObjective, MaxIterations, Tolerance,
+                            Minimum, &Target);
+
+  ASSERT(fabs(Minimum[0] - (double)3.0) <= 1.0E-12);
+}
+
+// A NULL context is a value like any other, and reaches the objective.
+TEST(FOAMinimumNullContextNominal) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  ObservedNullContext = false;
+
+  GoldenSectionMinimization(1, A, B, NullContextObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(ObservedNullContext);
+  ASSERT(fabs(Minimum[0] - (double)0.0) <= 1.0E-12);
+}
+
+// The two interior points are evaluated before the first iteration, and one
+// point per iteration afterwards; the estimate is their midpoint.
+TEST(FOAMinimumCallbackProtocolNominal) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 1;
+  const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  // The interior points of [0, 4] sit at 1 - rho and rho of the segment.
+  ASSERT(RecordedCount == 3);
+  ASSERT(fabs(RecordedPoints[0] - (double)1.5278640450004204) <= 1.0E-9);
+  ASSERT(fabs(RecordedPoints[1] - (double)2.4721359549995796) <= 1.0E-9);
+  ASSERT(fabs(RecordedPoints[2] - (double)0.9442719099991592) <= 1.0E-9);
+  ASSERT(fabs(Minimum[0] - (double)1.2360679774997898) <= 1.0E-9);
+}
+
 TEST_SUITE(FOACFunctionalNominalSuite,
            FOAOneDimensionalNominal,
            FOAMultidimensionalSegmentNominal,
            FOAReversedPivotNominal,
            FOAContextForwardingNominal,
            FOANullContextNominal,
-           FOACallbackProtocolNominal);
+           FOACallbackProtocolNominal,
+           FOASquareOneDimensionalNominal,
+           FOABowlMultidimensionalNominal,
+           FOAReversedPivotMinimizationNominal,
+           FOAMinimumContextForwardingNominal,
+           FOAMinimumNullContextNominal,
+           FOAMinimumCallbackProtocolNominal);
+
+// A minimum at a pivot is approached but never reached: the bracket collapses
+// onto the end of the segment which holds it.
+TEST(FOAMinimumAtPivotEdgeCase) {
+  double       A[1] = {(double)2.0}, B[1] = {(double)5.0}, Minimum[1];
+  double       Target        = (double)2.0;
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, TargetObjective, MaxIterations, Tolerance,
+                            Minimum, &Target);
+
+  ASSERT(Minimum[0] >= (double)2.0);
+  ASSERT(Minimum[0] - (double)2.0 <= 1.0E-12);
+
+  // The same at the right pivot, where the segment ends at the minimum.
+  A[0]   = (double)0.0;
+  B[0]   = (double)3.0;
+  Target = (double)3.0;
+
+  GoldenSectionMinimization(1, A, B, TargetObjective, MaxIterations, Tolerance,
+                            Minimum, &Target);
+
+  ASSERT(Minimum[0] <= (double)3.0);
+  ASSERT((double)3.0 - Minimum[0] <= 1.0E-12);
+}
+
+// The tolerance measures the bracket, not the value of the objective: a steep
+// valley is left while its value at the estimate is still large.
+TEST(FOAToleranceNotResidualEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)2.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)1.0E-3;
+
+  GoldenSectionMinimization(1, A, B, SteepObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(fabs(Minimum[0] - (double)0.7) <= (double)1.0E-3);
+  ASSERT(SteepObjective(1, &Minimum[0], NULL) >= (double)1.0E-3);
+}
+
+// The bracket keeps a factor rho per iteration, so the iteration cap and not
+// the tolerance sets the accuracy when the cap comes first.
+TEST(FOAMinimumIterationCapAccuracyEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)2.0}, Minimum[1];
+  const size_t MaxIterations = 10;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, SquareObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(fabs(Minimum[0] - (double)1.0) <= 0.0082);
+
+  // Two interior points before the loop and one point per iteration.
+  A[0] = (double)0.0;
+  B[0] = (double)4.0;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(RecordedCount == 12);
+}
+
+// Pivots of enormous size with opposite sign: the interior points are convex
+// combinations of them, and the search must not form a difference between the
+// two which overflows.
+TEST(FOAExtremePivotEdgeCase) {
+  double       A[1] = {(double)1.0E308}, B[1] = {(double)-1.0E308}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, AbsObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(!isnan(Minimum[0]));
+  ASSERT(Minimum[0] == (double)0.0);
+}
+
+// The segment spans twice the range of the type: the difference between its
+// ends and the length restored from the halves both overflow, so the length
+// saturates at the largest value of the type and no exception is raised.
+TEST(FOAMinimumOverflowEdgeCase) {
+  double       A[1] = {(double)-DBL_MAX}, B[1] = {(double)DBL_MAX};
+  double       Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  feclearexcept(FE_OVERFLOW);
+
+  GoldenSectionMinimization(1, A, B, AbsObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(fetestexcept(FE_OVERFLOW) == 0);
+  ASSERT(!isnan(Minimum[0]));
+  ASSERT(fabs(Minimum[0]) <= DBL_EPSILON * DBL_MAX);
+}
+
+// Two pivots of enormous size with the same sign: their sum overflows, so the
+// midpoint must be formed from their halves. The zero of the objective is that
+// midpoint, which the search returns at once.
+TEST(FOARootOverflowEdgeCase) {
+  double       A[1] = {(double)1.0E308}, B[1] = {(double)1.5E308}, Root[1];
+  double       Target        = (double)1.25E308;
+  const size_t MaxIterations = 100;
+  const double Tolerance     = (double)0.0;
+
+  feclearexcept(FE_OVERFLOW);
+
+  BisectionRootFinding(1, A, B, TargetLineObjective, MaxIterations, Tolerance,
+                       Root, &Target);
+
+  ASSERT(fetestexcept(FE_OVERFLOW) == 0);
+  ASSERT(fabs(Root[0] - Target) <= 1.0E293);
+}
+
+// The pivots are two neighbouring numbers: there is no room for an interior
+// point, so the segment is returned unchanged and nothing is evaluated.
+TEST(FOAMinimumCollapsedBracketEdgeCase) {
+  double       A[1] = {(double)1.0E16}, B[1] = {(double)1.0E16 + (double)2.0};
+  double       Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+
+  GoldenSectionMinimization(1, A, B, ConstantObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(Minimum[0] == (double)1.0E16);
+}
+
+// The objective has a shallow valley at 2.5 and a deep one at 1: golden section
+// needs no more than unimodality, so it returns the local minimum it saw and
+// reports nothing.
+TEST(FOANonUnimodalEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, DeceptiveObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(fabs(Minimum[0] - (double)2.5) <= 1.0E-6);
+
+  // The value of the global minimum is -1 at x = 1, which is not what the
+  // estimate holds.
+  ASSERT(DeceptiveObjective(1, &Minimum[0], NULL) > (double)-1.0E-3);
+}
+
+// A tolerance which covers the whole segment settles on its midpoint at once;
+// just below that width the bracket has to shrink first.
+TEST(FOAToleranceCoversSegmentEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            (double)4.0, Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(Minimum[0] == (double)2.0);
+
+  // At 3.9 the bracket of width 4 does not satisfy the rule: two interior
+  // points are evaluated, and one more after the width of the bracket has
+  // fallen to 2.472, which leaves the midpoint of [0, 0.618] of the segment.
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            (double)3.9, Minimum, NULL);
+
+  ASSERT(RecordedCount == 3);
+  ASSERT(fabs(Minimum[0] - (double)1.2360679774997898) <= 1.0E-12);
+}
+
+// A constant objective gives three points of equal value to every iteration:
+// each tie keeps the right part of the bracket, so the estimate runs to the
+// right pivot.
+TEST(FOAFlatObjectiveEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, ConstantObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(fabs(Minimum[0] - (double)4.0) <= 1.0E-12);
+}
+
+// An objective which is undefined everywhere stops the search at the first
+// comparison, after the two interior points.
+TEST(FOAMinimumNaNAtStartEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, AlwaysNaNObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+  ASSERT(RecordedCount == 2);
+}
+
+// An objective which becomes undefined part of the way through stops the search
+// at the point which returned it.
+TEST(FOANaNEncounteredEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 200;
+  const double Tolerance     = (double)0.0;
+
+  GoldenSectionMinimization(1, A, B, NaNObjective, MaxIterations, Tolerance,
+                            Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+}
 
 // A zero at a pivot is an exact answer: the sign change is at the pivot
 // itself, the pivot is returned unchanged, and no iteration is needed.
@@ -400,9 +821,10 @@ TEST(FOANaNObjectiveEdgeCase) {
 }
 
 // The result buffer must not overlap a pivot: the NaN fill runs before the
-// pivots are read, so an overlapping buffer is poisoned and the call reports
-// the absence of an answer. There is no Fortran counterpart, because the
-// Fortran result is a new array and cannot overlap the pivots.
+// pivots are read, so an overlapping buffer is poisoned, and the call reports
+// the absence of an answer without evaluating the objective. There is no
+// Fortran counterpart, because the Fortran result is a new array and cannot
+// overlap the pivots.
 TEST(FOAOverlappingRootEdgeCase) {
   double       A[1] = {(double)0.0}, B[1] = {(double)5.0};
   const size_t MaxIterations = 100;
@@ -410,12 +832,12 @@ TEST(FOAOverlappingRootEdgeCase) {
 
   ResetRecording();
 
-  // Root aliases the left pivot.
+  // Root aliases the left pivot, whose value the fill turns into NaN.
   BisectionRootFinding(1, A, B, RecordingObjective, MaxIterations, Tolerance, A,
                        NULL);
 
   ASSERT(isnan(A[0]));
-  ASSERT(RecordedCount == 2);
+  ASSERT(RecordedCount == 0);
 
   // Root aliases the right pivot.
   A[0] = (double)0.0;
@@ -427,7 +849,7 @@ TEST(FOAOverlappingRootEdgeCase) {
                        NULL);
 
   ASSERT(isnan(B[0]));
-  ASSERT(RecordedCount == 2);
+  ASSERT(RecordedCount == 0);
 }
 
 // A NaN pivot must not be mistaken for a bracket: it is the absence of a sign.
@@ -439,6 +861,21 @@ TEST(FOANaNPivotEdgeCase) {
   BisectionRootFinding(1, A, B, LineObjective, MaxIterations, Tolerance, Root,
                        NULL);
 
+  ASSERT(isnan(Root[0]));
+}
+
+// An infinite pivot has no finite midpoint, so the segment cannot be halved:
+// the call is rejected before the objective is evaluated.
+TEST(FOAInfinitePivotEdgeCase) {
+  double       A[1] = {(double)INFINITY}, B[1] = {(double)4.0}, Root[1];
+  const size_t MaxIterations = 100;
+  const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+  BisectionRootFinding(1, A, B, RecordingObjective, MaxIterations, Tolerance,
+                       Root, NULL);
+
+  ASSERT(RecordedCount == 0);
   ASSERT(isnan(Root[0]));
 }
 
@@ -554,6 +991,138 @@ TEST(FOANullRootEdgeCase) {
   ASSERT(RecordedCount == 0);
 }
 
+// A result buffer which overlaps a pivot is filled with NaN before the pivots
+// are read, so the segment itself is undefined and the call reports it.
+TEST(FOAMinimumOverlappingBufferEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)4.0};
+  const size_t MaxIterations = 200;
+
+  GoldenSectionMinimization(1, A, B, SquareObjective, MaxIterations,
+                            (double)0.0, A, NULL);
+
+  ASSERT(isnan(A[0]));
+}
+
+// A NaN pivot is not a segment: the call is rejected before the objective is
+// evaluated, whatever the objective does with its argument.
+TEST(FOAMinimumNaNPivotEdgeCase) {
+  double       A[1] = {(double)NAN}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 100;
+  const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(isnan(Minimum[0]));
+}
+
+// An infinite pivot has no finite length, so the segment cannot be measured:
+// the call is rejected before the objective is evaluated.
+TEST(FOAMinimumInfinitePivotEdgeCase) {
+  double       A[1] = {(double)-INFINITY}, B[1] = {(double)4.0}, Minimum[1];
+  const size_t MaxIterations = 100;
+  const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(isnan(Minimum[0]));
+}
+
+// A negative tolerance is a rejection before anything is evaluated.
+TEST(FOAMinimumNegativeToleranceEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0}, Minimum[1];
+  const size_t MaxIterations = 100;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            (double)-1.0, Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+  ASSERT(RecordedCount == 0);
+}
+
+// An undefined tolerance is a rejection before anything is evaluated.
+TEST(FOAMinimumNaNToleranceEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0}, Minimum[1];
+  const size_t MaxIterations = 100;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            (double)NAN, Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+  ASSERT(RecordedCount == 0);
+}
+
+// Without iterations there is no estimate to report.
+TEST(FOAMinimumZeroIterationsEdgeCase) {
+  double A[1] = {(double)0.0}, B[1] = {(double)3.0}, Minimum[1];
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, 0, (double)0.0,
+                            Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+  ASSERT(RecordedCount == 0);
+}
+
+// A segment without components has no minimum to look for.
+TEST(FOAMinimumEmptySpaceEdgeCase) {
+  ResetRecording();
+
+  GoldenSectionMinimization(0, NULL, NULL, RecordingObjective, 100, (double)0.0,
+                            NULL, NULL);
+
+  ASSERT(RecordedCount == 0);
+}
+
+// A missing pivot is a rejection before anything is evaluated.
+TEST(FOAMinimumNullPivotEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0}, Minimum[1];
+  const size_t MaxIterations = 100;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, NULL, B, RecordingObjective, MaxIterations,
+                            (double)0.0, Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, NULL, RecordingObjective, MaxIterations,
+                            (double)0.0, Minimum, NULL);
+
+  ASSERT(isnan(Minimum[0]));
+  ASSERT(RecordedCount == 0);
+}
+
+// A missing objective is a rejection before anything is evaluated.
+TEST(FOAMinimumNullObjectiveEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0}, Minimum[1];
+  const size_t MaxIterations = 100;
+
+  GoldenSectionMinimization(1, A, B, NULL, MaxIterations, (double)0.0, Minimum,
+                            NULL);
+
+  ASSERT(isnan(Minimum[0]));
+}
+
+// A NULL result buffer is a rejection before anything is evaluated.
+TEST(FOAMinimumNullResultEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0};
+  const size_t MaxIterations = 100;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            (double)0.0, NULL, NULL);
+
+  ASSERT(RecordedCount == 0);
+}
+
 TEST_SUITE(FOACFunctionalEdgeCaseSuite,
            FOAExactZeroAtPivotEdgeCase,
            FOAExactZeroAtMidpointEdgeCase,
@@ -561,11 +1130,24 @@ TEST_SUITE(FOACFunctionalEdgeCaseSuite,
            FOAIterationCapAccuracyEdgeCase,
            FOASignOnlyObjectiveEdgeCase,
            FOAScaledSignObjectiveEdgeCase,
-           FOANaNObjectiveEdgeCase);
+           FOANaNObjectiveEdgeCase,
+           FOAMinimumAtPivotEdgeCase,
+           FOAToleranceNotResidualEdgeCase,
+           FOAMinimumIterationCapAccuracyEdgeCase,
+           FOAExtremePivotEdgeCase,
+           FOAMinimumOverflowEdgeCase,
+           FOARootOverflowEdgeCase,
+           FOAMinimumCollapsedBracketEdgeCase,
+           FOANonUnimodalEdgeCase,
+           FOAToleranceCoversSegmentEdgeCase,
+           FOAFlatObjectiveEdgeCase,
+           FOAMinimumNaNAtStartEdgeCase,
+           FOANaNEncounteredEdgeCase);
 
 TEST_SUITE(FOACStructuralSuite,
            FOAOverlappingRootEdgeCase,
            FOANaNPivotEdgeCase,
+           FOAInfinitePivotEdgeCase,
            FOAUnbracketedPivotEdgeCase,
            FOANegativeToleranceEdgeCase,
            FOANaNToleranceEdgeCase,
@@ -573,4 +1155,14 @@ TEST_SUITE(FOACStructuralSuite,
            FOAEmptySpaceEdgeCase,
            FOANullPivotEdgeCase,
            FOANullObjectiveEdgeCase,
-           FOANullRootEdgeCase);
+           FOANullRootEdgeCase,
+           FOAMinimumOverlappingBufferEdgeCase,
+           FOAMinimumNaNPivotEdgeCase,
+           FOAMinimumInfinitePivotEdgeCase,
+           FOAMinimumNegativeToleranceEdgeCase,
+           FOAMinimumNaNToleranceEdgeCase,
+           FOAMinimumZeroIterationsEdgeCase,
+           FOAMinimumEmptySpaceEdgeCase,
+           FOAMinimumNullPivotEdgeCase,
+           FOAMinimumNullObjectiveEdgeCase,
+           FOAMinimumNullResultEdgeCase);

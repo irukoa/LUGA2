@@ -97,4 +97,59 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
 
   end procedure BisectionRootFinding_C
 
+  module procedure GoldenSectionMinimization_C
+    real(C_DOUBLE), pointer :: LeftPivotFPtr(:), &
+                               RightPivotFPtr(:), &
+                               MinimumFPtr(:)
+
+    procedure(ObjectiveFunctionInterface_C), pointer :: CSideObjectiveFunction
+    type(FortranContextWrapper),             target  :: LocalWrapper
+    class(*),                                pointer :: LocalWrapperPointer
+
+    if (Dimension == 0_C_SIZE_T) return
+
+    if (C_ASSOCIATED(Minimum)) then
+      call C_F_POINTER(Minimum, &
+                       MinimumFPtr, &
+                       [Dimension])
+      MinimumFPtr = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(LeftPivot)) then
+      call C_F_POINTER(LeftPivot, &
+                       LeftPivotFPtr, &
+                       [Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(RightPivot)) then
+      call C_F_POINTER(RightPivot, &
+                       RightPivotFPtr, &
+                       [Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(ObjectiveFunction)) then
+      call C_F_PROCPOINTER(ObjectiveFunction, &
+                           CSideObjectiveFunction)
+    else
+      return
+    endif
+    LocalWrapper%ObjectiveFunction => CSideObjectiveFunction
+    LocalWrapper%Context           =  UserContext
+    LocalWrapperPointer            => LocalWrapper
+
+    MinimumFPtr = GoldenSectionMinimization(LeftPivotFPtr, &
+                                            RightPivotFPtr, &
+                                            FSideObjectiveFunction, &
+                                            MaxIterations, &
+                                            Tolerance, &
+                                            LocalWrapperPointer)
+
+  end procedure GoldenSectionMinimization_C
+
 end submodule FOA_C_Interfaces
