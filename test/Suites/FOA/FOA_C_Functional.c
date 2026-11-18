@@ -877,6 +877,17 @@ TEST(FOAInfinitePivotEdgeCase) {
 
   ASSERT(RecordedCount == 0);
   ASSERT(isnan(Root[0]));
+
+  // The same with the infinite value on the right: both ends are validated.
+  A[0] = (double)0.0;
+  B[0] = (double)INFINITY;
+
+  ResetRecording();
+  BisectionRootFinding(1, A, B, RecordingObjective, MaxIterations, Tolerance,
+                       Root, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(isnan(Root[0]));
 }
 
 // Pivots on the same side of zero do not bracket it: the routine reports the
@@ -1024,6 +1035,17 @@ TEST(FOAMinimumInfinitePivotEdgeCase) {
   double       A[1] = {(double)-INFINITY}, B[1] = {(double)4.0}, Minimum[1];
   const size_t MaxIterations = 100;
   const double Tolerance     = (double)0.0;
+
+  ResetRecording();
+  GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,
+                            Tolerance, Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(isnan(Minimum[0]));
+
+  // The same with the infinite value on the right: both ends are validated.
+  A[0] = (double)0.0;
+  B[0] = (double)INFINITY;
 
   ResetRecording();
   GoldenSectionMinimization(1, A, B, RecordingObjective, MaxIterations,

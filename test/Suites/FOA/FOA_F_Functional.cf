@@ -956,6 +956,21 @@ TEST_E(FOAFortranInfinitePivotEdgeCase)
   ASSERT(RecordedCount == 0)
   ASSERT(IEEE_IS_NAN(Root(1)))
 
+  !The same with the infinite value on the right: both ends are validated.
+  LeftPivot  = 0.0_C_DOUBLE
+  RightPivot = IEEE_VALUE(0.0_C_DOUBLE, IEEE_POSITIVE_INF)
+
+  call ResetRecords()
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
 #endif
 END_TEST_E
 
@@ -1946,6 +1961,21 @@ TEST_E(FOAFortranMinimumInfinitePivotEdgeCase)
 
   !An infinite pivot has no finite length: the call is rejected before the
   !objective is evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+  !The same with the infinite value on the right: both ends are validated.
+  LeftPivot  = 0.0_C_DOUBLE
+  RightPivot = IEEE_VALUE(0.0_C_DOUBLE, IEEE_NEGATIVE_INF)
+
+  call ResetRecords()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
   ASSERT(RecordedCount == 0)
   ASSERT(IEEE_IS_NAN(Minimum(1)))
 
