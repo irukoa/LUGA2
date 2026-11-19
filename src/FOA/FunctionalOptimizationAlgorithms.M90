@@ -69,83 +69,66 @@ module FunctionalOptimizationAlgorithms
   !<
   !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
   !<
-  !< and returns the point of the segment at which f changes sign.
-  !<
-  !< The only assumption on f is that the two pivots lie on opposite sides of
-  !< zero. Neither continuity nor differentiability is required, and the
-  !< pivots may be supplied in either order: the segment is the same.
+  !< and returns the point at which f changes sign. The only assumption on f is
+  !< that the pivots lie on opposite sides of zero: neither continuity nor
+  !< differentiability is required, and the pivots may be given in either
+  !< order.
   !<
   !< -------------------------------------------------------------------------
   !< NUMERICAL METHOD
   !< -------------------------------------------------------------------------
   !<
-  !< Bisection along the segment. Every iteration evaluates f at the midpoint
-  !< of the current bracket and retains the half which still holds the sign
-  !< change, so the bracket is halved at each step. The midpoint is the sum of
-  !< the halves of the two ends, and the values at the ends are compared
-  !< through their sign and never through their product: neither the midpoint
-  !< nor the comparison can over- or underflow.
+  !< Bisection along the segment: every iteration evaluates f at the midpoint
+  !< of the current bracket and keeps the half which still holds the sign
+  !< change. The midpoint is the sum of the halves of the two ends, and the
+  !< ends are compared through their sign and never through their product, so
+  !< neither the point nor the comparison can over- or underflow.
   !<
   !< Two points are evaluated before the first iteration and at most one per
-  !< iteration afterwards: the iteration which finds that the bracket cannot be
-  !< split returns before evaluating.
+  !< iteration afterwards.
   !<
   !< -------------------------------------------------------------------------
   !< ACCURACY
   !< -------------------------------------------------------------------------
   !<
-  !< In exact arithmetic, after k halvings of the bracket the returned point
-  !< lies within
+  !< In exact arithmetic, after k halvings the returned point lies within
   !<
   !<     |RightPivot - LeftPivot| / 2^k
   !<
-  !< of a sign change, for any norm of R^n: every bracket is a copy of the
-  !< segment scaled by a power of two.
+  !< of a sign change, for any norm of R^n, because every bracket is a copy of
+  !< the segment scaled by a power of two.
   !<
-  !< The search stops at whichever of the following conditions is met first: a
-  !< pivot at which the objective vanishes, a value which is NaN, a residual
-  !< |f(Root)| less than or equal to Tolerance, a bracket which cannot be
-  !< halved any further, or MaxIterations iterations. Root is the last
-  !< estimate in every case, and rounding is the only reason the bound above
-  !< may not be reached.
-  !<
-  !< In double precision, 53 halvings take a segment of unit width down to the
-  !< spacing of the type, so a larger cap only guards against a bracket which
-  !< refuses to shrink. A smaller cap is a deliberate trade of accuracy for
-  !< work.
-  !<
-  !< The routine reports no iteration count and no convergence flag: the
-  !< tolerance is a stopping rule, not a promise, so the caller validates
-  !< Root.
+  !< The search stops at whichever of these conditions comes first: a pivot at
+  !< which the objective vanishes, a value which is NaN, a residual |f(Root)|
+  !< less than or equal to Tolerance, a bracket which cannot be halved any
+  !< further, or MaxIterations iterations. Root is the last estimate in every
+  !< case. No flag reports which condition was met, and Tolerance is a
+  !< stopping rule and not a promise, so the caller validates Root.
   !<
   !< -------------------------------------------------------------------------
   !< NOTES
   !< -------------------------------------------------------------------------
   !<
-  !< Root is the returned point. It holds an answer when the objective takes
-  !< opposite signs at the pivots, or vanishes at one of them; when it does
-  !< neither, or when an argument is rejected, the returned vector is filled
-  !< with NaN.
+  !< Root holds an answer when the objective takes opposite signs at the
+  !< pivots or vanishes at one of them; otherwise, and on every rejection, the
+  !< returned array is filled with NaN.
   !<
-  !< -The returned vector never shares storage with the pivots.
+  !< -The returned array never shares storage with the pivots.
   !< -The pivots are copied before the first evaluation, so an objective which
-  !<  reuses the buffers of the caller through UserContext cannot alter the
-  !<  search.
+  !<  reuses their memory through UserContext cannot alter the search.
   !< -A zero at a pivot is an exact answer and is returned unchanged.
-  !< -An objective which returns NaN terminates the search: the returned
-  !<  vector is NaN.
-  !< -The values at the pivots are compared through their sign, never through
-  !<  their product, so brackets whose product would over- or underflow are
-  !<  accepted.
-  !< -A pivot which is not finite (NaN or infinite), a size mismatch between the
-  !<  pivots, a negative or NaN Tolerance, and a MaxIterations of zero are
-  !<  rejections: the objective is not evaluated.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a negative or NaN Tolerance and a MaxIterations of zero are rejections:
+  !<  the objective is not evaluated.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
   !< -A zero-length space is a valid no-op: the objective is not evaluated and
-  !<  the returned vector is empty, so the caller reads its size to tell the
+  !<  the returned array is empty, so the caller reads its size to tell the
   !<  case apart from a rejection.
   !< -The routine has no global state. Concurrent calls are safe provided the
   !<  objective function is thread-safe.
   !<
+
   interface
     !Note: UserContext is valid only for the duration of the call;
     !      objective functions are invoked synchronously on the calling
@@ -176,8 +159,8 @@ module FunctionalOptimizationAlgorithms
 
   public :: BisectionRootFinding
 
-  !< GoldenSectionMinimization locates the minimum of an objective function on
-  !< the segment which joins two pivots.
+  !< GoldenSectionMinimization locates the minimum of an objective function
+  !< on the segment which joins two pivots.
   !<
   !< -------------------------------------------------------------------------
   !< MATHEMATICAL PROBLEM
@@ -188,9 +171,9 @@ module FunctionalOptimizationAlgorithms
   !<
   !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
   !<
-  !< and returns the point of the segment at which f is smallest. The only
-  !< assumption on f is that it is unimodal there: nothing checks it, and the
-  !< pivots may be supplied in either order.
+  !< and returns the point at which f is smallest. The only assumption on f is
+  !< that it is unimodal there: nothing checks it, and the pivots may be given
+  !< in either order.
   !<
   !< -------------------------------------------------------------------------
   !< NUMERICAL METHOD
@@ -225,49 +208,37 @@ module FunctionalOptimizationAlgorithms
   !<
   !< of a minimizer of f, measured in the largest component. The search stops
   !< at whichever of these conditions is met first: a bracket whose width is
-  !< less than or equal to Tolerance, a value which is NaN, a bracket reduced to
-  !< two coincident points, or MaxIterations iterations. In the first case the
-  !< returned point lies within Tolerance / 2 of a minimizer, and rounding is
-  !< the only reason why it may not be reached.
+  !< less than or equal to Tolerance, a value which is NaN, a bracket reduced
+  !< to two coincident points, or MaxIterations iterations. In the first case
+  !< the returned point lies within Tolerance / 2 of a minimizer.
   !<
-  !< The bracket lives in t, so what rho shrinks is a number of [0, 1] and not
-  !< the points: in double precision the two interior parameters are adjacent
-  !< values of the type after some 75 iterations, the interior points then
-  !< coincide, and the search ends. That count follows from the type and not
-  !< from the segment, so a MaxIterations above it changes nothing, and a
-  !< Tolerance below the spacing of the points is replaced by that collapse.
-  !<
-  !< Tolerance bounds the width of the bracket in the units of the points, and
-  !< not the value of the objective: it is a stopping rule, not a promise about
-  !< the minimum, so the caller validates the returned point. A Tolerance which
-  !< is not smaller than the length of the segment stops before anything is
-  !< evaluated, and the answer is the midpoint of the segment.
+  !< Tolerance bounds the width of the bracket, and not the value of the
+  !< objective: it is a stopping rule and not a promise, so the caller
+  !< validates the returned point.
   !<
   !< -------------------------------------------------------------------------
   !< NOTES
   !< -------------------------------------------------------------------------
   !<
   !< The returned point is the midpoint of the last bracket, an estimate: the
-  !< search need not have evaluated the objective there, and no exact answer
-  !< can be reached, because rho is irrational. It holds an answer only when
-  !< the objective is unimodal along the segment; when it is not, it is the
-  !< minimum of the last bracket, and nothing reports it.
+  !< objective need not have been evaluated there, and no exact answer can be
+  !< reached, because rho is irrational. It holds an answer only when the
+  !< objective is unimodal along the segment; when it is not, it is the minimum
+  !< of the last bracket, and nothing reports it.
   !<
   !< -The pivots are read in place at every iteration: an objective which
   !<  writes to their memory through UserContext alters the search.
   !< -The pivots themselves are never evaluated: the two evaluations which
   !<  precede the first iteration are interior points, so a minimum at a pivot
   !<  is approached only as the bracket shrinks onto it.
-  !< -A pivot which is not finite (NaN or infinite), a size mismatch between the
-  !<  pivots, a negative or NaN Tolerance, a MaxIterations of zero and a null
-  !<  objective are rejections: the objective is not evaluated, and the
-  !<  returned vector is NaN.
-  !< -An objective which returns NaN terminates the search: the returned
-  !<  vector is NaN.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a negative or NaN Tolerance and a MaxIterations of zero are rejections:
+  !<  the objective is not evaluated, and the returned array is NaN.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
   !< -A zero-length space is a valid no-op: the objective is not evaluated and
-  !<  the returned vector is empty, so the caller reads its size to tell the
+  !<  the returned array is empty, so the caller reads its size to tell the
   !<  case apart from a rejection.
-  !< -The returned vector never shares storage with the pivots.
   !< -The routine has no global state. Concurrent calls are safe provided the
   !<  objective function is thread-safe.
   !<
@@ -309,88 +280,69 @@ module FunctionalOptimizationAlgorithms
   !< MATHEMATICAL PROBLEM
   !< -------------------------------------------------------------------------
   !<
-  !< For an objective f: R^n -> R and two pivots of R^n, the routine searches
-  !< the segment which joins them,
-  !<
-  !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
-  !<
-  !< and returns the point of the segment at which f changes sign.
-  !<
-  !< The only assumption on f is that the two pivots lie on opposite sides of
-  !< zero. Neither continuity nor differentiability is required, and the
-  !< pivots may be supplied in either order: the segment is the same.
+  !< The problem is that of BisectionRootFinding: the segment which joins the
+  !< two pivots, and the assumption that the objective takes opposite signs at
+  !< them.
   !<
   !< -------------------------------------------------------------------------
   !< NUMERICAL METHOD
   !< -------------------------------------------------------------------------
   !<
-  !< The Brent root finding method along the segment. The bracket is kept in the
-  !< parameter t, between two estimates which lie on opposite sides of zero,
-  !< and the two estimates which precede the current one are kept as well.
-  !< Every iteration forms the next estimate by inverse quadratic
-  !< interpolation through the three most recent estimates, by the secant
-  !< through the two most recent ones when the first and the third coincide,
-  !< and by bisection of the bracket whenever the interpolated point falls
-  !< outside the bracket or is not shorter than the step which produced the
-  !< current estimate. Interpolation is therefore always backed by bisection:
-  !< the bracket shrinks at least as fast as bisection makes it shrink, and
-  !< much faster when the objective is smooth.
+  !< The Brent root finding method along the segment. The bracket is kept in
+  !< the parameter t, between two estimates which lie on opposite sides of
+  !< zero, and the two estimates which precede the current one are kept as
+  !< well. Every iteration forms the next estimate by inverse quadratic
+  !< interpolation through the three most recent ones, by the secant through
+  !< the two most recent ones when the first and the third coincide, and by
+  !< bisection of the bracket whenever the interpolated point falls outside
+  !< the bracket or is not shorter than the step which produced the current
+  !< estimate. Interpolation is therefore always backed by bisection: the
+  !< bracket shrinks at least as fast as bisection makes it shrink, and much
+  !< faster when the objective is smooth.
   !<
   !< A point of the segment is the convex combination (1 - t) * LeftPivot +
-  !< t * RightPivot, which lies between the pivots and never forms their
-  !< difference, so the points cannot overflow. The values are compared
-  !< through their sign, never through their product.
-  !<
-  !< Two points are evaluated before the first iteration and at most one per
-  !< iteration afterwards.
+  !< t * RightPivot, so the points cannot overflow, and the values are compared
+  !< through their sign, never through their product. Two points are evaluated
+  !< before the first iteration and at most one per iteration afterwards.
   !<
   !< -------------------------------------------------------------------------
   !< ACCURACY
   !< -------------------------------------------------------------------------
   !<
-  !< In exact arithmetic the bracket always holds a sign change, and the search
-  !< falls back on bisection whenever the interpolation cannot be trusted, so
-  !< the estimate approaches a sign change at least as fast as a halving of the
-  !< segment and, on a smooth objective, at the superlinear rate of the
-  !< interpolation.
+  !< The search falls back on bisection whenever the interpolation cannot be
+  !< trusted, so the estimate approaches a sign change at least as fast as a
+  !< halving of the segment and, on a smooth objective, at the superlinear rate
+  !< of the interpolation.
   !<
-  !< The search stops at whichever of the following conditions is met first: a
-  !< pivot at which the objective vanishes, a value which is NaN, a residual
-  !< |f(Root)| less than or equal to Tolerance, a bracket which has reached the
-  !< spacing of the parameter, or MaxIterations iterations. Root is the last
-  !< estimate in every case, and rounding is the only reason why a tighter
-  !< point may not be reached.
-  !<
-  !< The routine reports no iteration count and no convergence flag: the
-  !< tolerance is a stopping rule, not a promise, so the caller validates
-  !< Root.
+  !< The search stops at whichever of these conditions is met first: a pivot at
+  !< which the objective vanishes, a value which is NaN, a residual |f(Root)|
+  !< less than or equal to Tolerance, a bracket which has reached the spacing
+  !< of the parameter, or MaxIterations iterations. Root is the last estimate
+  !< in every case. No flag reports which condition was met, and Tolerance is a
+  !< stopping rule and not a promise, so the caller validates Root.
   !<
   !< -------------------------------------------------------------------------
   !< NOTES
   !< -------------------------------------------------------------------------
   !<
-  !< Root is the returned point. It holds an answer when the objective takes
-  !< opposite signs at the pivots, or vanishes at one of them; when it does
-  !< neither, or when an argument is rejected, the returned vector is filled
-  !< with NaN.
+  !< Root holds an answer when the objective takes opposite signs at the
+  !< pivots, or vanishes at one of them; otherwise, and on every rejection, the
+  !< returned array is filled with NaN.
   !<
-  !< -The returned vector never shares storage with the pivots.
+  !< -The returned array never shares storage with the pivots.
   !< -The pivots are copied before the first evaluation, so an objective which
-  !<  reuses the buffers of the caller through UserContext cannot alter the
-  !<  search.
+  !<  reuses their memory through UserContext cannot alter the search.
+  !< -A zero at a pivot is an exact answer and is returned unchanged.
   !< -The points at which the objective is evaluated lie on the segment: the
   !<  interpolation never extrapolates.
-  !< -A zero at a pivot is an exact answer and is returned unchanged.
-  !< -An objective which returns NaN terminates the search: the returned
-  !<  vector is NaN.
-  !< -The values at the pivots are compared through their sign, never through
-  !<  their product, so brackets whose product would over- or underflow are
-  !<  accepted.
-  !< -A pivot which is not finite (NaN or infinite), a size mismatch between the
-  !<  pivots, a negative or NaN Tolerance, and a MaxIterations of zero are
-  !<  rejections: the objective is not evaluated.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a pair of pivots on the same side of zero, a negative or NaN Tolerance
+  !<  and a MaxIterations of zero are rejections: the objective is not
+  !<  evaluated.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
   !< -A zero-length space is a valid no-op: the objective is not evaluated and
-  !<  the returned vector is empty, so the caller reads its size to tell the
+  !<  the returned array is empty, so the caller reads its size to tell the
   !<  case apart from a rejection.
   !< -The routine has no global state. Concurrent calls are safe provided the
   !<  objective function is thread-safe.
@@ -433,38 +385,32 @@ module FunctionalOptimizationAlgorithms
   !< MATHEMATICAL PROBLEM
   !< -------------------------------------------------------------------------
   !<
-  !< For an objective f: R^n -> R and two pivots of R^n, the routine searches
-  !< the segment which joins them,
-  !<
-  !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
-  !<
-  !< and returns the point of the segment at which f is smallest. The only
-  !< assumption on f is that it is unimodal there: nothing checks it, and the
-  !< pivots may be supplied in either order.
+  !< The problem is that of GoldenSectionMinimization: the segment which joins
+  !< the two pivots, and the assumption that the objective is unimodal along
+  !< it.
   !<
   !< -------------------------------------------------------------------------
   !< NUMERICAL METHOD
   !< -------------------------------------------------------------------------
   !<
-  !< The Brent method for minimization along the segment. The bracket is kept in
-  !< the parameter t together with three estimates: x, the best point found,
-  !< and w and v, the two points which precede it. Every iteration fits the
-  !< parabola through the three, and evaluates its vertex when the vertex lies
-  !< inside the bracket and is nearer to x than the step which produced w.
-  !< Otherwise it takes the golden-section step
+  !< The Brent method for minimization along the segment. The bracket is kept
+  !< in the parameter t together with three estimates: x, the best point
+  !< found, and w and v, the two points which precede it. Every iteration
+  !< fits the parabola through the three, and evaluates its vertex when the
+  !< vertex lies inside the bracket and is nearer to x than the step which
+  !< produced w. Otherwise it takes the golden-section step
   !<
   !<     d = c * e,     c = (3 - sqrt(5)) / 2, near 0.382,
   !<
   !< towards the larger part of the bracket. The point whose value is larger is
-  !< discarded together with the part of the bracket beyond it, so the bracket
-  !< shrinks and the three estimates keep their meaning: the parabola is
-  !< replaced by another as soon as the objective departs from it.
+  !< discarded together with the part of the bracket beyond it, so the three
+  !< estimates keep their meaning: the parabola is replaced by another as soon
+  !< as the objective departs from it.
   !<
   !< A point of the segment is the convex combination (1 - t) * LeftPivot +
-  !< t * RightPivot, which lies between the pivots and never forms their
-  !< difference, so the points cannot overflow. The length of the segment is
-  !< measured in halves for the same reason, and is capped at the largest value
-  !< of the type when the segment is wider than its range. One point is
+  !< t * RightPivot, so the points cannot overflow. The length of the segment
+  !< is measured in halves for the same reason, and is capped at the largest
+  !< value of the type when the segment is wider than its range. One point is
   !< evaluated before the first iteration and at most one per iteration
   !< afterwards.
   !<
@@ -477,25 +423,19 @@ module FunctionalOptimizationAlgorithms
   !< so the worst case of that search is the worst case of this one: after k
   !< iterations the bracket is at most rho^k times the segment. A smooth
   !< objective reaches the tolerance far sooner, because the parabolic step is
-  !< superlinear and the estimate then has the accuracy of the model and not of
-  !< the bracket.
+  !< superlinear.
   !<
   !< The search stops at whichever of these conditions is met first: a bracket
   !< whose width is less than or equal to twice Tolerance, a value which is
-  !< NaN, a step which can neither move the estimate nor narrow the bracket,
-  !< or MaxIterations iterations. In the first case the returned point lies
-  !< within twice Tolerance of a minimizer, and rounding is the only reason why
-  !< that bound may not be reached.
+  !< NaN, a step which lands on an end of the bracket or cannot move the
+  !< estimate, or MaxIterations iterations. In the first case the returned
+  !< point lies within twice Tolerance of a minimizer, and rounding is the only
+  !< reason why that bound may not be reached.
   !<
-  !< Tolerance bounds the width of the bracket in the units of the points, and
-  !< not the value of the objective: it is a stopping rule, not a promise about
-  !< the minimum, so the caller validates the returned point. No step of the
-  !< search lands nearer to the estimate than Tolerance, so the bracket is
-  !< measured against twice the value: the search stops one bracket wider than
-  !< the tolerance itself instead of walking the last of it one tolerance at a
-  !< time. A Tolerance which is not smaller than half the length of the segment
-  !< stops before anything is evaluated, and the answer is the midpoint of the
-  !< segment.
+  !< Tolerance bounds the width of the bracket, and not the value of the
+  !< objective: it is a stopping rule and not a promise, so the caller
+  !< validates the returned point. No step lands nearer to the estimate than
+  !< Tolerance, so the bracket is measured against twice that value.
   !<
   !< -------------------------------------------------------------------------
   !< NOTES
@@ -511,16 +451,14 @@ module FunctionalOptimizationAlgorithms
   !<  writes to their memory through UserContext alters the search.
   !< -The pivots themselves are never evaluated, so a minimum at a pivot is
   !<  approached only as the bracket shrinks onto it.
-  !< -A pivot which is not finite (NaN or infinite), a size mismatch between the
-  !<  pivots, a negative or NaN Tolerance, a MaxIterations of zero and a null
-  !<  objective are rejections: the objective is not evaluated, and the
-  !<  returned vector is NaN.
-  !< -An objective which returns NaN terminates the search: the returned
-  !<  vector is NaN.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a negative or NaN Tolerance and a MaxIterations of zero are rejections:
+  !<  the objective is not evaluated, and the returned array is NaN.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
   !< -A zero-length space is a valid no-op: the objective is not evaluated and
-  !<  the returned vector is empty, so the caller reads its size to tell the
+  !<  the returned array is empty, so the caller reads its size to tell the
   !<  case apart from a rejection.
-  !< -The returned vector never shares storage with the pivots.
   !< -The routine has no global state. Concurrent calls are safe provided the
   !<  objective function is thread-safe.
   !<
