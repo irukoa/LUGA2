@@ -20,6 +20,10 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
   contains
 
   !< Evaluates a C objective function on behalf of the Fortran algorithm.
+  !<
+  !< The context is the wrapper built by the C entry points of this submodule,
+  !< so it is always present and associated: a NULL caller context is stored
+  !< inside the wrapper and never replaces it.
   function FSideObjectiveFunction(EvaluationPoint, UserContext) &
     result(Value)
     real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
@@ -29,9 +33,6 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
     real(C_DOUBLE), target :: LocalEvaluationPoint(size(EvaluationPoint))
 
     Value = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
-
-    if (.not.present(UserContext)) return
-    if (.not.associated(UserContext)) return
 
     LocalEvaluationPoint = EvaluationPoint
     select type (UserContext)
@@ -151,5 +152,115 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
                                             LocalWrapperPointer)
 
   end procedure GoldenSectionMinimization_C
+
+  module procedure BrentRootFinding_C
+    real(C_DOUBLE), pointer :: LeftPivotFPtr(:), &
+                               RightPivotFPtr(:), &
+                               RootFPtr(:)
+
+    procedure(ObjectiveFunctionInterface_C), pointer :: CSideObjectiveFunction
+    type(FortranContextWrapper),             target  :: LocalWrapper
+    class(*),                                pointer :: LocalWrapperPointer
+
+    if (Dimension == 0_C_SIZE_T) return
+
+    if (C_ASSOCIATED(Root)) then
+      call C_F_POINTER(Root, &
+                       RootFPtr, &
+                       [Dimension])
+      RootFPtr = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(LeftPivot)) then
+      call C_F_POINTER(LeftPivot, &
+                       LeftPivotFPtr, &
+                       [Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(RightPivot)) then
+      call C_F_POINTER(RightPivot, &
+                       RightPivotFPtr, &
+                       [Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(ObjectiveFunction)) then
+      call C_F_PROCPOINTER(ObjectiveFunction, &
+                           CSideObjectiveFunction)
+    else
+      return
+    endif
+    LocalWrapper%ObjectiveFunction => CSideObjectiveFunction
+    LocalWrapper%Context           =  UserContext
+    LocalWrapperPointer            => LocalWrapper
+
+    RootFPtr = BrentRootFinding(LeftPivotFPtr, &
+                                RightPivotFPtr, &
+                                FSideObjectiveFunction, &
+                                MaxIterations, &
+                                Tolerance, &
+                                LocalWrapperPointer)
+
+  end procedure BrentRootFinding_C
+
+  module procedure BrentMinimization_C
+    real(C_DOUBLE), pointer :: LeftPivotFPtr(:), &
+                               RightPivotFPtr(:), &
+                               MinimumFPtr(:)
+
+    procedure(ObjectiveFunctionInterface_C), pointer :: CSideObjectiveFunction
+    type(FortranContextWrapper),             target  :: LocalWrapper
+    class(*),                                pointer :: LocalWrapperPointer
+
+    if (Dimension == 0_C_SIZE_T) return
+
+    if (C_ASSOCIATED(Minimum)) then
+      call C_F_POINTER(Minimum, &
+                       MinimumFPtr, &
+                       [Dimension])
+      MinimumFPtr = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(LeftPivot)) then
+      call C_F_POINTER(LeftPivot, &
+                       LeftPivotFPtr, &
+                       [Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(RightPivot)) then
+      call C_F_POINTER(RightPivot, &
+                       RightPivotFPtr, &
+                       [Dimension])
+    else
+      return
+    endif
+
+    if (C_ASSOCIATED(ObjectiveFunction)) then
+      call C_F_PROCPOINTER(ObjectiveFunction, &
+                           CSideObjectiveFunction)
+    else
+      return
+    endif
+    LocalWrapper%ObjectiveFunction => CSideObjectiveFunction
+    LocalWrapper%Context           =  UserContext
+    LocalWrapperPointer            => LocalWrapper
+
+    MinimumFPtr = BrentMinimization(LeftPivotFPtr, &
+                                    RightPivotFPtr, &
+                                    FSideObjectiveFunction, &
+                                    MaxIterations, &
+                                    Tolerance, &
+                                    LocalWrapperPointer)
+
+  end procedure BrentMinimization_C
 
 end submodule FOA_C_Interfaces
