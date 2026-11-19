@@ -67,37 +67,20 @@ $$
 
 ## Functional Optimization Algorithms (FOA)
 
-`BisectionRootFinding` locates a sign change of an objective function $f(\textbf{x})$ ($\mathbb{R}^n\to\mathbb{R}$) on the segment
+Root finding and unimodal minimization along the segment
 
 $$
 \textbf{x}(t) = \textbf{a} + t\left(\textbf{b} - \textbf{a}\right), \qquad t \in [0, 1],
 $$
 
-and returns the point at which the sign changes. Every iteration evaluates the objective at the midpoint of the current bracket and keeps the half which still holds the sign change, so after $k$ halvings the returned point lies within $|\textbf{b} - \textbf{a}| / 2^k$ of a sign change, in any norm.
+which joins two pivots $\textbf{a}$ and $\textbf{b}$ of $\mathbb{R}^n$:
 
-- **Assumptions** — only that the objective takes opposite signs at the two pivots; neither continuity nor differentiability is required.
-- **Numerical robustness** — the pivot values are compared through their sign, never through their product. A bracket which cannot be split is detected before evaluating. A NaN value terminates the search.
-- **Outcome** — no error code is returned. A rejected argument, a segment which does not bracket a sign change, or a NaN value leaves the result filled with NaN. `Tolerance` is a stopping rule on $|f|$ for this search, not a promise, so the caller validates the returned point.
+- **`BisectionRootFinding`** — sign change of a function $f(\textbf{x})$ which takes opposite signs at the pivots. One halving of the segment per iteration, so after $k$ iterations the returned point lies within $|\textbf{b} - \textbf{a}| / 2^k$ of a sign change, in any norm.
+- **`BrentRootFinding`** — the same sign change by inverse quadratic interpolation and secant steps, backed by bisection: superlinear on a smooth function, and at most twice the iterations of bisection in the worst case.
+- **`GoldenSectionMinimization`** — minimum of a unimodal function. The bracket keeps a fraction $\rho = (\sqrt{5} - 1)/2$ of its width per iteration, so after $k$ iterations the returned point lies within $\rho^k |\textbf{b} - \textbf{a}| / 2$ of a minimizer, in the largest component.
+- **`BrentMinimization`** — the same minimum by successive parabolic interpolation, with the golden-section step whenever the parabola is not trusted: superlinear on a smooth function, and no worse than golden-section search up to a small factor in the iteration count.
 
-`GoldenSectionMinimization` locates the minimum of an objective function on the same segment, and returns the point at which the objective is smallest.
-
-- **Assumptions** — only that the objective is unimodal along the segment. Neither continuity nor differentiability is required.
-- **Numerical robustness** — the bracket is kept in the parameter $t$, so its width is a fraction of the segment and cannot overflow, and a point of the segment is a convex combination of the pivots. A NaN value terminates the search.
-- **Outcome** — no error code is returned. A rejected argument or a NaN value leaves the result filled with NaN, and an objective which is not unimodal reports the minimum of the last bracket. `Tolerance` bounds the width of the bracket, in the units of the points, and not the value of the objective: the returned point lies within `Tolerance` / 2 of a minimizer of the objective on the segment, so the caller validates it.
-
-`BrentRootFinding` locates a sign change of an objective function $f(\textbf{x})$ on the same segment, and returns the point at which the sign changes. Every iteration interpolates the three most recent estimates: by inverse quadratic interpolation through the three, or by the secant through the two most recent ones when the first and the third coincide. The interpolated point is replaced by the midpoint of the bracket whenever it leaves the bracket or is not shorter than the step which produced the current estimate, so the convergence is superlinear on a smooth objective while the worst case remains that of `BisectionRootFinding`.
-
-- **Assumptions** — only that the objective takes opposite signs at the two pivots; neither continuity nor differentiability is required.
-- **Numerical robustness** — the bracket is kept in the parameter $t$, a point of the segment is a convex combination of the pivots, so it cannot overflow, and the pivot values are compared through their sign, never through their product. A NaN value terminates the search.
-- **Outcome** — no error code is returned. A rejected argument, a segment which does not bracket a sign change, or a NaN value leaves the result filled with NaN. `Tolerance` is a stopping rule on $|f|$ for this search, not a promise, so the caller validates the returned point.
-
-`BrentMinimization` locates the minimum of an objective function on the same segment, and returns the point at which the objective is smallest. Every iteration fits the parabola through the three most recent estimates and evaluates its vertex when that vertex lies inside the bracket and is nearer to the best estimate than the step which produced the second one; otherwise it takes the golden-section step of `GoldenSectionMinimization`, towards the larger part of the bracket. A smooth objective therefore converges superlinearly, while the worst case remains that of golden-section search.
-
-- **Assumptions** — only that the objective is unimodal along the segment. Neither continuity nor differentiability is required.
-- **Numerical robustness** — the bracket is kept in the parameter $t$, so its width is a fraction of the segment and cannot overflow, and a point of the segment is a convex combination of the pivots. An objective whose parabola degenerates, or whose step cannot move the estimate, terminates the search instead of iterating.
-- **Outcome** — no error code is returned. A rejected argument or a NaN value leaves the result filled with NaN, and an objective which is not unimodal reports the best point of the last bracket. `Tolerance` bounds the width of the bracket, in the units of the points, and not the value of the objective: no step lands nearer to the estimate than `Tolerance`, so the search stops once the bracket is no wider than twice that value, and the returned point lies within `2 * Tolerance` of a minimizer of the objective on the segment, so the caller validates it.
-
-The objective is a callback, optionally carrying a caller-defined context. FOA keeps no global state and needs no storage beyond a few work arrays sized by the point, so concurrent calls are safe provided the callback is thread-safe.
+Only the sign change, or the unimodality, is assumed: neither continuity nor differentiability is required. The bracket is kept in the parameter $t$, so no point or width can overflow, and a point of the segment is a convex combination of the pivots. The objective is a callback, optionally carrying a caller-defined context. No error code is returned: a rejected argument, a segment which does not bracket a sign change, a function which is not unimodal, or a NaN value leaves the result filled with NaN, and `Tolerance` is a stopping rule rather than a promise, so the caller validates the result. FOA keeps no global state and needs no storage beyond a few work arrays sized by the point, so concurrent calls are safe provided the callback is thread-safe.
 
 # Building and Installation
 

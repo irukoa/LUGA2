@@ -306,8 +306,10 @@ void GoldenSectionMinimization(
  * when the first and the third coincide, and by bisection of the bracket
  * whenever the interpolated point falls outside the bracket or is not shorter
  * than the step which produced the current estimate. Interpolation is therefore
- * always backed by bisection: the bracket shrinks at least as fast as bisection
- * makes it shrink, and much faster when the objective is smooth.
+ * always backed by bisection: a step is accepted only if it is shorter than
+ * half of the step which produced the current estimate, so the bracket is
+ * halved at least every second iteration, and much faster when the objective
+ * is smooth.
  *
  * A point of the segment is the convex combination (1 - t) * LeftPivot +
  * t * RightPivot, so the points cannot overflow, and the values are compared
@@ -319,9 +321,10 @@ void GoldenSectionMinimization(
  * -------------------------------------------------------------------------
  *
  * The search falls back on bisection whenever the interpolation cannot be
- * trusted, so the estimate approaches a sign change at least as fast as a
- * halving of the segment and, on a smooth objective, at the superlinear rate of
- * the interpolation.
+ * trusted, so the bracket is halved at least every second iteration, and the
+ * search needs at most twice the iterations of BisectionRootFinding. On a
+ * smooth objective it needs far fewer, because the estimate converges
+ * superlinearly.
  *
  * The search stops at whichever of these conditions is met first: a pivot at
  * which the objective vanishes, a value which is NaN, a residual |f(Root)| less
@@ -351,7 +354,9 @@ void GoldenSectionMinimization(
  *     Objective whose sign change is sought. Must not be NULL.
  *
  * @param[in] MaxIterations
- *     Upper bound on the number of iterations. 0 is a rejection.
+ *     Upper bound on the number of iterations. 0 is a rejection. The worst case
+ *     needs twice the iterations of BisectionRootFinding, so a cap which suits
+ *     that search may need to be doubled.
  *
  * @param[in] Tolerance
  *     Non-negative bound on the residual |f(Root)|, checked at every
@@ -375,8 +380,8 @@ void GoldenSectionMinimization(
  *   Dimension = 0 does not even fill it.
  * - The result must not overlap either pivot: the fill would overwrite it and
  *   report the absence of an answer. A Fortran caller always gets a new array.
- * - The pivots are copied before the first evaluation, so an objective which
- *   reuses their buffers through UserContext cannot alter the search.
+ * - The memory of the pivots is read at every iteration: an objective which
+ *   writes to it through UserContext alters the search.
  * - A non-finite pivot (NaN or infinite) is a rejection, and so is a pair of
  *   pivots on the same side of zero.
  * - An objective which returns NaN terminates the search: Root is NaN.
@@ -437,10 +442,10 @@ void BrentRootFinding(const size_t                     Dimension,
  * -------------------------------------------------------------------------
  *
  * Whenever the parabola is rejected the bracket keeps a fraction rho of its
- * width, with rho = (sqrt(5) - 1) / 2, exactly as in golden-section search, so
- * the worst case of that search is the worst case of this one: after k
- * iterations the bracket is at most rho^k times the segment. A smooth objective
- * reaches the tolerance far sooner, because the parabolic step is superlinear.
+ * width, with rho = (sqrt(5) - 1) / 2, exactly as in golden-section search.
+ * The rejected step is the golden-section step, so the worst case is that of
+ * that search, up to a small factor in the iteration count, while a smooth
+ * objective converges superlinearly and reaches the tolerance far sooner.
  *
  * The search stops at whichever of these conditions is met first: a bracket
  * whose width is less than or equal to twice Tolerance, a value which is NaN, a
