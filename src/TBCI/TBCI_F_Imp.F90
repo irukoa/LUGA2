@@ -213,7 +213,7 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
     !The next call checks for possible overflows in
     !BandCount^2 * Dimensionality^Derivative.
-    call ArraySpec%Specify(Shape = ArrayShape, Layout = COLUMN_MAJOR)
+    call ArraySpec%New(Shape = ArrayShape, Layout = COLUMN_MAJOR)
     if (.not.ArraySpec%Initialized()) then
       Success = .false.
       return
@@ -415,7 +415,7 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
   end procedure TBCrystalHamiltonian_C
 
-  module procedure FortranTBPositionOperator
+  module procedure FortranTBCrystalPositionOperator
     integer(C_SIZE_T) :: LocalDerivative
     integer(C_SIZE_T) :: ArrayShapeSize
     integer(C_SIZE_T) :: BufferSize
@@ -482,7 +482,7 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
 
     !The next call checks for possible overflows in
     !BandCount^2 * Dimensionality^(Derivative + 1).
-    call ArraySpec%Specify(Shape = ArrayShape, Layout = COLUMN_MAJOR)
+    call ArraySpec%New(Shape = ArrayShape, Layout = COLUMN_MAJOR)
     if (.not.ArraySpec%Initialized()) then
       Success = .false.
       return
@@ -632,9 +632,9 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     if (C_ASSOCIATED(PhasePtr))       call FortranFree(PhasePtr)
     if (C_ASSOCIATED(PosPtr))         call FortranFree(PosPtr)
 
-  end procedure FortranTBPositionOperator
+  end procedure FortranTBCrystalPositionOperator
 
-  module procedure TBPositionOperator_C
+  module procedure TBCrystalPositionOperator_C
     type(TBCrystal)                    :: FortranCrystal
     real(C_DOUBLE),            pointer :: KPointFPtr(:)
     complex(C_DOUBLE_COMPLEX), pointer :: ArrayFPtr(:)
@@ -684,6 +684,6 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
                                                       Array = ArrayFPtr, &
                                                       ArrayShape = ArrayShapeFPtr), C_BOOL)
 
-  end procedure TBPositionOperator_C
+  end procedure TBCrystalPositionOperator_C
 
 end submodule TBCI_F_Implementation

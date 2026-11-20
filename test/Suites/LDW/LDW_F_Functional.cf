@@ -25,7 +25,7 @@ module LDWFortranFunctionalSupport
   integer(INT32) :: QueryCalls    = 0_INT32
   integer(INT32) :: ComputeCalls  = 0_INT32
 
-  !ZGEES stub state. It is tracked separately so that the DiagHermitian and
+  !ZGEES stub state. It is tracked separately so that the HermitianEigendecomposition and
   !SchurDecomposition tests never interfere.
   integer(INT32) :: ZGEESQueryStatus   = 0_INT32
   integer(INT32) :: ZGEESComputeStatus = 0_INT32
@@ -505,15 +505,15 @@ contains
     enddo
   end function ResidualError
 
-  !< Maximum absolute entry of A - U*diag(DiagSigma)*VH for an M-by-N matrix
+  !< Maximum absolute entry of A - U*diag(SingularValues)*VH for an M-by-N matrix
   !< A. The product uses the first min(M, N) columns of U and rows of VH, so
   !< it is the defining identity of the decomposition for any shape.
-  pure function SVResidualError(A, U, DiagSigma, VH, M, N) result(Error)
+  pure function SVResidualError(A, U, SingularValues, VH, M, N) result(Error)
     integer,         intent(in) :: M
     integer,         intent(in) :: N
     complex(REAL64), intent(in) :: A(M, N)
     complex(REAL64), intent(in) :: U(M, M)
-    real(REAL64),    intent(in) :: DiagSigma(min(M, N))
+    real(REAL64),    intent(in) :: SingularValues(min(M, N))
     complex(REAL64), intent(in) :: VH(N, N)
     real(REAL64)                :: Error
     complex(REAL64)             :: Entry
@@ -525,7 +525,7 @@ contains
         Entry = cmplx(0.0_REAL64, 0.0_REAL64, REAL64)
         do k = 1, min(M, N)
           Entry = Entry &
-            +U(i, k) * cmplx(DiagSigma(k), 0.0_REAL64, REAL64) * VH(k, j)
+            +U(i, k) * cmplx(SingularValues(k), 0.0_REAL64, REAL64) * VH(k, j)
         enddo
         Error = max(Error, abs(Entry - A(i, j)))
       enddo
@@ -800,7 +800,7 @@ end module LDWFortranFunctionalSupport
 TEST_E(LDWFortranDHNominal)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, DiagHermitian
+                                    Cmplx1, CmplxI, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, ResidualError
 
   implicit none
@@ -820,12 +820,12 @@ TEST_E(LDWFortranDHNominal)
   H(3, :)   = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
   HOriginal = H
 
-  call DiagHermitian(Dimension = 3_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 3_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(E - [1.0_C_DOUBLE, 4.0_C_DOUBLE, 4.0_C_DOUBLE]) < Tolerance))
@@ -840,7 +840,7 @@ END_TEST_E
 TEST_E(LDWFortranDHNominalNoEigenvalues)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, DiagHermitian
+                                    Cmplx1, CmplxI, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, ResidualError
 
   implicit none
@@ -862,11 +862,11 @@ TEST_E(LDWFortranDHNominalNoEigenvalues)
   KnownE = [1.0_C_DOUBLE, 4.0_C_DOUBLE, 4.0_C_DOUBLE]
 
   !Eigenvalues is optional: omitting it must not change the unitary matrix.
-  call DiagHermitian(Dimension = 3_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 3_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(OrthonormalityError(U, 3) < Tolerance)
@@ -878,7 +878,7 @@ END_TEST_E
 TEST_E(LDWFortranDHNominal1x1)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    DiagHermitian
+                                    HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, ResidualError
 
   implicit none
@@ -896,12 +896,12 @@ TEST_E(LDWFortranDHNominal1x1)
   H(1, 1) = cmplx(-3.5_C_DOUBLE, 0.0_C_DOUBLE, C_DOUBLE_COMPLEX)
 
   !Smallest dimension: the workspace query returns the minimum sizes.
-  call DiagHermitian(Dimension = 1_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 1_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(abs(E(1) + 3.5_C_DOUBLE) < Tolerance)
@@ -914,7 +914,7 @@ END_TEST_E
 TEST_E(LDWFortranDHNominal2x2)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, DiagHermitian
+                                    Cmplx1, CmplxI, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, ResidualError
 
   implicit none
@@ -932,12 +932,12 @@ TEST_E(LDWFortranDHNominal2x2)
   H(1, :) = [ 2*Cmplx1,  1*CmplxI]
   H(2, :) = [-1*CmplxI,  2*Cmplx1]
 
-  call DiagHermitian(Dimension = 2_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 2_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(E - [1.0_C_DOUBLE, 3.0_C_DOUBLE]) < Tolerance))
@@ -950,7 +950,7 @@ END_TEST_E
 TEST_E(LDWFortranDHNominal8x8)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, &
-                                    C_INT, DiagHermitian
+                                    C_INT, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: FourierUnitary, SpectralHermitian, &
                                          EigenvectorOverlap, &
                                          OrthonormalityError, ResidualError
@@ -981,12 +981,12 @@ TEST_E(LDWFortranDHNominal8x8)
   call FourierUnitary(Fourier, N)
   call SpectralHermitian(KnownE, Fourier, H, N)
 
-  call DiagHermitian(Dimension = int(N, C_SIZE_T), &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = int(N, C_SIZE_T), &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(E - KnownE) < Tolerance))
@@ -1004,7 +1004,7 @@ END_TEST_E
 TEST_E(LDWFortranDHNominal16x16)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, &
-                                    C_INT, DiagHermitian
+                                    C_INT, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: FourierUnitary, SpectralHermitian, &
                                          EigenvectorOverlap, &
                                          OrthonormalityError, ResidualError
@@ -1034,12 +1034,12 @@ TEST_E(LDWFortranDHNominal16x16)
   call FourierUnitary(Fourier, N)
   call SpectralHermitian(KnownE, Fourier, H, N)
 
-  call DiagHermitian(Dimension = int(N, C_SIZE_T), &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = int(N, C_SIZE_T), &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(E - KnownE) < Tolerance))
@@ -1057,7 +1057,7 @@ END_TEST_E
 TEST_E(LDWFortranDHFastReturn)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, DiagHermitian
+                                    Cmplx1, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: ResetZHEEVDStub, &
                                          GetZHEEVDStubCalls, ZHEEVDStub
 
@@ -1075,11 +1075,11 @@ TEST_E(LDWFortranDHFastReturn)
 
   !Dimension zero is a fast return: the deferred procedure is never called
   !and the output arguments are left untouched.
-  call DiagHermitian(Dimension = 0_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     ZHEEVDProcedure = ZHEEVDStub, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 0_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   ZHEEVDProcedure = ZHEEVDStub, &
+                                   Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(U - 42 * Cmplx1) <= 0.0_C_DOUBLE))
@@ -1094,7 +1094,7 @@ END_TEST_E
 TEST_E(LDWFortranDHTooLarge)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, DiagHermitian
+                                    Cmplx1, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: ResetZHEEVDStub, &
                                          GetZHEEVDStubCalls, ZHEEVDStub
 
@@ -1112,11 +1112,11 @@ TEST_E(LDWFortranDHTooLarge)
 
   !Dimensions beyond the LAPACK integer range are rejected before any buffer
   !is allocated or the deferred procedure is called.
-  call DiagHermitian(Dimension = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     ZHEEVDProcedure = ZHEEVDStub, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   ZHEEVDProcedure = ZHEEVDStub, &
+                                   Info = Info)
 
   ASSERT(Info == int(huge(1_INT32), C_INT))
   ASSERT(all(abs(U - 42 * Cmplx1) <= 0.0_C_DOUBLE))
@@ -1131,7 +1131,7 @@ END_TEST_E
 TEST_E(LDWFortranDHFailWorkspaceQuery)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, DiagHermitian
+                                    Cmplx1, CmplxI, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: &
     LDWStubFailingQuery, ResetZHEEVDStub, SetZHEEVDStubStatus, &
     GetZHEEVDStubCalls, ZHEEVDStub
@@ -1154,11 +1154,11 @@ TEST_E(LDWFortranDHFailWorkspaceQuery)
 
   !A failing workspace query is propagated unchanged and the computational
   !call is never made.
-  call DiagHermitian(Dimension = 3_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     ZHEEVDProcedure = ZHEEVDStub, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 3_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   ZHEEVDProcedure = ZHEEVDStub, &
+                                   Info = Info)
 
   ASSERT(Info == int(LDWStubFailingQuery, C_INT))
   ASSERT(all(abs(U - 42 * Cmplx1) <= 0.0_C_DOUBLE))
@@ -1173,7 +1173,7 @@ END_TEST_E
 TEST_E(LDWFortranDHFailComputation)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, &
-                                    C_INT, Cmplx1, CmplxI, DiagHermitian
+                                    C_INT, Cmplx1, CmplxI, HermitianEigendecomposition
   use LDWFortranFunctionalSupport, only: ResetZHEEVDStub, &
                                          SetZHEEVDStubStatus, &
                                          GetZHEEVDStubCalls, ZHEEVDStub
@@ -1196,12 +1196,12 @@ TEST_E(LDWFortranDHFailComputation)
   call SetZHEEVDStubStatus(0_INT32, ComputeStatus)
 
   !A nonzero status from the computational call is propagated unchanged.
-  call DiagHermitian(Dimension = 3_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = ZHEEVDStub, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 3_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = ZHEEVDStub, &
+                                   Info = Info)
 
   ASSERT(Info == int(ComputeStatus, C_INT))
 
@@ -2494,7 +2494,7 @@ TEST_SUITE(LDWFortranZGGESNominalSuite,
 TEST_E(LDWFortranSVDNominal1x1)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, SVDDecomposition
+                                    Cmplx1, CmplxI, SVDecomposition
   use LDWFortranFunctionalSupport, only: SVResidualError
 
   implicit none
@@ -2513,14 +2513,14 @@ TEST_E(LDWFortranSVDNominal1x1)
   !single singular value is the modulus of the entry.
   A(1, 1) = -3.5_C_DOUBLE * Cmplx1 + 2.0_C_DOUBLE * CmplxI
 
-  call SVDDecomposition(DimensionR = 1_C_SIZE_T, &
-                        DimensionC = 1_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 1_C_SIZE_T, &
+                       Columns = 1_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(abs(S(1) - sqrt(16.25_C_DOUBLE)) < Tolerance)
@@ -2534,7 +2534,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDNominal2x2)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx0, Cmplx1, SVDDecomposition
+                                    Cmplx0, Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, SVResidualError
 
   implicit none
@@ -2555,14 +2555,14 @@ TEST_E(LDWFortranSVDNominal2x2)
   A(2, :)   = [Cmplx0, -4.0_C_DOUBLE*Cmplx1]
   AOriginal = A
 
-  call SVDDecomposition(DimensionR = 2_C_SIZE_T, &
-                        DimensionC = 2_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 2_C_SIZE_T, &
+                       Columns = 2_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   !Matrix is an input-only argument and must not be overwritten.
@@ -2584,7 +2584,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDNominalRankDeficient)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, SVDDecomposition
+                                    Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: SVResidualError
 
   implicit none
@@ -2607,14 +2607,14 @@ TEST_E(LDWFortranSVDNominalRankDeficient)
   A(3, :)   = [3.0_C_DOUBLE*Cmplx1, 3.0_C_DOUBLE*Cmplx1, 3.0_C_DOUBLE*Cmplx1]
   AOriginal = A
 
-  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
-                        DimensionC = 3_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 3_C_SIZE_T, &
+                       Columns = 3_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
@@ -2633,7 +2633,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDNominalTall)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx0, Cmplx1, SVDDecomposition
+                                    Cmplx0, Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, SVResidualError
 
   implicit none
@@ -2656,14 +2656,14 @@ TEST_E(LDWFortranSVDNominalTall)
   A(4, :)   = [Cmplx0, 4.0_C_DOUBLE*Cmplx1]
   AOriginal = A
 
-  call SVDDecomposition(DimensionR = 4_C_SIZE_T, &
-                        DimensionC = 2_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 4_C_SIZE_T, &
+                       Columns = 2_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
@@ -2684,7 +2684,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDNominalWide)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx0, Cmplx1, SVDDecomposition
+                                    Cmplx0, Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError, SVResidualError
 
   implicit none
@@ -2705,14 +2705,14 @@ TEST_E(LDWFortranSVDNominalWide)
   A(2, :)   = [Cmplx0, 2.0_C_DOUBLE*Cmplx1, Cmplx0, 4.0_C_DOUBLE*Cmplx1]
   AOriginal = A
 
-  call SVDDecomposition(DimensionR = 2_C_SIZE_T, &
-                        DimensionC = 4_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 2_C_SIZE_T, &
+                       Columns = 4_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
@@ -2730,10 +2730,10 @@ TEST_E(LDWFortranSVDNominalWide)
 #endif
 END_TEST_E
 
-TEST_E(LDWFortranSVDNominalNoDiagSigma)
+TEST_E(LDWFortranSVDNominalNoSingularValues)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, SVDDecomposition
+                                    Cmplx1, CmplxI, SVDecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError
 
   implicit none
@@ -2749,25 +2749,25 @@ TEST_E(LDWFortranSVDNominalNoDiagSigma)
   integer(C_INT)            :: Info
   integer                   :: i, j
 
-  !Omitting the optional DiagSigma must not change the computation. The
+  !Omitting the optional SingularValues must not change the computation. The
   !matrix is the one used by the reference test.
   A(1, :)   = [ 2*Cmplx1 + CmplxI, CmplxI, Cmplx1 - CmplxI]
   A(2, :)   = [-CmplxI, 3*Cmplx1, Cmplx1 + 2*CmplxI]
   A(3, :)   = [ CmplxI, 2*Cmplx1 - CmplxI, -2*Cmplx1]
   AOriginal = A
 
-  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
-                        DimensionC = 3_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 3_C_SIZE_T, &
+                       Columns = 3_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(A - AOriginal) <= 0.0_C_DOUBLE))
 
-  !Without DiagSigma the singular values are not returned, but U^H*A*V must
+  !Without SingularValues the singular values are not returned, but U^H*A*V must
   !still be diagonal, non-negative and ascending. V is the adjoint of VH.
   Sigma = matmul(conjg(transpose(U)), &
                  matmul(AOriginal, conjg(transpose(VH))))
@@ -2794,7 +2794,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDFastReturn)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, SVDDecomposition
+                                    Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: ResetZGESDDStub, &
                                          GetZGESDDStubCalls, ZGESDDStub
 
@@ -2815,14 +2815,14 @@ TEST_E(LDWFortranSVDFastReturn)
 
   !Dimension zero is a fast return: the deferred procedure is never called
   !and the output arguments are left untouched.
-  call SVDDecomposition(DimensionR = 0_C_SIZE_T, &
-                        DimensionC = 0_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = ZGESDDStub, &
-                        Info = Info)
+  call SVDecomposition(Rows = 0_C_SIZE_T, &
+                       Columns = 0_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = ZGESDDStub, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   ASSERT(all(abs(U - 42 * Cmplx1) <= 0.0_C_DOUBLE))
@@ -2839,7 +2839,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDTooLarge)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, SVDDecomposition
+                                    Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: ResetZGESDDStub, &
                                          GetZGESDDStubCalls, ZGESDDStub
 
@@ -2860,14 +2860,14 @@ TEST_E(LDWFortranSVDTooLarge)
 
   !Dimensions beyond the LAPACK integer range are rejected before any buffer
   !is allocated or the deferred procedure is called.
-  call SVDDecomposition(DimensionR = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
-                        DimensionC = 1_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = ZGESDDStub, &
-                        Info = Info)
+  call SVDecomposition(Rows = int(huge(1_INT32), C_SIZE_T) + 1_C_SIZE_T, &
+                       Columns = 1_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = ZGESDDStub, &
+                       Info = Info)
 
   ASSERT(Info == int(huge(1_INT32), C_INT))
   ASSERT(all(abs(U - 42 * Cmplx1) <= 0.0_C_DOUBLE))
@@ -2884,7 +2884,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDFailWorkspaceQuery)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, SVDDecomposition
+                                    Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: &
     LDWStubFailingQuery, ResetZGESDDStub, SetZGESDDStubStatus, &
     GetZGESDDStubCalls, ZGESDDStub
@@ -2907,14 +2907,14 @@ TEST_E(LDWFortranSVDFailWorkspaceQuery)
 
   !A failing workspace query is propagated unchanged and the computational
   !call is never made. The outputs are left untouched.
-  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
-                        DimensionC = 3_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = ZGESDDStub, &
-                        Info = Info)
+  call SVDecomposition(Rows = 3_C_SIZE_T, &
+                       Columns = 3_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = ZGESDDStub, &
+                       Info = Info)
 
   ASSERT(Info == int(LDWStubFailingQuery, C_INT))
   ASSERT(all(abs(U - 42 * Cmplx1) <= 0.0_C_DOUBLE))
@@ -2931,7 +2931,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDFailComputation)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: INT32, C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, SVDDecomposition
+                                    Cmplx1, SVDecomposition
   use LDWFortranFunctionalSupport, only: ResetZGESDDStub, &
                                          SetZGESDDStubStatus, &
                                          GetZGESDDStubCalls, ZGESDDStub
@@ -2952,14 +2952,14 @@ TEST_E(LDWFortranSVDFailComputation)
   call SetZGESDDStubStatus(0_INT32, ComputeStatus)
 
   !A nonzero status from the computational call is propagated unchanged.
-  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
-                        DimensionC = 3_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = ZGESDDStub, &
-                        Info = Info)
+  call SVDecomposition(Rows = 3_C_SIZE_T, &
+                       Columns = 3_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = ZGESDDStub, &
+                       Info = Info)
 
   ASSERT(Info == int(ComputeStatus, C_INT))
 
@@ -2977,7 +2977,7 @@ TEST_SUITE(LDWFortranSVDNominalSuite,
            LDWFortranSVDNominalRankDeficient,
            LDWFortranSVDNominalTall,
            LDWFortranSVDNominalWide,
-           LDWFortranSVDNominalNoDiagSigma,
+           LDWFortranSVDNominalNoSingularValues,
            LDWFortranSVDFastReturn,
            LDWFortranSVDTooLarge,
            LDWFortranSVDFailWorkspaceQuery,
@@ -2986,7 +2986,7 @@ TEST_SUITE(LDWFortranSVDNominalSuite,
 
 TEST_E(LDWFortranDegenFastReturn)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -2998,7 +2998,7 @@ TEST_E(LDWFortranDegenFastReturn)
   D = 99_C_SIZE_T
 
   !Dimension zero is a fast return: the result is left untouched.
-  call DegeneracyGroup(0_C_SIZE_T, E, 0.1_C_DOUBLE, D)
+  call DegeneracyGrouping(0_C_SIZE_T, E, 0.1_C_DOUBLE, D)
 
   ASSERT(D(1) == 99_C_SIZE_T)
 
@@ -3007,7 +3007,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenSingle)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3019,7 +3019,7 @@ TEST_E(LDWFortranDegenSingle)
   D = 99_C_SIZE_T
 
   !A single level is always a group of one.
-  call DegeneracyGroup(1_C_SIZE_T, E, 0.1_C_DOUBLE, D)
+  call DegeneracyGrouping(1_C_SIZE_T, E, 0.1_C_DOUBLE, D)
 
   ASSERT(D(1) == 1_C_SIZE_T)
 
@@ -3028,7 +3028,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenThresholdBoundary)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3041,7 +3041,7 @@ TEST_E(LDWFortranDegenThresholdBoundary)
   E = real([0.0, 0.25, 0.5], C_DOUBLE)
   D = 99_C_SIZE_T
 
-  call DegeneracyGroup(3_C_SIZE_T, E, 0.25_C_DOUBLE, D)
+  call DegeneracyGrouping(3_C_SIZE_T, E, 0.25_C_DOUBLE, D)
 
   ASSERT(all(D == int([3, 0, 0], C_SIZE_T)))
 
@@ -3050,7 +3050,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenNegativeThr)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3062,7 +3062,7 @@ TEST_E(LDWFortranDegenNegativeThr)
   D = 99_C_SIZE_T
 
   !A negative threshold is a no-op.
-  call DegeneracyGroup(1_C_SIZE_T, E, -0.1_C_DOUBLE, D)
+  call DegeneracyGrouping(1_C_SIZE_T, E, -0.1_C_DOUBLE, D)
 
   ASSERT(D(1) == 99_C_SIZE_T)
 
@@ -3071,7 +3071,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenZeroThr)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3083,7 +3083,7 @@ TEST_E(LDWFortranDegenZeroThr)
   D = 99_C_SIZE_T
 
   !A zero threshold is a no-op as well.
-  call DegeneracyGroup(3_C_SIZE_T, E, 0.0_C_DOUBLE, D)
+  call DegeneracyGrouping(3_C_SIZE_T, E, 0.0_C_DOUBLE, D)
 
   ASSERT(all(D == 99_C_SIZE_T))
 
@@ -3092,7 +3092,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenTransitive)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3105,7 +3105,7 @@ TEST_E(LDWFortranDegenTransitive)
   E = real([0.0, 0.375, 0.75], C_DOUBLE)
   D = 99_C_SIZE_T
 
-  call DegeneracyGroup(3_C_SIZE_T, E, 0.5_C_DOUBLE, D)
+  call DegeneracyGrouping(3_C_SIZE_T, E, 0.5_C_DOUBLE, D)
 
   ASSERT(all(D == int([3, 0, 0], C_SIZE_T)))
 
@@ -3114,7 +3114,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenMultipleGroups)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3125,7 +3125,7 @@ TEST_E(LDWFortranDegenMultipleGroups)
   E = real([0.0, 0.25, 0.5, 1.0, 1.25], C_DOUBLE)
   D = 99_C_SIZE_T
 
-  call DegeneracyGroup(5_C_SIZE_T, E, 0.25_C_DOUBLE, D)
+  call DegeneracyGrouping(5_C_SIZE_T, E, 0.25_C_DOUBLE, D)
 
   ASSERT(all(D == int([3, 0, 0, 2, 0], C_SIZE_T)))
 
@@ -3134,7 +3134,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenAllEqual)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3145,7 +3145,7 @@ TEST_E(LDWFortranDegenAllEqual)
   E = 2.0_C_DOUBLE
   D = 99_C_SIZE_T
 
-  call DegeneracyGroup(4_C_SIZE_T, E, 0.1_C_DOUBLE, D)
+  call DegeneracyGrouping(4_C_SIZE_T, E, 0.1_C_DOUBLE, D)
 
   ASSERT(all(D == int([4, 0, 0, 0], C_SIZE_T)))
 
@@ -3154,7 +3154,7 @@ END_TEST_E
 
 TEST_E(LDWFortranDegenAllDistinct)
 #ifdef TSD_FORTRAN_IMPL
-  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGroup
+  use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3165,7 +3165,7 @@ TEST_E(LDWFortranDegenAllDistinct)
   E = real([0.0, 1.0, 2.0, 3.0], C_DOUBLE)
   D = 99_C_SIZE_T
 
-  call DegeneracyGroup(4_C_SIZE_T, E, 0.5_C_DOUBLE, D)
+  call DegeneracyGrouping(4_C_SIZE_T, E, 0.5_C_DOUBLE, D)
 
   ASSERT(all(D == int([1, 1, 1, 1], C_SIZE_T)))
 
@@ -3185,11 +3185,11 @@ TEST_SUITE(LDWFortranDegenNominalSuite,
            LDWFortranDegenNegativeThr);
 #endif
 
-TEST_E(LDWFortranDiagHermitianReference)
+TEST_E(LDWFortranHermitianEigendecompositionReference)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE_COMPLEX, C_DOUBLE, C_INT, &
                                     Cmplx1, CmplxI, &
-                                    DiagHermitian
+                                    HermitianEigendecomposition
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3206,12 +3206,12 @@ TEST_E(LDWFortranDiagHermitianReference)
   H(2, :) = [-1*CmplxI,  3*Cmplx1, 1*CmplxI]
   H(3, :) = [ 1*Cmplx1, -1*CmplxI, 3*Cmplx1]
 
-  call DiagHermitian(Dimension = 3_C_SIZE_T, &
-                     Matrix = H, &
-                     Unitary = U, &
-                     Eigenvalues = E, &
-                     ZHEEVDProcedure = zheevd, &
-                     Info = Info)
+  call HermitianEigendecomposition(Dimension = 3_C_SIZE_T, &
+                                   Matrix = H, &
+                                   Unitary = U, &
+                                   Eigenvalues = E, &
+                                   ZHEEVDProcedure = zheevd, &
+                                   Info = Info)
   ASSERT(Info == 0_C_INT)
 
   ASSERT(abs(E(1) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
@@ -3309,7 +3309,7 @@ END_TEST_E
 TEST_E(LDWFortranSVDReference)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_DOUBLE_COMPLEX, C_INT, &
-                                    Cmplx1, CmplxI, SVDDecomposition
+                                    Cmplx1, CmplxI, SVDecomposition
   use LDWFortranFunctionalSupport, only: OrthonormalityError
 
   implicit none
@@ -3333,14 +3333,14 @@ TEST_E(LDWFortranSVDReference)
   A(3, :)   = [ CmplxI, 2*Cmplx1 - CmplxI, -2*Cmplx1]
   AOriginal = A
 
-  call SVDDecomposition(DimensionR = 3_C_SIZE_T, &
-                        DimensionC = 3_C_SIZE_T, &
-                        Matrix = A, &
-                        UnitaryU = U, &
-                        DiagSigma = S, &
-                        UnitaryVH = VH, &
-                        ZGESDDProcedure = zgesdd, &
-                        Info = Info)
+  call SVDecomposition(Rows = 3_C_SIZE_T, &
+                       Columns = 3_C_SIZE_T, &
+                       Matrix = A, &
+                       UnitaryU = U, &
+                       SingularValues = S, &
+                       UnitaryVH = VH, &
+                       ZGESDDProcedure = zgesdd, &
+                       Info = Info)
 
   ASSERT(Info == 0_C_INT)
   !Matrix is an input-only argument and must not be overwritten.
@@ -3467,10 +3467,10 @@ TEST_E(LDWFortranZGGESReference)
 #endif
 END_TEST_E
 
-TEST_E(LDWFortranDegeneracyGroupReference)
+TEST_E(LDWFortranDegeneracyGroupingReference)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_DOUBLE, C_SIZE_T, &
-                                    DegeneracyGroup
+                                    DegeneracyGrouping
 
   implicit none
   TSD_TEST_E_INTERFACES
@@ -3480,7 +3480,7 @@ TEST_E(LDWFortranDegeneracyGroupReference)
 
   E = real([0.0, 0.2, 0.5, 0.9, 0.95, 1.1, 1.2, 7.1, 7.2], C_DOUBLE)
 
-  call DegeneracyGroup(9_C_SIZE_T, E, 0.3_C_DOUBLE, D)
+  call DegeneracyGrouping(9_C_SIZE_T, E, 0.3_C_DOUBLE, D)
 
   ASSERT(all(D == int([3, 0, 0, 4, 0, 0, 0, 2, 0], C_SIZE_T)))
 
@@ -3489,9 +3489,9 @@ END_TEST_E
 
 #ifdef TSD_KERNEL
 TEST_SUITE(LDWFortranReferenceSuite,
-           LDWFortranDiagHermitianReference,
+           LDWFortranHermitianEigendecompositionReference,
            LDWFortranZGEESReference,
            LDWFortranZGGESReference,
            LDWFortranSVDReference,
-           LDWFortranDegeneracyGroupReference);
+           LDWFortranDegeneracyGroupingReference);
 #endif

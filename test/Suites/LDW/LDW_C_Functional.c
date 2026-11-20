@@ -31,7 +31,8 @@ TEST(LDWDHZeroCount) {
   double         Eigenvalues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  DiagHermitian((size_t)0, Matrix, Unitary, Eigenvalues, DummyZHEEVD, &Info);
+  HermitianEigendecomposition((size_t)0, Matrix, Unitary, Eigenvalues,
+                              DummyZHEEVD, &Info);
   ASSERT(Info == 0);
 }
 
@@ -39,7 +40,8 @@ TEST(LDWDHNullMatrix) {
   double complex Unitary[1];
   double         Eigenvalues[1];
   int            Info = 1;
-  DiagHermitian((size_t)0, NULL, Unitary, Eigenvalues, DummyZHEEVD, &Info);
+  HermitianEigendecomposition((size_t)0, NULL, Unitary, Eigenvalues,
+                              DummyZHEEVD, &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
@@ -48,7 +50,8 @@ TEST(LDWDHNullUnitary) {
   double         Eigenvalues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  DiagHermitian((size_t)0, Matrix, NULL, Eigenvalues, DummyZHEEVD, &Info);
+  HermitianEigendecomposition((size_t)0, Matrix, NULL, Eigenvalues, DummyZHEEVD,
+                              &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
@@ -57,7 +60,8 @@ TEST(LDWDHNullEigenvalues) {
   int            Info = 1;
   Matrix[0]           = 0.0;
   // Eigenvalues is optional: a NULL array only skips that output.
-  DiagHermitian((size_t)0, Matrix, Unitary, NULL, DummyZHEEVD, &Info);
+  HermitianEigendecomposition((size_t)0, Matrix, Unitary, NULL, DummyZHEEVD,
+                              &Info);
   ASSERT(Info == 0);
 }
 
@@ -66,7 +70,8 @@ TEST(LDWDHNullZHEEVDProcedure) {
   double         Eigenvalues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  DiagHermitian((size_t)0, Matrix, Unitary, Eigenvalues, NULL, &Info);
+  HermitianEigendecomposition((size_t)0, Matrix, Unitary, Eigenvalues, NULL,
+                              &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
@@ -74,7 +79,8 @@ TEST(LDWDHNullInfo) {
   double complex Matrix[1], Unitary[1];
   double         Eigenvalues[1];
   Matrix[0] = 0.0;
-  DiagHermitian((size_t)0, Matrix, Unitary, Eigenvalues, DummyZHEEVD, NULL);
+  HermitianEigendecomposition((size_t)0, Matrix, Unitary, Eigenvalues,
+                              DummyZHEEVD, NULL);
 }
 
 #pragma GCC diagnostic push
@@ -84,8 +90,8 @@ TEST(LDWDHTooLargeMatrix) {
   double         Eigenvalues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  DiagHermitian((size_t)(INT_MAX) + (size_t)1, Matrix, Unitary, Eigenvalues,
-                DummyZHEEVD, &Info);
+  HermitianEigendecomposition((size_t)(INT_MAX) + (size_t)1, Matrix, Unitary,
+                              Eigenvalues, DummyZHEEVD, &Info);
   ASSERT(Info == INT_MAX);
 }
 #pragma GCC diagnostic pop
@@ -168,101 +174,101 @@ TEST_SUITE(LDWSEdgeCaseSuite,
 
 TEST(LDWSVDZeroCount) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  SVDDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, DiagSigma, UnitaryVH,
-                   DummyZGESDD, &Info);
+  SVDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, DummyZGESDD, &Info);
   ASSERT(Info == 0);
 }
 
 TEST(LDWSVDZeroColumnCount) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
   // A single zero dimension is enough for the empty decomposition.
-  SVDDecomposition((size_t)0, (size_t)3, Matrix, UnitaryU, DiagSigma, UnitaryVH,
-                   DummyZGESDD, &Info);
+  SVDecomposition((size_t)0, (size_t)3, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, DummyZGESDD, &Info);
   ASSERT(Info == 0);
 }
 
 TEST(LDWSVDNullMatrix) {
   double complex UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
-  SVDDecomposition((size_t)0, (size_t)0, NULL, UnitaryU, DiagSigma, UnitaryVH,
-                   DummyZGESDD, &Info);
+  SVDecomposition((size_t)0, (size_t)0, NULL, UnitaryU, SingularValues,
+                  UnitaryVH, DummyZGESDD, &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
 TEST(LDWSVDNullUnitaryU) {
   double complex Matrix[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  SVDDecomposition((size_t)0, (size_t)0, Matrix, NULL, DiagSigma, UnitaryVH,
-                   DummyZGESDD, &Info);
+  SVDecomposition((size_t)0, (size_t)0, Matrix, NULL, SingularValues, UnitaryVH,
+                  DummyZGESDD, &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
-TEST(LDWSVDNullDiagSigma) {
+TEST(LDWSVDNullSingularValues) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  // DiagSigma is optional: a NULL array only skips that output.
-  SVDDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, NULL, UnitaryVH,
-                   DummyZGESDD, &Info);
+  // SingularValues is optional: a NULL array only skips that output.
+  SVDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, NULL, UnitaryVH,
+                  DummyZGESDD, &Info);
   ASSERT(Info == 0);
 }
 
 TEST(LDWSVDNullUnitaryVH) {
   double complex Matrix[1], UnitaryU[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  SVDDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, DiagSigma, NULL,
-                   DummyZGESDD, &Info);
+  SVDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, SingularValues, NULL,
+                  DummyZGESDD, &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
 TEST(LDWSVDNullZGESDDProcedure) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  SVDDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, DiagSigma, UnitaryVH,
-                   NULL, &Info);
+  SVDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, NULL, &Info);
   ASSERT(Info == 1); // Info unchanged.
 }
 
 TEST(LDWSVDNullInfo) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   Matrix[0] = 0.0;
-  SVDDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, DiagSigma, UnitaryVH,
-                   DummyZGESDD, NULL);
+  SVDecomposition((size_t)0, (size_t)0, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, DummyZGESDD, NULL);
 }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
 TEST(LDWSVDTooLargeRowCount) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  SVDDecomposition((size_t)(INT_MAX) + (size_t)1, (size_t)1, Matrix, UnitaryU,
-                   DiagSigma, UnitaryVH, DummyZGESDD, &Info);
+  SVDecomposition((size_t)(INT_MAX) + (size_t)1, (size_t)1, Matrix, UnitaryU,
+                  SingularValues, UnitaryVH, DummyZGESDD, &Info);
   ASSERT(Info == INT_MAX);
 }
 
 TEST(LDWSVDTooLargeColumnCount) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
-  double         DiagSigma[1];
+  double         SingularValues[1];
   int            Info = 1;
   Matrix[0]           = 0.0;
-  SVDDecomposition((size_t)1, (size_t)(INT_MAX) + (size_t)1, Matrix, UnitaryU,
-                   DiagSigma, UnitaryVH, DummyZGESDD, &Info);
+  SVDecomposition((size_t)1, (size_t)(INT_MAX) + (size_t)1, Matrix, UnitaryU,
+                  SingularValues, UnitaryVH, DummyZGESDD, &Info);
   ASSERT(Info == INT_MAX);
 }
 #pragma GCC diagnostic pop
@@ -272,7 +278,7 @@ TEST_SUITE(LDWSVDEdgeCaseSuite,
            LDWSVDZeroColumnCount,
            LDWSVDNullMatrix,
            LDWSVDNullUnitaryU,
-           LDWSVDNullDiagSigma,
+           LDWSVDNullSingularValues,
            LDWSVDNullUnitaryVH,
            LDWSVDNullZGESDDProcedure,
            LDWSVDNullInfo,
@@ -476,7 +482,7 @@ TEST(LDWDegenZeroCount) {
   double E[1] = {0.0};
   size_t D[1];
   D[0] = 12;
-  DegeneracyGroup((size_t)0, E, (double)0.1, D);
+  DegeneracyGrouping((size_t)0, E, (double)0.1, D);
   ASSERT(D[0] == 12);
 }
 
@@ -484,20 +490,20 @@ TEST(LDWDegenNegativeThr) {
   double E[1] = {0.0};
   size_t D[1];
   D[0] = 12;
-  DegeneracyGroup((size_t)1, E, (double)-0.1, D);
+  DegeneracyGrouping((size_t)1, E, (double)-0.1, D);
   ASSERT(D[0] == 12);
 }
 
 TEST(LDWDegenNullEig) {
   size_t D[1];
   D[0] = 12;
-  DegeneracyGroup((size_t)1, NULL, (double)0.1, D);
+  DegeneracyGrouping((size_t)1, NULL, (double)0.1, D);
   ASSERT(D[0] == 12);
 }
 
 TEST(LDWDegenNullDeg) {
   double E[1] = {0.0};
-  DegeneracyGroup((size_t)1, E, (double)0.1, NULL);
+  DegeneracyGrouping((size_t)1, E, (double)0.1, NULL);
 }
 
 TEST_SUITE(LDWDegenEdgeCaseSuite,
@@ -536,7 +542,7 @@ static void MultiplyMatrices(const size_t          N,
   }
 }
 
-TEST(LDWDiagHermitianReference) {
+TEST(LDWHermitianEigendecompositionReference) {
   const size_t Dimension = 3;
   const double Tolerance = 10.0 * DBL_EPSILON;
 
@@ -558,7 +564,8 @@ TEST(LDWDiagHermitianReference) {
   Matrix[7] = 1.0 * I;  // (2, 3)
   Matrix[8] = 3.0;      // (3, 3)
 
-  DiagHermitian(Dimension, Matrix, Unitary, Eigenvalues, zheevd_, &Info);
+  HermitianEigendecomposition(Dimension, Matrix, Unitary, Eigenvalues, zheevd_,
+                              &Info);
   ASSERT(Info == 0);
   if (Info != 0) {
     return;
@@ -863,7 +870,7 @@ TEST(LDWSVDReference) {
       UnitaryVH[Dimension * Dimension];
   double complex Sigma[Dimension * Dimension], Scaled[Dimension * Dimension],
       Product[Dimension * Dimension];
-  double DiagSigma[Dimension], Frobenius, SigmaSum;
+  double SingularValues[Dimension], Frobenius, SigmaSum;
   int    Info;
   size_t i, j;
 
@@ -881,8 +888,8 @@ TEST(LDWSVDReference) {
     Original[i] = Matrix[i];
   }
 
-  SVDDecomposition(Dimension, Dimension, Matrix, UnitaryU, DiagSigma, UnitaryVH,
-                   zgesdd_, &Info);
+  SVDecomposition(Dimension, Dimension, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, zgesdd_, &Info);
   ASSERT(Info == 0);
   if (Info != 0) {
     return;
@@ -894,9 +901,9 @@ TEST(LDWSVDReference) {
   }
 
   // The singular values are real, non-negative and in ascending order.
-  ASSERT(DiagSigma[0] >= 0.0);
-  ASSERT(DiagSigma[0] <= DiagSigma[1]);
-  ASSERT(DiagSigma[1] <= DiagSigma[2]);
+  ASSERT(SingularValues[0] >= 0.0);
+  ASSERT(SingularValues[0] <= SingularValues[1]);
+  ASSERT(SingularValues[1] <= SingularValues[2]);
 
   // Both factors are unitary: their columns are orthonormal.
   for (j = 0; j < Dimension; j++) {
@@ -920,14 +927,14 @@ TEST(LDWSVDReference) {
     Frobenius += pow(cabs(Original[i]), 2.0);
   }
   for (i = 0; i < Dimension; i++) {
-    SigmaSum += DiagSigma[i] * DiagSigma[i];
+    SigmaSum += SingularValues[i] * SingularValues[i];
   }
   ASSERT(fabs(SigmaSum - Frobenius) < Tolerance * (1.0 + Frobenius));
 
-  // Congruence: Matrix = U * diag(DiagSigma) * VH.
+  // Congruence: Matrix = U * diag(SingularValues) * VH.
   for (j = 0; j < Dimension; j++) {
     for (i = 0; i < Dimension; i++) {
-      Sigma[i + j * Dimension] = (i == j) ? DiagSigma[i] : 0.0;
+      Sigma[i + j * Dimension] = (i == j) ? SingularValues[i] : 0.0;
     }
   }
 
@@ -954,7 +961,7 @@ TEST(LDWSVDCongruenceTall) {
   double complex UnitaryU[Rows * Rows], UnitaryVH[Columns * Columns];
   double complex Sigma[Rows * Columns], Scaled[Rows * Columns],
       Product[Rows * Columns];
-  double DiagSigma[Columns];
+  double SingularValues[Columns];
   int    Info;
   size_t i, j;
 
@@ -975,8 +982,8 @@ TEST(LDWSVDCongruenceTall) {
     Original[i] = Matrix[i];
   }
 
-  SVDDecomposition(Rows, Columns, Matrix, UnitaryU, DiagSigma, UnitaryVH,
-                   zgesdd_, &Info);
+  SVDecomposition(Rows, Columns, Matrix, UnitaryU, SingularValues, UnitaryVH,
+                  zgesdd_, &Info);
   ASSERT(Info == 0);
   if (Info != 0) {
     return;
@@ -986,8 +993,8 @@ TEST(LDWSVDCongruenceTall) {
     ASSERT(cabs(Matrix[i] - Original[i]) <= 0.0);
   }
 
-  ASSERT(fabs(DiagSigma[0] - sqrt(10.0)) < Tolerance);
-  ASSERT(fabs(DiagSigma[1] - sqrt(20.0)) < Tolerance);
+  ASSERT(fabs(SingularValues[0] - sqrt(10.0)) < Tolerance);
+  ASSERT(fabs(SingularValues[1] - sqrt(20.0)) < Tolerance);
 
   for (j = 0; j < Rows; j++) {
     for (i = 0; i < Rows; i++) {
@@ -1014,7 +1021,7 @@ TEST(LDWSVDCongruenceTall) {
     Sigma[i] = 0.0;
   }
   for (i = 0; i < Columns; i++) {
-    Sigma[i + i * Rows] = DiagSigma[i];
+    Sigma[i + i * Rows] = SingularValues[i];
   }
 
   MultiplyMatricesGeneral(Rows, Columns, Rows, UnitaryU, Sigma, Scaled);
@@ -1362,19 +1369,19 @@ TEST(LDWGeneralizedSchurOptionalEigenvalues) {
   ASSERT(Info == 0);
 }
 
-TEST(LDWDegeneracyGroupReference) {
+TEST(LDWDegeneracyGroupingReference) {
   double E[9] = {0.0, 0.2, 0.5, 0.9, 0.95, 1.1, 1.2, 7.1, 7.2};
   size_t D[9], i;
   size_t Ref[9] = {3, 0, 0, 4, 0, 0, 0, 2, 0};
 
-  DegeneracyGroup((size_t)9, E, (double)0.3, D);
+  DegeneracyGrouping((size_t)9, E, (double)0.3, D);
   for (i = 0; i < 9; i++) {
     ASSERT(D[i] == Ref[i]);
   }
 }
 
 TEST_SUITE(LDWNominalSuite,
-           LDWDiagHermitianReference,
+           LDWHermitianEigendecompositionReference,
            LDWSchurReference,
            LDWSchurCongruence,
            LDWGeneralizedSchurReference,
@@ -1382,4 +1389,4 @@ TEST_SUITE(LDWNominalSuite,
            LDWGeneralizedSchurOptionalEigenvalues,
            LDWSVDReference,
            LDWSVDCongruenceTall,
-           LDWDegeneracyGroupReference);
+           LDWDegeneracyGroupingReference);

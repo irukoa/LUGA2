@@ -62,7 +62,7 @@ module TightBindingCrystalInterpolation
     procedure, public, pass(Crystal) :: SetTBPositionOperator => FortranTBCrystalSetTBPositionOperator
     procedure, public, pass(Crystal) :: GetTBPositionOperator => FortranTBCrystalGetTBPositionOperator
     procedure, public, pass(Crystal) :: Hamiltonian           => FortranTBCrystalHamiltonian
-    procedure, public, pass(Crystal) :: PositionOperator      => FortranTBPositionOperator
+    procedure, public, pass(Crystal) :: PositionOperator      => FortranTBCrystalPositionOperator
     procedure                        :: FortranCopyTBCrystal
     generic,   public                :: assignment(=)         => FortranCopyTBCrystal
     final                            :: FortranFreeTBCrystal_Final
@@ -329,6 +329,9 @@ module TightBindingCrystalInterpolation
     end function FortranTBCrystalGetTBPositionOperator
   end interface
 
+  !< Evaluates the Derivative-th Cartesian k-derivative of the Bloch
+  !< Hamiltonian at a reciprocal-space point.
+  !<
   !< The routine evaluates:
   !<
   !<     d^m H(k) / dk^m =
@@ -395,6 +398,9 @@ module TightBindingCrystalInterpolation
     end function FortranTBCrystalHamiltonian
   end interface
 
+  !< Evaluates the Derivative-th Cartesian k-derivative of the Bloch Berry
+  !< connection at a reciprocal-space point.
+  !<
   !< The routine evaluates:
   !<
   !<     d^m A_c(k) / dk^m =
@@ -447,11 +453,11 @@ module TightBindingCrystalInterpolation
   !< - On failure, Array and ArrayShape are left in an unspecified state.
   !<
   interface
-    module function FortranTBPositionOperator(Crystal, &
-                                              KPoint, &
-                                              Derivative, &
-                                              Array, &
-                                              ArrayShape) &
+    module function FortranTBCrystalPositionOperator(Crystal, &
+                                                     KPoint, &
+                                                     Derivative, &
+                                                     Array, &
+                                                     ArrayShape) &
       result(Success)
       class(TBCrystal),          intent(in)           :: Crystal
       real(C_DOUBLE),            intent(in)           :: KPoint(:)
@@ -460,7 +466,7 @@ module TightBindingCrystalInterpolation
       integer(C_SIZE_T),         intent(out)          :: ArrayShape(:)
 
       logical :: Success
-    end function FortranTBPositionOperator
+    end function FortranTBCrystalPositionOperator
   end interface
 
   !< TBCrystalHamiltonian, as called from C.
@@ -492,16 +498,16 @@ module TightBindingCrystalInterpolation
     end function TBCrystalHamiltonian_C
   end interface
 
-  !< TBPositionOperator, as called from C.
+  !< TBCrystalPositionOperator, as called from C.
   !<
   !< Same contract as TBCrystalHamiltonian_C, with the position operator in
   !< place of the Hamiltonian blocks.
   !<
   interface
-    module function TBPositionOperator_C(Crystal, Dimensionality, &
-                                         KPoint, Derivative, ArraySize, &
-                                         Array, ArrayShapeSize, ArrayShape) &
-      bind(C, name="TBPositionOperator") &
+    module function TBCrystalPositionOperator_C(Crystal, Dimensionality, &
+                                                KPoint, Derivative, ArraySize, &
+                                                Array, ArrayShapeSize, ArrayShape) &
+      bind(C, name="TBCrystalPositionOperator") &
       result(Success)
       use, intrinsic :: ISO_C_BINDING, only: C_BOOL
 
@@ -515,7 +521,7 @@ module TightBindingCrystalInterpolation
       type(C_PTR),       intent(in), value :: ArrayShape
 
       logical(C_BOOL) :: Success
-    end function TBPositionOperator_C
+    end function TBCrystalPositionOperator_C
   end interface
 
 end module TightBindingCrystalInterpolation

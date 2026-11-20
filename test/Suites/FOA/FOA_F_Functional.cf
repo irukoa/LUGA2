@@ -1,0 +1,3177 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/FOA/FunctionalOptimizationAlgorithms.M90"
+
+module TestObjectives
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_QUIET_NAN, &
+                                           IEEE_VALUE
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding, &
+                                              GoldenSectionMinimization
+
+  implicit none
+
+  private
+
+  !Number of evaluations which RecordObjective can memorize.
+  integer, parameter :: RecordLimit = 64
+
+  real(C_DOUBLE), save :: RecordedPoints(RecordLimit)
+  integer,        save :: RecordedCount = 0
+
+  logical, save :: SawNullContext = .false.
+
+  public :: QuadraticObjective
+  public :: LineObjective
+  public :: TargetLineObjective
+  public :: SumObjective
+  public :: OffsetObjective
+  public :: StepObjective
+  public :: HugeStepObjective
+  public :: TinyStepObjective
+  public :: UlpStepObjective
+  public :: NaNObjective
+  public :: PartialNaNObjective
+  public :: LowEdgeNaNObjective
+  public :: RecordObjective
+  public :: NullContextObjective
+  public :: NestedObjective
+  public :: SquareObjective
+  public :: RecordedSquareObjective
+  public :: BowlObjective
+  public :: SteepObjective
+  public :: AbsObjective
+  public :: DeceptiveObjective
+  public :: TargetObjective
+  public :: AlwaysNaNObjective
+  public :: NestedMinimumObjective
+  public :: ConstantObjective
+  public :: RecordedPoints
+  public :: RecordedCount
+  public :: ResetRecords
+  public :: SawNullContext
+
+  contains
+
+  !Forgets the evaluations of the previous test.
+  subroutine ResetRecords()
+    RecordedPoints = 0.0_C_DOUBLE
+    RecordedCount  = 0
+    SawNullContext = .false.
+  end subroutine ResetRecords
+
+  !x^2 - 1, whose zeros are -1 and 1.
+  function QuadraticObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = EvaluationPoint(1)**2 - 1.0_C_DOUBLE
+  end function QuadraticObjective
+
+  !x - 2.
+  function LineObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = EvaluationPoint(1) - 2.0_C_DOUBLE
+  end function LineObjective
+
+  !x - C, with C read from the context: the zero can sit anywhere on the
+  !segment, including between two pivots whose sum overflows.
+  function TargetLineObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = EvaluationPoint(1) - 2.0_C_DOUBLE
+
+    !A deferred implementation must test PRESENT and ASSOCIATED before
+    !selecting on the context.
+    if (.not.present(UserContext)) return
+    if (.not.associated(UserContext)) return
+
+    select type (UserContext)
+      type is (real(C_DOUBLE))
+        Value = EvaluationPoint(1) - UserContext
+    end select
+  end function TargetLineObjective
+
+  !x1 + x2 - 5: the zero depends on both components, so a search which treats
+  !the point as a single scalar cannot find it.
+  function SumObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = EvaluationPoint(1) + EvaluationPoint(2) - 5.0_C_DOUBLE
+  end function SumObjective
+
+  !x^2 - C, with C read from the context.
+  function OffsetObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    !A deferred implementation must test PRESENT and ASSOCIATED before
+    !selecting on the context.
+    Value = EvaluationPoint(1)**2 - 1.0_C_DOUBLE
+
+    if (.not.present(UserContext)) return
+    if (.not.associated(UserContext)) return
+
+    select type (UserContext)
+      type is (real(C_DOUBLE))
+        Value = EvaluationPoint(1)**2 - UserContext
+    end select
+  end function OffsetObjective
+
+  !-1 below 2, +1 at and above 2: a sign change without a zero.
+  function StepObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = 1.0_C_DOUBLE
+
+    if (EvaluationPoint(1) < 2.0_C_DOUBLE) Value = -1.0_C_DOUBLE
+  end function StepObjective
+
+  !Same sign change as StepObjective, with values whose product overflows.
+  function HugeStepObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = 1.0E200_C_DOUBLE
+
+    if (EvaluationPoint(1) < 2.0_C_DOUBLE) Value = -1.0E200_C_DOUBLE
+  end function HugeStepObjective
+
+  !Same sign change as StepObjective, with values whose product underflows.
+  function TinyStepObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = 1.0E-200_C_DOUBLE
+
+    if (EvaluationPoint(1) < 2.0_C_DOUBLE) Value = -1.0E-200_C_DOUBLE
+  end function TinyStepObjective
+
+  !-1 below 1e16 + 2, +1 at and above: the bracket [1e16, 1e16 + 2] holds a
+  !sign change but no representable point between its ends.
+  function UlpStepObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = 1.0_C_DOUBLE
+
+    if (EvaluationPoint(1) < 1.0E16_C_DOUBLE + 2.0_C_DOUBLE) &
+      Value = -1.0_C_DOUBLE
+  end function UlpStepObjective
+
+  !Undefined above 2: the sign change is lost.
+  function NaNObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+
+    if (EvaluationPoint(1) < 2.0_C_DOUBLE) Value = -1.0_C_DOUBLE
+  end function NaNObjective
+
+  !(x - 2.5)^2, undefined above 2.7: the first estimates are values, and a later
+  !one crosses the edge. Memorizes its argument like RecordObjective.
+  function PartialNaNObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    RecordedCount = RecordedCount + 1
+    if (RecordedCount <= RecordLimit) then
+      RecordedPoints(RecordedCount) = EvaluationPoint(1)
+    endif
+
+    if (EvaluationPoint(1) > 2.7_C_DOUBLE) then
+      Value = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+    else
+      Value = (EvaluationPoint(1) - 2.5_C_DOUBLE)**2
+    endif
+  end function PartialNaNObjective
+
+  !(x - 1)^2, undefined at and below 1: the two interior points of the first
+  !bracket are values, and the one refined towards the left end crosses the
+  !edge. Memorizes its argument like RecordObjective.
+  function LowEdgeNaNObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    RecordedCount = RecordedCount + 1
+    if (RecordedCount <= RecordLimit) then
+      RecordedPoints(RecordedCount) = EvaluationPoint(1)
+    endif
+
+    if (EvaluationPoint(1) <= 1.0_C_DOUBLE) then
+      Value = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+    else
+      Value = (EvaluationPoint(1) - 1.0_C_DOUBLE)**2
+    endif
+  end function LowEdgeNaNObjective
+
+  !Memorizes its argument before evaluating x - 2, so that the sequence of the
+  !evaluations and not only their number can be checked.
+  function RecordObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    RecordedCount = RecordedCount + 1
+    if (RecordedCount <= RecordLimit) then
+      RecordedPoints(RecordedCount) = EvaluationPoint(1)
+    endif
+
+    Value = EvaluationPoint(1) - 2.0_C_DOUBLE
+  end function RecordObjective
+
+  !Notices whether the context reached it.
+  function NullContextObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    SawNullContext = .not.present(UserContext)
+
+    Value = EvaluationPoint(1) - 2.0_C_DOUBLE
+  end function NullContextObjective
+
+  !Starts a run of the algorithm from inside its own evaluation: the inner run
+  !must not disturb the outer one.
+  function NestedObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+    real(C_DOUBLE) :: InnerLeft(1), InnerRight(1), InnerRoot(1)
+
+    integer(C_SIZE_T) :: InnerMaxIterations
+
+    InnerLeft          = -5.0_C_DOUBLE
+    InnerRight         =  5.0_C_DOUBLE
+    InnerMaxIterations = 100_C_SIZE_T
+
+    InnerRoot = BisectionRootFinding(LeftPivot         = InnerLeft, &
+                                     RightPivot        = InnerRight, &
+                                     ObjectiveFunction = LineObjective, &
+                                     MaxIterations     = InnerMaxIterations, &
+                                     Tolerance         = 0.0_C_DOUBLE)
+
+    Value = EvaluationPoint(1) - InnerRoot(1)
+  end function NestedObjective
+
+  !(x - 1)^2, whose minimum is 1.
+  function SquareObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = (EvaluationPoint(1) - 1.0_C_DOUBLE)**2
+  end function SquareObjective
+
+  !(x - 1)^2 again, memorizing its argument before evaluating it, so that a
+  !test can count the evaluations of the search.
+  function RecordedSquareObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    RecordedCount = RecordedCount + 1
+    if (RecordedCount <= RecordLimit) then
+      RecordedPoints(RecordedCount) = EvaluationPoint(1)
+    endif
+
+    Value = (EvaluationPoint(1) - 1.0_C_DOUBLE)**2
+  end function RecordedSquareObjective
+
+  !(x1 - 2)^2 + (x2 - 3)^2: the minimum depends on both components, so a search
+  !which treats the point as a single scalar cannot find it.
+  function BowlObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = (EvaluationPoint(1) - 2.0_C_DOUBLE)**2 + &
+      (EvaluationPoint(2) - 3.0_C_DOUBLE)**2
+  end function BowlObjective
+
+  !1e6 (x - 0.7)^2: a steep valley, whose value stays large close to the
+  !minimum.
+  function SteepObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = 1.0E6_C_DOUBLE * (EvaluationPoint(1) - 0.7_C_DOUBLE)**2
+  end function SteepObjective
+
+  !|x|, whose minimum sits between pivots of enormous size and opposite sign.
+  function AbsObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = abs(EvaluationPoint(1))
+  end function AbsObjective
+
+  !0.5 (x - 2.5)^2 - exp(-((x - 1)/0.3)^2): a shallow valley at 2.5 and a deep
+  !one at 1, so the global minimum is out of reach of a search which looks at
+  !one valley at a time.
+  function DeceptiveObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+    real(C_DOUBLE) :: Offset
+
+    Offset = EvaluationPoint(1) - 1.0_C_DOUBLE
+
+    Value = 0.5_C_DOUBLE * (EvaluationPoint(1) - 2.5_C_DOUBLE)**2 - &
+      exp(-(Offset / 0.3_C_DOUBLE)**2)
+  end function DeceptiveObjective
+
+  !(x - C)^2, with C read from the context. The context is optional only
+  !because the interface demands it: without one the target remains 2.
+  function TargetObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    Value = (EvaluationPoint(1) - 2.0_C_DOUBLE)**2
+
+    if (.not.present(UserContext)) return
+    if (.not.associated(UserContext)) return
+
+    select type (UserContext)
+      type is (real(C_DOUBLE))
+        Value = (EvaluationPoint(1) - UserContext)**2
+    end select
+  end function TargetObjective
+
+  !Undefined everywhere, recorded like RecordObjective so that the number of
+  !evaluations can be counted.
+  function AlwaysNaNObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    RecordedCount = RecordedCount + 1
+    if (RecordedCount <= RecordLimit) then
+      RecordedPoints(RecordedCount) = EvaluationPoint(1)
+    endif
+
+    Value = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+  end function AlwaysNaNObjective
+
+  !Starts a minimization from inside its own evaluation: the inner run must not
+  !disturb the outer one.
+  function NestedMinimumObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+    real(C_DOUBLE) :: InnerLeft(1), InnerRight(1), InnerMinimum(1)
+
+    integer(C_SIZE_T) :: InnerIterations
+
+    InnerLeft       = 0.0_C_DOUBLE
+    InnerRight      = 4.0_C_DOUBLE
+    InnerIterations = 100_C_SIZE_T
+
+    InnerMinimum = GoldenSectionMinimization(LeftPivot         = InnerLeft, &
+                                             RightPivot        = InnerRight, &
+                                             ObjectiveFunction = SquareObjective, &
+                                             MaxIterations     = InnerIterations, &
+                                             Tolerance         = 0.0_C_DOUBLE)
+
+    Value = (EvaluationPoint(1) - InnerMinimum(1))**2
+  end function NestedMinimumObjective
+
+  !One everywhere, whatever the point.
+  function ConstantObjective(EvaluationPoint, UserContext) &
+    result(Value)
+    real(C_DOUBLE),  intent(in)                       :: EvaluationPoint(:)
+    class(*),        intent(inout), optional, pointer :: UserContext
+
+    real(C_DOUBLE) :: Value
+
+    !The point is cancelled out: every evaluation yields the same value.
+    Value = 1.0_C_DOUBLE + 0.0_C_DOUBLE * EvaluationPoint(1)
+  end function ConstantObjective
+
+end module TestObjectives
+#endif
+
+TEST_E(FOAFortranOneDimensionalNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: QuadraticObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 2.5_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 1.0E-9_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = QuadraticObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Root(1) - 1.0_C_DOUBLE) <= 1.0E-9_C_DOUBLE)
+  ASSERT(abs(QuadraticObjective(Root)) <= 1.0E-9_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMultidimensionalSegmentNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: SumObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(2), RightPivot(2), Root(2), Tolerance
+  real(C_DOUBLE)    :: Expected(2)
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+  RightPivot    = [4.0_C_DOUBLE, 6.0_C_DOUBLE]
+  Expected      = [2.0_C_DOUBLE, 3.0_C_DOUBLE]
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = SumObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !The search runs along the segment which joins the pivots, so both
+  !components reach the zero. The first midpoint is (2, 3).
+  ASSERT(all(abs(Root - Expected) <= 1.0E-12_C_DOUBLE))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranReversedPivotNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: LineObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1)
+  real(C_DOUBLE)    :: ForwardRoot(1), BackwardRoot(1)
+  real(C_DOUBLE)    :: Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     =  5.0_C_DOUBLE
+  RightPivot    = -1.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 1.0E-9_C_DOUBLE
+
+  ForwardRoot = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                                     RightPivot        = RightPivot, &
+                                     ObjectiveFunction = LineObjective, &
+                                     MaxIterations     = MaxIterations, &
+                                     Tolerance         = Tolerance)
+
+  BackwardRoot = BisectionRootFinding(LeftPivot         = RightPivot, &
+                                      RightPivot        = LeftPivot, &
+                                      ObjectiveFunction = LineObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The pivots may be supplied in either order: the segment is the same.
+  ASSERT(abs(ForwardRoot(1) - 2.0_C_DOUBLE) <= 1.0E-9_C_DOUBLE)
+  ASSERT(abs(BackwardRoot(1) - 2.0_C_DOUBLE) <= 1.0E-9_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranContextForwardingNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: OffsetObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)          :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T)       :: MaxIterations
+  real(C_DOUBLE), target  :: ContextValue
+  class(*),       pointer :: Context
+
+  ContextValue = 9.0_C_DOUBLE
+  Context      => ContextValue
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 5.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 1.0E-12_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = OffsetObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance, &
+                              UserContext       = Context)
+
+  !The zero of x^2 - 9 on [0, 5] is 3, not the zero of x^2 - 1.
+  ASSERT(abs(Root(1) - 3.0_C_DOUBLE) <= 1.0E-9_C_DOUBLE)
+
+  nullify(Context)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNullContextNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: NullContextObjective, &
+                            ResetRecords, &
+                            SawNullContext
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = NullContextObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(SawNullContext)
+  ASSERT(abs(Root(1) - 2.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranCallbackProtocolNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: RecordObjective, &
+                            RecordedPoints, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 3_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !The two pivots are evaluated first, then one point per iteration, and the
+  !last estimate is the point of the last iteration.
+  ASSERT(RecordedCount == 5)
+  ASSERT(abs(RecordedPoints(1) - 0.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(RecordedPoints(2) - 3.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(RecordedPoints(3) - 1.5_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(RecordedPoints(4) - 2.25_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(RecordedPoints(5) - 1.875_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(Root(1) - 1.875_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranExactZeroAtPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  !The objective vanishes at the left pivot: the pivot itself is the answer and
+  !the iteration is never entered, so the objective is evaluated twice.
+  call ResetRecords()
+
+  LeftPivot  = 2.0_C_DOUBLE
+  RightPivot = 5.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Root(1) - LeftPivot(1)) <= 0.0_C_DOUBLE)
+  ASSERT(RecordedCount == 2)
+
+  !The same at the right pivot, where the objective already vanishes.
+  call ResetRecords()
+
+  LeftPivot  = -1.0_C_DOUBLE
+  RightPivot =  2.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Root(1) - RightPivot(1)) <= 0.0_C_DOUBLE)
+  ASSERT(RecordedCount == 2)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranExactZeroAtMidpointEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: LineObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     =  3.0_C_DOUBLE
+  RightPivot    = -1.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = LineObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !The second midpoint lands exactly on the zero: the residual stop fires with
+  !Tolerance = 0, although no pivot vanishes.
+  ASSERT(abs(Root(1) - 2.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranIterationCapAccuracyEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: LineObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 7.0_C_DOUBLE
+  MaxIterations = 4_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = LineObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !The cap stops the search before the tolerance is met: the estimate is the
+  !fourth midpoint of the segment, within |RightPivot - LeftPivot| / 2^4 of
+  !the zero. The values are exact in binary.
+  ASSERT(abs(Root(1) - 2.1875_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(Root(1) - 2.0_C_DOUBLE) <= 7.0_C_DOUBLE / 16.0_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranSignOnlyObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: StepObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = StepObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A sign change without a zero: the residual stop never fires, and the
+  !bracket collapses onto the change.
+  ASSERT(abs(Root(1) - 2.0_C_DOUBLE) <= epsilon(1.0_C_DOUBLE))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranScaledSignObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: HugeStepObjective, &
+                            TinyStepObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Tolerance
+  real(C_DOUBLE)    :: HugeRoot(1), TinyRoot(1)
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  HugeRoot = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                                  RightPivot        = RightPivot, &
+                                  ObjectiveFunction = HugeStepObjective, &
+                                  MaxIterations     = MaxIterations, &
+                                  Tolerance         = Tolerance)
+
+  TinyRoot = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                                  RightPivot        = RightPivot, &
+                                  ObjectiveFunction = TinyStepObjective, &
+                                  MaxIterations     = MaxIterations, &
+                                  Tolerance         = Tolerance)
+
+  !Values whose product overflows or underflows still bracket the sign change:
+  !the ends are compared through their sign, not through their product.
+  ASSERT(abs(HugeRoot(1) - 2.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+  ASSERT(abs(TinyRoot(1) - 2.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranCollapsedBracketEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: UlpStepObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  logical           :: IsEnd
+
+  !Two adjacent representable values: the midpoint rounds back onto one of
+  !them, so the bracket cannot be split any further.
+  LeftPivot     = 1.0E16_C_DOUBLE
+  RightPivot    = 1.0E16_C_DOUBLE + 2.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = UlpStepObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !No point lies between the ends: the answer is one of them, not a point
+  !outside the bracket. The magnitude tests are exact and do not compare
+  !reals through an equality operator.
+  IsEnd = abs(Root(1) - LeftPivot(1)) <= 0.0_C_DOUBLE .or. &
+    abs(Root(1) - RightPivot(1)) <= 0.0_C_DOUBLE
+
+  ASSERT(IsEnd)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNaNObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: NaNObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = NaNObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A value without a sign terminates the search: the point is reported as
+  !having no answer.
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNaNPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_QUIET_NAN, &
+                                           IEEE_VALUE
+  use TestObjectives, only: LineObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = LineObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A NaN pivot is the absence of a sign, not a bracket.
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranInfinitePivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_POSITIVE_INF, &
+                                           IEEE_VALUE
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_POSITIVE_INF)
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !An infinite pivot has no finite midpoint: the call is rejected before the
+  !objective is evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+  !The same with the infinite value on the right: both ends are validated.
+  LeftPivot  = 0.0_C_DOUBLE
+  RightPivot = IEEE_VALUE(0.0_C_DOUBLE, IEEE_POSITIVE_INF)
+
+  call ResetRecords()
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranUnbracketedPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: QuadraticObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 2.0_C_DOUBLE
+  RightPivot    = 5.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = QuadraticObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !Pivots on the same side of zero do not bracket it.
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNegativeToleranceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = -1.0E-6_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A negative residual bound can never be met: the call is rejected before the
+  !objective is evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNaNToleranceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_QUIET_NAN, &
+                                           IEEE_VALUE
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A NaN residual bound cannot be compared with: the call is rejected.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranZeroIterationsEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 0_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A cap of zero leaves no iteration to perform: the call is rejected.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranEmptySpaceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: ResetRecords, &
+                            RecordedCount
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding, &
+                                              ObjectiveFunctionInterface
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: Root(0), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  procedure(ObjectiveFunctionInterface), pointer :: NoObjective
+
+  call ResetRecords()
+
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+  NoObjective   => null()
+
+  Root = BisectionRootFinding(LeftPivot         = [real(C_DOUBLE) ::], &
+                              RightPivot        = [real(C_DOUBLE) ::], &
+                              ObjectiveFunction = NoObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !An empty space has no component to search: the result is empty, and the
+  !objective is never evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(size(Root) == 0)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNullObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding, &
+                                              ObjectiveFunctionInterface
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  procedure(ObjectiveFunctionInterface), pointer :: NoObjective
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+  NoObjective   => null()
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = NoObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !A disassociated objective leaves nothing to evaluate.
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranSizeMismatchEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: QuadraticObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(2), RightPivot(3), Root(2), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+  RightPivot    = [1.0_C_DOUBLE, 1.0_C_DOUBLE, 1.0_C_DOUBLE]
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = QuadraticObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !Pivots of different lengths do not describe a segment.
+  ASSERT(all(IEEE_IS_NAN(Root)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNestedRunEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: NestedObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 5.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  !The objective starts a run of its own from inside its evaluation: each
+  !activation keeps its own search state.
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = NestedObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Root(1) - 2.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranSquareOneDimensionalNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: SquareObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 2.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = SquareObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The minimum of (x - 1)^2 on [0, 2] sits at the center of the first bracket,
+  !and a zero tolerance asks for all the accuracy there is.
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBowlMultidimensionalNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: BowlObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(2), RightPivot(2), Minimum(2), Tolerance
+  real(C_DOUBLE)    :: Expected(2)
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+  RightPivot    = [4.0_C_DOUBLE, 6.0_C_DOUBLE]
+  Expected      = [2.0_C_DOUBLE, 3.0_C_DOUBLE]
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = BowlObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The minimum depends on both components: the search runs along the segment
+  !which joins the pivots, so both reach their target.
+  ASSERT(all(abs(Minimum - Expected) <= 1.0E-12_C_DOUBLE))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranReversedPivotMinimizationNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: BowlObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(2), RightPivot(2), Tolerance
+  real(C_DOUBLE)    :: ForwardMinimum(2), BackwardMinimum(2), Expected(2)
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+  RightPivot    = [4.0_C_DOUBLE, 6.0_C_DOUBLE]
+  Expected      = [2.0_C_DOUBLE, 3.0_C_DOUBLE]
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  ForwardMinimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                             RightPivot        = RightPivot, &
+                                             ObjectiveFunction = BowlObjective, &
+                                             MaxIterations     = MaxIterations, &
+                                             Tolerance         = Tolerance)
+
+  BackwardMinimum = GoldenSectionMinimization(LeftPivot         = RightPivot, &
+                                              RightPivot        = LeftPivot, &
+                                              ObjectiveFunction = BowlObjective, &
+                                              MaxIterations     = MaxIterations, &
+                                              Tolerance         = Tolerance)
+
+  !The pivots may be supplied in either order: the segment is the same, so the
+  !two estimates agree.
+  ASSERT(all(abs(ForwardMinimum - Expected) <= 1.0E-12_C_DOUBLE))
+  ASSERT(all(abs(BackwardMinimum - Expected) <= 1.0E-12_C_DOUBLE))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumContextForwardingNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: TargetObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)          :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T)       :: MaxIterations
+  real(C_DOUBLE), target  :: ContextValue
+  class(*),       pointer :: Context
+
+  ContextValue = 3.0_C_DOUBLE
+  Context      => ContextValue
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 1.0E-12_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = TargetObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance, &
+                                      UserContext       = Context)
+
+  !The minimum of (x - 3)^2 on [0, 4] is 3, not the minimum of (x - 2)^2.
+  ASSERT(abs(Minimum(1) - 3.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+  nullify(Context)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNullContextNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: NullContextObjective, &
+                            ResetRecords, &
+                            SawNullContext
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = NullContextObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !An absent context is a value like any other, and reaches the objective. The
+  !objective decreases, so the minimum is at the left pivot.
+  ASSERT(SawNullContext)
+  ASSERT(abs(Minimum(1) - 0.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumCallbackProtocolNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: RecordObjective, &
+                            RecordedPoints, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE), parameter :: Precision      = 1.0E-9_C_DOUBLE
+  real(C_DOUBLE), parameter :: FirstProbe     = 1.5278640450004204_C_DOUBLE
+  real(C_DOUBLE), parameter :: SecondProbe    = 2.4721359549995796_C_DOUBLE
+  real(C_DOUBLE), parameter :: ThirdProbe     = 0.9442719099991592_C_DOUBLE
+  real(C_DOUBLE), parameter :: SpannedMinimum = 1.2360679774997898_C_DOUBLE
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 1_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The two interior points are evaluated before the first iteration, and one
+  !point per iteration afterwards; the estimate is their midpoint.
+  ASSERT(RecordedCount == 3)
+  ASSERT(abs(RecordedPoints(1) - FirstProbe) <= Precision)
+  ASSERT(abs(RecordedPoints(2) - SecondProbe) <= Precision)
+  ASSERT(abs(RecordedPoints(3) - ThirdProbe) <= Precision)
+  ASSERT(abs(Minimum(1) - SpannedMinimum) <= Precision)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumAtPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: TargetObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)          :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T)       :: MaxIterations
+  real(C_DOUBLE), target  :: ContextValue
+  class(*),       pointer :: Context
+
+  ContextValue = 2.0_C_DOUBLE
+  Context      => ContextValue
+
+  LeftPivot     = 2.0_C_DOUBLE
+  RightPivot    = 5.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = TargetObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance, &
+                                      UserContext       = Context)
+
+  !A minimum at a pivot is approached but never reached: the bracket collapses
+  !onto the end of the segment which holds it.
+  ASSERT(Minimum(1) >= 2.0_C_DOUBLE)
+  ASSERT(Minimum(1) - 2.0_C_DOUBLE <= 1.0E-12_C_DOUBLE)
+
+  !The same at the right pivot, where the segment ends at the minimum.
+  ContextValue = 3.0_C_DOUBLE
+  LeftPivot    = 0.0_C_DOUBLE
+  RightPivot   = 3.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = TargetObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance, &
+                                      UserContext       = Context)
+
+  ASSERT(Minimum(1) <= 3.0_C_DOUBLE)
+  ASSERT(3.0_C_DOUBLE - Minimum(1) <= 1.0E-12_C_DOUBLE)
+
+  nullify(Context)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranToleranceNotResidualEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: SteepObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 2.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 1.0E-3_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = SteepObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The tolerance measures the bracket, not the value of the objective: the
+  !steep valley is left while its value at the estimate is still large.
+  ASSERT(abs(Minimum(1) - 0.7_C_DOUBLE) <= 1.0E-3_C_DOUBLE)
+  ASSERT(SteepObjective(Minimum) >= 1.0E-3_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumIterationCapAccuracyEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: SquareObjective, &
+                            RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 2.0_C_DOUBLE
+  MaxIterations = 10_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = SquareObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The bracket keeps a factor rho per iteration, so the cap and not the
+  !tolerance sets the accuracy when the cap comes first.
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= 8.2E-3_C_DOUBLE)
+
+  !Two interior points before the loop and one point per iteration.
+  LeftPivot  = 0.0_C_DOUBLE
+  RightPivot = 4.0_C_DOUBLE
+
+  call ResetRecords()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 12)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranExtremePivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: AbsObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     =   1.0E308_C_DOUBLE
+  RightPivot    =  -1.0E308_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = AbsObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The interior points are convex combinations of the pivots, so their
+  !difference never enters the computation and the minimum is reached.
+  ASSERT(.not.IEEE_IS_NAN(Minimum(1)))
+  ASSERT(abs(Minimum(1) - 0.0_C_DOUBLE) <= 0.0_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumCollapsedBracketEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 1.0E16_C_DOUBLE
+  RightPivot    = 1.0E16_C_DOUBLE + 2.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The pivots are two neighbouring numbers: there is no room for an interior
+  !point, so the segment is returned unchanged and nothing is evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(abs(Minimum(1) - LeftPivot(1)) <= 0.0_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNonUnimodalEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: DeceptiveObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = DeceptiveObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !The objective has a shallow valley at 2.5 and a deep one at 1. Golden
+  !section needs no more than unimodality, so it returns the local minimum it
+  !saw and reports nothing.
+  ASSERT(abs(Minimum(1) - 2.5_C_DOUBLE) <= 1.0E-6_C_DOUBLE)
+
+  !The value of the global minimum is -1 at x = 1, which is not what the
+  !estimate holds.
+  ASSERT(DeceptiveObjective(Minimum) > -1.0E-3_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranToleranceCoversSegmentEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 4.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A tolerance which covers the whole segment settles on its midpoint at once.
+  ASSERT(RecordedCount == 0)
+  ASSERT(abs(Minimum(1) - 2.0_C_DOUBLE) <= 0.0_C_DOUBLE)
+
+  !Just below that width the bracket has to shrink first: two interior points
+  !are evaluated, and one more after the width has fallen to 2.472, which
+  !leaves the midpoint of [0, 0.618] of the segment.
+  Tolerance = 3.9_C_DOUBLE
+
+  call ResetRecords()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 3)
+  ASSERT(abs(Minimum(1) - 1.2360679774997898_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranFlatObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: ConstantObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = ConstantObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A constant objective gives points of equal value to every iteration: each
+  !tie keeps the right part of the bracket, so the estimate runs to the right
+  !pivot.
+  ASSERT(abs(Minimum(1) - 4.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNaNAtStartEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: AlwaysNaNObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = AlwaysNaNObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !An objective which is undefined everywhere stops the search at the first
+  !comparison, after the two interior points.
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+  ASSERT(RecordedCount == 2)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranNaNEncounteredEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: NaNObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = NaNObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !An objective which becomes undefined part of the way through stops the
+  !search at the point which returned it.
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNaNInsideLoopEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: LowEdgeNaNObjective, &
+                            PartialNaNObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  !(x - 1)^2 is smaller at the left interior point, so that end is refined
+  !first, and the new point lies below the edge at 1.
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = LowEdgeNaNObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+  ASSERT(RecordedCount == 3)
+
+  !(x - 2.5)^2 is smaller at the right interior point, so that end is refined
+  !first, and the new point lies above the edge at 2.7.
+  call ResetRecords()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = PartialNaNObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A NaN which appears at a point refined inside the loop, and not at the two
+  !with which the search opens, stops the search at that point.
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+  ASSERT(RecordedCount == 3)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNaNPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_QUIET_NAN, &
+                                           IEEE_VALUE
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A NaN pivot is not a segment: the call is rejected before the objective is
+  !evaluated, whatever the objective does with its argument.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumInfinitePivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_NEGATIVE_INF, &
+                                           IEEE_VALUE
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_NEGATIVE_INF)
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !An infinite pivot has no finite length: the call is rejected before the
+  !objective is evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+  !The same with the infinite value on the right: both ends are validated.
+  LeftPivot  = 0.0_C_DOUBLE
+  RightPivot = IEEE_VALUE(0.0_C_DOUBLE, IEEE_NEGATIVE_INF)
+
+  call ResetRecords()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNegativeToleranceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = -1.0E-6_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A negative bound on the width of the bracket can never be met: the call is
+  !rejected before the objective is evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNaNToleranceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_QUIET_NAN, &
+                                           IEEE_VALUE
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A NaN bound cannot be compared with: the call is rejected.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumZeroIterationsEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 0_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = RecordObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !Without iterations there is no estimate to report: the call is rejected.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumEmptySpaceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: ResetRecords, &
+                            RecordedCount
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization, &
+                                              ObjectiveFunctionInterface
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: Minimum(0), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  procedure(ObjectiveFunctionInterface), pointer :: NoObjective
+
+  call ResetRecords()
+
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+  NoObjective   => null()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = [real(C_DOUBLE) ::], &
+                                      RightPivot        = [real(C_DOUBLE) ::], &
+                                      ObjectiveFunction = NoObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A segment without components has no minimum to look for: the result is
+  !empty, and the objective is never evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(size(Minimum) == 0)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumSizeMismatchEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: BowlObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(2), RightPivot(3), Minimum(2), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = [0.0_C_DOUBLE, 0.0_C_DOUBLE]
+  RightPivot    = [4.0_C_DOUBLE, 6.0_C_DOUBLE, 1.0_C_DOUBLE]
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = BowlObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !Pivots of different lengths do not describe a segment.
+  ASSERT(all(IEEE_IS_NAN(Minimum)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNullObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization, &
+                                              ObjectiveFunctionInterface
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  procedure(ObjectiveFunctionInterface), pointer :: NoObjective
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+  NoObjective   => null()
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = NoObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  !A missing objective is a rejection before anything is evaluated.
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumNestedRunEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: NestedMinimumObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = -5.0_C_DOUBLE
+  RightPivot    =  5.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  !The objective starts a minimization of its own from inside its evaluation:
+  !each activation keeps its own search state.
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = NestedMinimumObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= 1.0E-6_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranMinimumOverflowEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_OVERFLOW, &
+                                           IEEE_GET_FLAG, &
+                                           IEEE_SET_FLAG
+  use TestObjectives, only: AbsObjective
+  use FunctionalOptimizationAlgorithms, only: GoldenSectionMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  logical           :: Overflow
+
+  !The segment spans twice the range of the type, so the difference between its
+  !ends and the length restored from the halves both overflow: the length
+  !saturates at the largest value of the type, which raises no exception.
+  LeftPivot     = -huge(1.0_C_DOUBLE)
+  RightPivot    =  huge(1.0_C_DOUBLE)
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  call IEEE_SET_FLAG(IEEE_OVERFLOW, .false.)
+
+  Minimum = GoldenSectionMinimization(LeftPivot         = LeftPivot, &
+                                      RightPivot        = RightPivot, &
+                                      ObjectiveFunction = AbsObjective, &
+                                      MaxIterations     = MaxIterations, &
+                                      Tolerance         = Tolerance)
+
+  call IEEE_GET_FLAG(IEEE_OVERFLOW, Overflow)
+
+  ASSERT(.not.Overflow)
+  ASSERT(.not.IEEE_IS_NAN(Minimum(1)))
+
+  !The pivots are symmetric about the minimum of |x|, so the bracket collapses
+  !on it and the estimate is exact up to the spacing of the type.
+  ASSERT(abs(Minimum(1)) <= epsilon(1.0_C_DOUBLE) * huge(1.0_C_DOUBLE))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBisectionOverflowEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_OVERFLOW, &
+                                           IEEE_GET_FLAG, &
+                                           IEEE_SET_FLAG
+  use TestObjectives, only: TargetLineObjective
+  use FunctionalOptimizationAlgorithms, only: BisectionRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)          :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T)       :: MaxIterations
+  real(C_DOUBLE), target  :: Target
+  class(*),       pointer :: UserContext
+  logical                 :: Overflow
+
+  !The two ends are enormous and of the same sign, so their sum overflows: the
+  !midpoint is formed from their halves, and it is the zero of the objective.
+  LeftPivot     = 1.0E308_C_DOUBLE
+  RightPivot    = 1.5E308_C_DOUBLE
+  Target        = 1.25E308_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  UserContext => Target
+
+  call IEEE_SET_FLAG(IEEE_OVERFLOW, .false.)
+
+  Root = BisectionRootFinding(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = TargetLineObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance, &
+                              UserContext       = UserContext)
+
+  call IEEE_GET_FLAG(IEEE_OVERFLOW, Overflow)
+
+  ASSERT(.not.Overflow)
+  ASSERT(abs(Root(1) - Target) <= 1.0E293_C_DOUBLE)
+
+#endif
+END_TEST_E
+TEST_E(FOAFortranBrentOneDimensionalNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: QuadraticObjective
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  !The zero of x^2 - 1 lies inside the segment but is not its midpoint: the
+  !search has to interpolate, not just split.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 2.5_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 1.0E-9_C_DOUBLE
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = QuadraticObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  ASSERT(abs(Root(1) - 1.0_C_DOUBLE) <= 1.0E-9_C_DOUBLE)
+  ASSERT(abs(QuadraticObjective(Root)) <= 1.0E-9_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentSquareOneDimensionalNominal)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: SquareObjective
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 2.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = SquareObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentSignOnlyObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: StepObjective
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  !A step only carries a sign: the interpolation coefficients degenerate, and
+  !the search must still converge to the jump.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = StepObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  ASSERT(abs(Root(1) - 2.0_C_DOUBLE) <= 1.0E-12_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentSpacingStepEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: OffsetObjective
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)          :: LeftPivot(1), RightPivot(1), Root(1), Tolerance, &
+                             Spacing
+  integer(C_SIZE_T)       :: MaxIterations
+  real(C_DOUBLE), target  :: Offset
+  class(*),       pointer :: UserContext
+
+  !The zero of x^2 - 2 is sqrt(2), which no interpolation lands on exactly: the
+  !last step is smaller than the spacing of the parameter around the estimate,
+  !so the estimate moves by one spacing unit towards the centre of the bracket,
+  !and the zero is resolved to the last bit of the type.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  Offset        = 2.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  UserContext => Offset
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = OffsetObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance, &
+                          UserContext       = UserContext)
+
+  Spacing = 2.0_C_DOUBLE * epsilon(1.0_C_DOUBLE) * sqrt(2.0_C_DOUBLE)
+
+  ASSERT(abs(Root(1) - sqrt(2.0_C_DOUBLE)) <= Spacing)
+  ASSERT(abs(Root(1)**2 - 2.0_C_DOUBLE) <= 2.0_C_DOUBLE * Spacing)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentExtremePivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: AbsObjective
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  !The segment spans most of the range of the type and its ends are given in
+  !reverse: no difference between them may overflow, and the bracket collapses
+  !on the minimum of |x|.
+  LeftPivot     =  1.0E308_C_DOUBLE
+  RightPivot    = -1.0E308_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = AbsObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(.not.IEEE_IS_NAN(Minimum(1)))
+  ASSERT(abs(Minimum(1)) <= epsilon(1.0_C_DOUBLE) * huge(1.0_C_DOUBLE))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentToleranceNudgeEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: SquareObjective
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  !A tolerance which is coarse but does not cover the segment: a step below
+  !it is replaced by a nudge as long as the tolerance itself, which lands on
+  !the end of the bracket instead of splitting it. The bracket then narrows by
+  !one tolerance per iteration, so a cap of five iterations stops the search
+  !before the bracket is twice the tolerance wide; the estimate it holds is
+  !still inside the tolerance of the minimum.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 5_C_SIZE_T
+  Tolerance     = 0.2_C_DOUBLE
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = SquareObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentToleranceExitEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: RecordedCount, &
+                            RecordedSquareObjective, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Wide(1), &
+                       Tolerance
+  integer(C_SIZE_T) :: MaxIterations, WideCap, Count
+
+  !A tolerance which is fine: the search ends as soon as the bracket is no
+  !wider than twice the tolerance, and the number of evaluations does not
+  !depend on the cap at all, so it is the tolerance and not the cap which ends
+  !it.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  WideCap       = 1000_C_SIZE_T
+  Tolerance     = 1.0E-3_C_DOUBLE
+
+  call ResetRecords()
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordedSquareObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  Count = RecordedCount
+
+  call ResetRecords()
+
+  Wide = BrentMinimization(LeftPivot         = LeftPivot, &
+                           RightPivot        = RightPivot, &
+                           ObjectiveFunction = RecordedSquareObjective, &
+                           MaxIterations     = WideCap, &
+                           Tolerance         = Tolerance)
+
+  !The same evaluations for five times the cap, and far fewer than the cap
+  !allows: the bracket reaches the tolerance first.
+  ASSERT(Count == 6_C_SIZE_T)
+  ASSERT(RecordedCount == Count)
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= Tolerance)
+  ASSERT(abs(Wide(1) - 1.0_C_DOUBLE) <= Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentNaNEncounteredEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: PartialNaNObjective, &
+                            RecordedPoints, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  !The objective is a value at the first estimates and undefined above 2.7: the
+  !estimate which lands there stops the search, which reports the absence of an
+  !answer instead of a point it cannot compare.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = PartialNaNObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+  ASSERT(RecordedCount == 3)
+  ASSERT(abs(RecordedPoints(1) - 2.0_C_DOUBLE) <= 0.0_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentFlatObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: ConstantObjective
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  !A flat objective gives every point the same value, so every point of the
+  !segment is a minimizer and no estimate is better than the one held, but each
+  !tie still narrows the bracket: the search ends as soon as the bracket is no
+  !wider than twice the tolerance, and the estimate it holds is the answer.
+  LeftPivot     = 0.5_C_DOUBLE
+  RightPivot    = 1.5_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.3_C_DOUBLE
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = ConstantObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  !The midpoint is a minimizer like every other point of the segment, so the
+  !estimate is measured against it.
+  ASSERT(Minimum(1) >= LeftPivot(1))
+  ASSERT(Minimum(1) <= RightPivot(1))
+  ASSERT(abs(Minimum(1) - 1.0_C_DOUBLE) <= 2.0_C_DOUBLE * Tolerance)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentNonUnimodalEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: DeceptiveObjective
+  use FunctionalOptimizationAlgorithms, only: BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Minimum(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  !The narrow notch at 1 sits far above the parabola minimum at 2.5. Brent
+  !searches for a local minimum, so once the parabolic step dives towards 2.5
+  !the notch is never sampled, and the answer is the true minimum.
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 200_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = DeceptiveObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(abs(Minimum(1) - 2.5_C_DOUBLE) <= 1.0E-6_C_DOUBLE)
+  ASSERT(DeceptiveObjective(Minimum) > -1.0E-3_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+
+
+TEST_E(FOAFortranBrentEmptySpaceEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use TestObjectives, only: ResetRecords, &
+                            RecordedCount
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding, &
+                                              BrentMinimization, &
+                                              ObjectiveFunctionInterface
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: Root(0), Minimum(0), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  procedure(ObjectiveFunctionInterface), pointer :: NoObjective
+
+  call ResetRecords()
+
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+  NoObjective   => null()
+
+  Root = BrentRootFinding(LeftPivot         = [real(C_DOUBLE) ::], &
+                          RightPivot        = [real(C_DOUBLE) ::], &
+                          ObjectiveFunction = NoObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  !An empty space has no component to search: the result is empty, and the
+  !objective is never evaluated.
+  ASSERT(RecordedCount == 0)
+  ASSERT(size(Root) == 0)
+
+  Minimum = BrentMinimization(LeftPivot         = [real(C_DOUBLE) ::], &
+                              RightPivot        = [real(C_DOUBLE) ::], &
+                              ObjectiveFunction = NoObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 0)
+  ASSERT(size(Minimum) == 0)
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentNullObjectiveEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding, &
+                                              BrentMinimization, &
+                                              ObjectiveFunctionInterface
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Minimum(1), &
+                       Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+  procedure(ObjectiveFunctionInterface), pointer :: NoObjective
+
+  LeftPivot     = 0.0_C_DOUBLE
+  RightPivot    = 3.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+  NoObjective   => null()
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = NoObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  !A disassociated objective leaves nothing to evaluate.
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = NoObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentNaNPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN, &
+                                           IEEE_QUIET_NAN, &
+                                           IEEE_VALUE
+  use TestObjectives, only: RecordObjective, &
+                            RecordedCount, &
+                            ResetRecords
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding, &
+                                              BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Minimum(1), &
+                       Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  call ResetRecords()
+
+  LeftPivot     = IEEE_VALUE(0.0_C_DOUBLE, IEEE_QUIET_NAN)
+  RightPivot    = 4.0_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = RecordObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  !A NaN pivot is not a segment: the call is rejected before the objective is
+  !evaluated, whatever the objective does with its argument.
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = RecordObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(RecordedCount == 0)
+  ASSERT(IEEE_IS_NAN(Minimum(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentUnbracketedPivotEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: ConstantObjective, &
+                            QuadraticObjective
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  !Both ends share the sign of a function with a zero further right: there is
+  !no sign change to locate, and no answer to report.
+  LeftPivot  = 2.0_C_DOUBLE
+  RightPivot = 5.0_C_DOUBLE
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = QuadraticObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+  !A constant has no sign change anywhere, whatever the segment.
+  LeftPivot  = 0.0_C_DOUBLE
+  RightPivot = 4.0_C_DOUBLE
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = ConstantObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  ASSERT(IEEE_IS_NAN(Root(1)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentSizeMismatchEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_IS_NAN
+  use TestObjectives, only: BowlObjective, &
+                            SumObjective
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding, &
+                                              BrentMinimization
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)    :: LeftPivot(2), RightPivot(3), Root(2), Minimum(2), &
+                       Tolerance
+  integer(C_SIZE_T) :: MaxIterations
+
+  LeftPivot     = [1.0_C_DOUBLE, 1.0_C_DOUBLE]
+  RightPivot    = [4.0_C_DOUBLE, 6.0_C_DOUBLE, 1.0_C_DOUBLE]
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  !Pivots of different lengths do not describe a segment, and nothing is
+  !searched for.
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = SumObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance)
+
+  ASSERT(all(IEEE_IS_NAN(Root)))
+
+  Minimum = BrentMinimization(LeftPivot         = LeftPivot, &
+                              RightPivot        = RightPivot, &
+                              ObjectiveFunction = BowlObjective, &
+                              MaxIterations     = MaxIterations, &
+                              Tolerance         = Tolerance)
+
+  ASSERT(all(IEEE_IS_NAN(Minimum)))
+
+#endif
+END_TEST_E
+
+TEST_E(FOAFortranBrentOverflowEdgeCase)
+#ifdef TSD_FORTRAN_IMPL
+
+  use, intrinsic :: ISO_C_BINDING, only: C_DOUBLE, &
+                                         C_SIZE_T
+  use, intrinsic :: IEEE_ARITHMETIC, only: IEEE_OVERFLOW, &
+                                           IEEE_GET_FLAG, &
+                                           IEEE_SET_FLAG
+  use TestObjectives, only: TargetLineObjective
+  use FunctionalOptimizationAlgorithms, only: BrentRootFinding
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  real(C_DOUBLE)          :: LeftPivot(1), RightPivot(1), Root(1), Tolerance
+  integer(C_SIZE_T)       :: MaxIterations
+  real(C_DOUBLE), target  :: Target
+  class(*),       pointer :: UserContext
+  logical                 :: Overflow
+
+  !The two ends are enormous and of the same sign, so their sum overflows: the
+  !midpoint is formed from their halves, and it is the zero of the objective.
+  LeftPivot     = 1.0E308_C_DOUBLE
+  RightPivot    = 1.5E308_C_DOUBLE
+  Target        = 1.25E308_C_DOUBLE
+  MaxIterations = 100_C_SIZE_T
+  Tolerance     = 0.0_C_DOUBLE
+
+  UserContext => Target
+
+  call IEEE_SET_FLAG(IEEE_OVERFLOW, .false.)
+
+  Root = BrentRootFinding(LeftPivot         = LeftPivot, &
+                          RightPivot        = RightPivot, &
+                          ObjectiveFunction = TargetLineObjective, &
+                          MaxIterations     = MaxIterations, &
+                          Tolerance         = Tolerance, &
+                          UserContext       = UserContext)
+
+  call IEEE_GET_FLAG(IEEE_OVERFLOW, Overflow)
+
+  ASSERT(.not.Overflow)
+  ASSERT(abs(Root(1) - Target) <= 1.0E293_C_DOUBLE)
+
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(FOAFortranFunctionalNominalSuite,
+           FOAFortranOneDimensionalNominal,
+           FOAFortranMultidimensionalSegmentNominal,
+           FOAFortranReversedPivotNominal,
+           FOAFortranContextForwardingNominal,
+           FOAFortranNullContextNominal,
+           FOAFortranCallbackProtocolNominal,
+           FOAFortranSquareOneDimensionalNominal,
+           FOAFortranBowlMultidimensionalNominal,
+           FOAFortranReversedPivotMinimizationNominal,
+           FOAFortranMinimumContextForwardingNominal,
+           FOAFortranMinimumNullContextNominal,
+           FOAFortranMinimumCallbackProtocolNominal,
+           FOAFortranBrentOneDimensionalNominal,
+           FOAFortranBrentSquareOneDimensionalNominal);
+
+TEST_SUITE(FOAFortranFunctionalEdgeCaseSuite,
+           FOAFortranExactZeroAtPivotEdgeCase,
+           FOAFortranExactZeroAtMidpointEdgeCase,
+           FOAFortranCollapsedBracketEdgeCase,
+           FOAFortranIterationCapAccuracyEdgeCase,
+           FOAFortranSignOnlyObjectiveEdgeCase,
+           FOAFortranScaledSignObjectiveEdgeCase,
+           FOAFortranNaNObjectiveEdgeCase,
+           FOAFortranMinimumAtPivotEdgeCase,
+           FOAFortranToleranceNotResidualEdgeCase,
+           FOAFortranMinimumIterationCapAccuracyEdgeCase,
+           FOAFortranExtremePivotEdgeCase,
+           FOAFortranMinimumOverflowEdgeCase,
+           FOAFortranBisectionOverflowEdgeCase,
+           FOAFortranMinimumCollapsedBracketEdgeCase,
+           FOAFortranNonUnimodalEdgeCase,
+           FOAFortranToleranceCoversSegmentEdgeCase,
+           FOAFortranFlatObjectiveEdgeCase,
+           FOAFortranMinimumNaNAtStartEdgeCase,
+           FOAFortranNaNEncounteredEdgeCase,
+           FOAFortranMinimumNaNInsideLoopEdgeCase,
+           FOAFortranBrentSignOnlyObjectiveEdgeCase,
+           FOAFortranBrentSpacingStepEdgeCase,
+           FOAFortranBrentExtremePivotEdgeCase,
+           FOAFortranBrentToleranceNudgeEdgeCase,
+           FOAFortranBrentToleranceExitEdgeCase,
+           FOAFortranBrentNaNEncounteredEdgeCase,
+           FOAFortranBrentFlatObjectiveEdgeCase,
+           FOAFortranBrentNonUnimodalEdgeCase,
+           FOAFortranBrentOverflowEdgeCase);
+
+TEST_SUITE(FOAFortranStructuralSuite,
+           FOAFortranNaNPivotEdgeCase,
+           FOAFortranInfinitePivotEdgeCase,
+           FOAFortranUnbracketedPivotEdgeCase,
+           FOAFortranNegativeToleranceEdgeCase,
+           FOAFortranNaNToleranceEdgeCase,
+           FOAFortranZeroIterationsEdgeCase,
+           FOAFortranEmptySpaceEdgeCase,
+           FOAFortranNullObjectiveEdgeCase,
+           FOAFortranSizeMismatchEdgeCase,
+           FOAFortranBrentEmptySpaceEdgeCase,
+           FOAFortranBrentNullObjectiveEdgeCase,
+           FOAFortranBrentNaNPivotEdgeCase,
+           FOAFortranBrentUnbracketedPivotEdgeCase,
+           FOAFortranBrentSizeMismatchEdgeCase,
+           FOAFortranNestedRunEdgeCase,
+           FOAFortranMinimumNaNPivotEdgeCase,
+           FOAFortranMinimumInfinitePivotEdgeCase,
+           FOAFortranMinimumNegativeToleranceEdgeCase,
+           FOAFortranMinimumNaNToleranceEdgeCase,
+           FOAFortranMinimumZeroIterationsEdgeCase,
+           FOAFortranMinimumEmptySpaceEdgeCase,
+           FOAFortranMinimumSizeMismatchEdgeCase,
+           FOAFortranMinimumNullObjectiveEdgeCase,
+           FOAFortranMinimumNestedRunEdgeCase);
+#endif

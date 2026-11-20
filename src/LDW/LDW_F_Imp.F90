@@ -15,7 +15,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
   contains
 
-  module procedure DiagHermitian
+  module procedure HermitianEigendecomposition
     integer(C_SIZE_T)        :: BufferSize, BufferCopy
     complex(REAL64), pointer :: MatrixCopy(:, :)
     real(REAL64),    pointer :: Eig(:)
@@ -200,7 +200,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
     call FortranFree(EigHandle)
     call FortranFree(MatrixCopyHandle)
 
-  end procedure DiagHermitian
+  end procedure HermitianEigendecomposition
 
   !< SELECT callback for ZGEES. LDW always requests SORT = 'N', so LAPACK
   !< never references this procedure; the comparison only keeps the dummy
@@ -431,7 +431,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
   end procedure SchurDecomposition
 
-  module procedure SVDDecomposition
+  module procedure SVDecomposition
     integer(C_SIZE_T)        :: BufferASize, BufferACopy, &
                                 BufferBSize, BufferBCopy
     complex(REAL64), pointer :: MatrixCopy(:, :)
@@ -454,7 +454,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
     real(REAL64)    :: QueryRWORK(1)
     integer(INT32)  :: QueryIWORK(1)
 
-    integer(INT32)    :: IntDimensionR, IntDimensionC
+    integer(INT32)    :: IntRows, IntColumns
     integer(INT32)    :: MinMN, MaxMN
     integer(INT32)    :: LWORK, LRWORK, LIWORK
     integer(C_SIZE_T) :: ValA, ValB
@@ -478,77 +478,77 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     Info = 0_INT32
 
-    if ((DimensionR == 0_C_SIZE_T) .or. &
-        (DimensionC == 0_C_SIZE_T)) return
+    if ((Rows == 0_C_SIZE_T) .or. &
+        (Columns == 0_C_SIZE_T)) return
 
     Info = int(huge(1_INT32), C_INT)
 
-    if ((DimensionR > int(huge(1_INT32), C_SIZE_T)) .or. &
-        (DimensionC > int(huge(1_INT32), C_SIZE_T))) return
+    if ((Rows > int(huge(1_INT32), C_SIZE_T)) .or. &
+        (Columns > int(huge(1_INT32), C_SIZE_T))) return
 
-    IntDimensionR = int(DimensionR, INT32)
-    IntDimensionC = int(DimensionC, INT32)
-    MinMN         = min(IntDimensionR, IntDimensionC)
-    MaxMN         = max(IntDimensionR, IntDimensionC)
+    IntRows       = int(Rows, INT32)
+    IntColumns    = int(Columns, INT32)
+    MinMN         = min(IntRows, IntColumns)
+    MaxMN         = max(IntRows, IntColumns)
 
     Body: block
 
       !Matrix copy buffer.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
-                                     B   = DimensionR, &
+                                     B   = Rows, &
                                      Res = BufferASize))) exit Body
       BufferACopy = BufferASize
       if (logical(FortranMulOverflow(A   = BufferACopy, &
-                                     B   = DimensionC, &
+                                     B   = Columns, &
                                      Res = BufferASize))) exit Body
 
       MatrixCopyHandle = FortranMalloc(BufferASize)
       if (.not.C_ASSOCIATED(MatrixCopyHandle)) exit Body
       call C_F_POINTER(MatrixCopyHandle, &
                        MatrixCopy, &
-                       [DimensionR, DimensionC])
+                       [Rows, Columns])
       MatrixCopy = cmplx(Matrix, KIND = REAL64)
 
       !UnitaryU buffer.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
-                                     B   = DimensionR, &
+                                     B   = Rows, &
                                      Res = BufferASize))) exit Body
       BufferACopy = BufferASize
       if (logical(FortranMulOverflow(A   = BufferACopy, &
-                                     B   = DimensionR, &
+                                     B   = Rows, &
                                      Res = BufferASize))) exit Body
 
       UnitaryUHandle = FortranMalloc(BufferASize)
       if (.not.C_ASSOCIATED(UnitaryUHandle)) exit Body
       call C_F_POINTER(UnitaryUHandle, &
                        LocalUnitaryU, &
-                       [DimensionR, DimensionR])
+                       [Rows, Rows])
 
       !Singular value buffer.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(1.0_REAL64), C_SIZE_T), &
-                                     B   = min(DimensionR, DimensionC), &
+                                     B   = min(Rows, Columns), &
                                      Res = BufferASize))) exit Body
 
       SigHandle = FortranMalloc(BufferASize)
       if (.not.C_ASSOCIATED(SigHandle)) exit Body
       call C_F_POINTER(SigHandle, &
                        Sig, &
-                       [min(DimensionR, DimensionC)])
+                       [min(Rows, Columns)])
 
       !UnitaryVH buffer.
       if (logical(FortranMulOverflow(A   = int(C_SIZEOF(cmplx(1.0_REAL64, 1.0_REAL64, REAL64)), C_SIZE_T), &
-                                     B   = DimensionC, &
+                                     B   = Columns, &
                                      Res = BufferASize))) exit Body
       BufferACopy = BufferASize
       if (logical(FortranMulOverflow(A   = BufferACopy, &
-                                     B   = DimensionC, &
+                                     B   = Columns, &
                                      Res = BufferASize))) exit Body
 
       UnitaryVHHandle = FortranMalloc(BufferASize)
       if (.not.C_ASSOCIATED(UnitaryVHHandle)) exit Body
       call C_F_POINTER(UnitaryVHHandle, &
                        LocalUnitaryVH, &
-                       [DimensionC, DimensionC])
+                       [Columns, Columns])
 
       !LRWORK calculation. ZGESDD has no RWORK length argument, so the
       !wrapper provides the largest requirement of the reference
@@ -613,15 +613,15 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
       QueryIWORK = 0_INT32
 
       call ZGESDDProcedure('A', &
-                           IntDimensionR, &
-                           IntDimensionC, &
+                           IntRows, &
+                           IntColumns, &
                            MatrixCopy, &
-                           IntDimensionR, &
+                           IntRows, &
                            Sig, &
                            LocalUnitaryU, &
-                           IntDimensionR, &
+                           IntRows, &
                            LocalUnitaryVH, &
-                           IntDimensionC, &
+                           IntColumns, &
                            QueryWORK, &
                            -1_INT32, &
                            QueryRWORK, &
@@ -684,19 +684,19 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
                        IWORK, &
                        [LIWORK])
 
-      !Singular value decomposition. JOBZ is 'A' so that U is DimensionR by
-      !DimensionR and VT is DimensionC by DimensionC. ZGESDD returns the
-      !singular values in descending order.
+      !Singular value decomposition. JOBZ is 'A' so that U is of order
+      !Rows and VT is of order Columns. ZGESDD returns the singular
+      !values in descending order.
       call ZGESDDProcedure('A', &
-                           IntDimensionR, &
-                           IntDimensionC, &
+                           IntRows, &
+                           IntColumns, &
                            MatrixCopy, &
-                           IntDimensionR, &
+                           IntRows, &
                            Sig, &
                            LocalUnitaryU, &
-                           IntDimensionR, &
+                           IntRows, &
                            LocalUnitaryVH, &
-                           IntDimensionC, &
+                           IntColumns, &
                            WORK, &
                            LWORK, &
                            RWORK, &
@@ -706,7 +706,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
       !The other LDW drivers report their spectrum in ascending order, so the
       !descending sequence produced by ZGESDD is reversed. The permutation is
       !applied to the matching columns of U and rows of VT as well, so that
-      !A = U*diag(S)*VT still holds and DiagSigma(j) keeps pairing with
+      !A = U*diag(S)*VT still holds and SingularValues(j) keeps pairing with
       !column j of U and row j of VT.
       do j = 1_INT32, MinMN / 2_INT32
         k = MinMN - j + 1_INT32
@@ -715,13 +715,13 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
         Sig(j)  = Sig(k)
         Sig(k)  = SigSwap
 
-        do i = 1_INT32, IntDimensionR
+        do i = 1_INT32, IntRows
           ColumnSwap          = LocalUnitaryU(i, j)
           LocalUnitaryU(i, j) = LocalUnitaryU(i, k)
           LocalUnitaryU(i, k) = ColumnSwap
         enddo
 
-        do i = 1_INT32, IntDimensionC
+        do i = 1_INT32, IntColumns
           RowSwap              = LocalUnitaryVH(j, i)
           LocalUnitaryVH(j, i) = LocalUnitaryVH(k, i)
           LocalUnitaryVH(k, i) = RowSwap
@@ -729,7 +729,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
       enddo
 
-      if (present(DiagSigma)) DiagSigma = real(Sig, C_DOUBLE)
+      if (present(SingularValues)) SingularValues = real(Sig, C_DOUBLE)
       UnitaryU  = cmplx(LocalUnitaryU, KIND = C_DOUBLE_COMPLEX)
       UnitaryVH = cmplx(LocalUnitaryVH, KIND = C_DOUBLE_COMPLEX)
       Info      = int(CalculationStatus, C_INT)
@@ -752,7 +752,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
     call FortranFree(UnitaryUHandle)
     call FortranFree(MatrixCopyHandle)
 
-  end procedure SVDDecomposition
+  end procedure SVDecomposition
 
   module procedure GeneralizedSchurDecomposition
     integer(C_SIZE_T)           :: BufferSize, BufferCopy
@@ -1040,7 +1040,7 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
   end procedure GeneralizedSchurDecomposition
 
-  module procedure DegeneracyGroup
+  module procedure DegeneracyGrouping
     integer(C_SIZE_T) :: i, j
 
     if (DegeneracyThreshold <= 0.0_C_DOUBLE) return
@@ -1062,6 +1062,6 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     enddo
 
-  end procedure DegeneracyGroup
+  end procedure DegeneracyGrouping
 
 end submodule LDW_F_Implementation

@@ -1,0 +1,675 @@
+#ifndef FunctionalOptimizationAlgorithms_FH
+#define FunctionalOptimizationAlgorithms_FH
+
+module FunctionalOptimizationAlgorithms
+
+  use, intrinsic :: ISO_C_BINDING, only: C_SIZE_T, &
+                                         C_DOUBLE, &
+                                         C_PTR, C_FUNPTR
+
+  implicit none
+
+  private
+
+  public :: C_SIZE_T
+  public :: C_DOUBLE
+
+  !< Objective function signature.
+  !<
+  !< Evaluates the objective at a point of R^n. It is the only assumption the
+  !< algorithms make about the function they work on: the point is a real
+  !< vector of arbitrary length, and the value is a real scalar consumed
+  !< through its sign, its magnitude, or both.
+  !<
+  !< -EvaluationPoint is an assumed-shape array: the procedure reads the
+  !<  length of the point from the descriptor, so an objective need not know
+  !<  it in advance. The algorithms always pass the point contiguous, and the
+  !<  memory is their own: it is valid only for the duration of the call, and
+  !<  must not be written to.
+  !< -UserContext is forwarded verbatim from the algorithm, and is PRESENT
+  !<  only when the caller has supplied it.
+  !< -The value must be deterministic: the algorithms assume that the sign and
+  !<  the magnitude of the objective at a point do not depend on how many
+  !<  times the procedure has been invoked.
+  !< -A NaN value marks a point without a defined objective value: the
+  !<  algorithms stop and report the absence of an answer.
+  !< -The procedure must not be null: the algorithms reject a call which does
+  !<  not supply one, without evaluating it.
+  !<
+  !Note: Declare objective functions as module or external procedures;
+  !      an internal procedure gets a stack trampoline,
+  !      and makes the executable require an executable stack.
+  !Note: UserContext must be declared CLASS(*), POINTER: the standard requires
+  !      a polymorphic actual for an INTENT(INOUT) unlimited polymorphic
+  !      dummy. Objective functions must test PRESENT and ASSOCIATED before
+  !      selecting on it.
+  abstract interface
+    function ObjectiveFunctionInterface(EvaluationPoint, UserContext) &
+      result(Value)
+      import C_DOUBLE
+      real(C_DOUBLE),  intent(in) :: EvaluationPoint(:)
+
+      class(*), intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Value
+    end function ObjectiveFunctionInterface
+  end interface
+
+  public :: ObjectiveFunctionInterface
+
+  !< BisectionRootFinding locates a sign change of an objective function on
+  !< the segment which joins two pivots.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< For an objective f: R^n -> R and two pivots of R^n, the routine searches
+  !< the segment which joins them,
+  !<
+  !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
+  !<
+  !< and returns the point at which f changes sign. The only assumption on f is
+  !< that the pivots lie on opposite sides of zero: neither continuity nor
+  !< differentiability is required, and the pivots may be given in either
+  !< order.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NUMERICAL METHOD
+  !< -------------------------------------------------------------------------
+  !<
+  !< Bisection along the segment: every iteration evaluates f at the midpoint
+  !< of the current bracket and keeps the half which still holds the sign
+  !< change. The midpoint is the sum of the halves of the two ends, and the
+  !< ends are compared through their sign and never through their product, so
+  !< neither the point nor the comparison can over- or underflow.
+  !<
+  !< Two points are evaluated before the first iteration and at most one per
+  !< iteration afterwards.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ACCURACY
+  !< -------------------------------------------------------------------------
+  !<
+  !< In exact arithmetic, after k halvings the returned point lies within
+  !<
+  !<     |RightPivot - LeftPivot| / 2^k
+  !<
+  !< of a sign change, for any norm of R^n, because every bracket is a copy of
+  !< the segment scaled by a power of two.
+  !<
+  !< The search stops at whichever of these conditions comes first: a pivot at
+  !< which the objective vanishes, a value which is NaN, a residual |f(Root)|
+  !< less than or equal to Tolerance, a bracket which cannot be halved any
+  !< further, or MaxIterations iterations. Root is the last estimate in every
+  !< case. No flag reports which condition was met, and Tolerance is a
+  !< stopping rule and not a promise, so the caller validates Root.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< Root holds an answer when the objective takes opposite signs at the
+  !< pivots or vanishes at one of them; otherwise, and on every rejection, the
+  !< returned array is filled with NaN.
+  !<
+  !< -The returned array never shares storage with the pivots.
+  !< -The pivots are copied before the first evaluation, so an objective which
+  !<  reuses their memory through UserContext cannot alter the search.
+  !< -A zero at a pivot is an exact answer and is returned unchanged.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a negative or NaN Tolerance and a MaxIterations of zero are rejections:
+  !<  the objective is not evaluated.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
+  !< -A zero-length space is a valid no-op: the objective is not evaluated and
+  !<  the returned array is empty, so the caller reads its size to tell the
+  !<  case apart from a rejection.
+  !< -The routine has no global state. Concurrent calls are safe provided the
+  !<  objective function is thread-safe.
+  !<
+
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      objective functions are invoked synchronously on the calling
+    !      thread.
+    !Note: UserContext must be declared CLASS(*), POINTER: the standard
+    !      requires a polymorphic actual for an INTENT(INOUT) unlimited
+    !      polymorphic dummy.
+    !Note: RECURSIVE guarantees that each activation keeps its own search
+    !      state, so an objective function may start another run (nested or
+    !      from a thread).
+    recursive module function BisectionRootFinding(LeftPivot, &
+                                                   RightPivot, &
+                                                   ObjectiveFunction, &
+                                                   MaxIterations, &
+                                                   Tolerance, &
+                                                   UserContext) &
+      result(Root)
+      real(C_DOUBLE),    intent(in)                       :: LeftPivot(:)
+      real(C_DOUBLE),    intent(in)                       :: RightPivot(:)
+      procedure(ObjectiveFunctionInterface),      pointer :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in)                       :: MaxIterations
+      real(C_DOUBLE),    intent(in)                       :: Tolerance
+      class(*),          intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Root(size(LeftPivot, KIND = C_SIZE_T))
+    end function BisectionRootFinding
+  end interface
+
+  public :: BisectionRootFinding
+
+  !< GoldenSectionMinimization locates the minimum of an objective function
+  !< on the segment which joins two pivots.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< For an objective f: R^n -> R and two pivots of R^n, the routine searches
+  !< the segment which joins them,
+  !<
+  !<     x(t) = LeftPivot + t * (RightPivot - LeftPivot),   t in [0, 1],
+  !<
+  !< and returns the point at which f is smallest. The only assumption on f is
+  !< that it is unimodal there: nothing checks it, and the pivots may be given
+  !< in either order.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NUMERICAL METHOD
+  !< -------------------------------------------------------------------------
+  !<
+  !< Golden-section search along the segment. The bracket is kept in the
+  !< parameter t and holds two interior points at
+  !<
+  !<     t = hi - rho * (hi - lo)     and     t = lo + rho * (hi - lo),
+  !<
+  !< where rho is (sqrt(5) - 1) / 2, near 0.618. The interior point whose value
+  !< is larger is discarded together with the part of the bracket beyond it, so
+  !< the bracket keeps a fraction rho of its width per iteration, and the point
+  !< which is kept is not evaluated again. Two points are evaluated before the
+  !< first iteration and at most one per iteration afterwards.
+  !<
+  !< A point of the segment is the convex combination (1 - t) * LeftPivot +
+  !< t * RightPivot, which lies between the pivots and never forms their
+  !< difference, so the points cannot overflow. The length of the segment is
+  !< measured in halves for the same reason, and is capped at the largest value
+  !< of the type when the segment is wider than its range.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ACCURACY
+  !< -------------------------------------------------------------------------
+  !<
+  !< In exact arithmetic, after k iterations the bracket keeps a fraction
+  !< rho^k of the segment, and the returned point is its midpoint, so it lies
+  !< within
+  !<
+  !<     rho^k * |RightPivot - LeftPivot| / 2
+  !<
+  !< of a minimizer of f, measured in the largest component. The search stops
+  !< at whichever of these conditions is met first: a bracket whose width is
+  !< less than or equal to Tolerance, a value which is NaN, a bracket reduced
+  !< to two coincident points, or MaxIterations iterations. In the first case
+  !< the returned point lies within Tolerance / 2 of a minimizer.
+  !<
+  !< Tolerance bounds the width of the bracket, and not the value of the
+  !< objective: it is a stopping rule and not a promise, so the caller
+  !< validates the returned point.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< The returned point is the midpoint of the last bracket, an estimate: the
+  !< objective need not have been evaluated there, and no exact answer can be
+  !< reached, because rho is irrational. It holds an answer only when the
+  !< objective is unimodal along the segment; when it is not, it is the minimum
+  !< of the last bracket, and nothing reports it.
+  !<
+  !< -The pivots are read in place at every iteration: an objective which
+  !<  writes to their memory through UserContext alters the search.
+  !< -The pivots themselves are never evaluated: the two evaluations which
+  !<  precede the first iteration are interior points, so a minimum at a pivot
+  !<  is approached only as the bracket shrinks onto it.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a negative or NaN Tolerance and a MaxIterations of zero are rejections:
+  !<  the objective is not evaluated, and the returned array is NaN.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
+  !< -A zero-length space is a valid no-op: the objective is not evaluated and
+  !<  the returned array is empty, so the caller reads its size to tell the
+  !<  case apart from a rejection.
+  !< -The routine has no global state. Concurrent calls are safe provided the
+  !<  objective function is thread-safe.
+  !<
+
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      objective functions are invoked synchronously on the calling
+    !      thread.
+    !Note: UserContext must be declared CLASS(*), POINTER: the standard
+    !      requires a polymorphic actual for an INTENT(INOUT) unlimited
+    !      polymorphic dummy.
+    !Note: RECURSIVE guarantees that each activation keeps its own search
+    !      state, so an objective function may start another run (nested or
+    !      from a thread).
+    recursive module function GoldenSectionMinimization(LeftPivot, &
+                                                        RightPivot, &
+                                                        ObjectiveFunction, &
+                                                        MaxIterations, &
+                                                        Tolerance, &
+                                                        UserContext) &
+      result(Minimum)
+      real(C_DOUBLE),    intent(in)                       :: LeftPivot(:)
+      real(C_DOUBLE),    intent(in)                       :: RightPivot(:)
+      procedure(ObjectiveFunctionInterface),      pointer :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in)                       :: MaxIterations
+      real(C_DOUBLE),    intent(in)                       :: Tolerance
+      class(*),          intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Minimum(size(LeftPivot, KIND = C_SIZE_T))
+    end function GoldenSectionMinimization
+  end interface
+
+  public :: GoldenSectionMinimization
+
+  !< BrentRootFinding locates a sign change of an objective function on the
+  !< segment which joins two pivots.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< The problem is that of BisectionRootFinding: the segment which joins the
+  !< two pivots, and the assumption that the objective takes opposite signs at
+  !< them.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NUMERICAL METHOD
+  !< -------------------------------------------------------------------------
+  !<
+  !< The Brent root finding method along the segment. The bracket is kept in
+  !< the parameter t, between two estimates which lie on opposite sides of
+  !< zero, and the two estimates which precede the current one are kept as
+  !< well. Every iteration forms the next estimate by inverse quadratic
+  !< interpolation through the three most recent ones, by the secant through
+  !< the two most recent ones when the first and the third coincide, and by
+  !< bisection of the bracket whenever the interpolated point falls outside
+  !< the bracket or is not shorter than the step which produced the current
+  !< estimate. Interpolation is therefore always backed by bisection: a step is
+  !< accepted only if it is shorter than half of the step which produced the
+  !< current estimate, so the bracket is halved at least every second
+  !< iteration, and much faster when the objective is smooth.
+  !<
+  !< A point of the segment is the convex combination (1 - t) * LeftPivot +
+  !< t * RightPivot, so the points cannot overflow, and the values are compared
+  !< through their sign, never through their product. Two points are evaluated
+  !< before the first iteration and at most one per iteration afterwards.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ACCURACY
+  !< -------------------------------------------------------------------------
+  !<
+  !< The search falls back on bisection whenever the interpolation cannot be
+  !< trusted, so the bracket is halved at least every second iteration, and the
+  !< search needs at most twice the iterations of BisectionRootFinding. On a
+  !< smooth objective it needs far fewer, because the estimate converges
+  !< superlinearly.
+  !<
+  !< The search stops at whichever of these conditions is met first: a pivot at
+  !< which the objective vanishes, a value which is NaN, a residual |f(Root)|
+  !< less than or equal to Tolerance, a bracket which has reached the spacing
+  !< of the parameter, or MaxIterations iterations. Root is the last estimate
+  !< in every case. No flag reports which condition was met, and Tolerance is a
+  !< stopping rule and not a promise, so the caller validates Root.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< Root holds an answer when the objective takes opposite signs at the
+  !< pivots, or vanishes at one of them; otherwise, and on every rejection, the
+  !< returned array is filled with NaN.
+  !<
+  !< -The returned array never shares storage with the pivots.
+  !< -The pivots are read in place at every iteration: an objective which
+  !<  writes to their memory through UserContext alters the search.
+  !< -A zero at a pivot is an exact answer and is returned unchanged.
+  !< -The points at which the objective is evaluated lie on the segment: the
+  !<  interpolation never extrapolates.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a pair of pivots on the same side of zero, a negative or NaN Tolerance
+  !<  and a MaxIterations of zero are rejections: the objective is not
+  !<  evaluated.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
+  !< -A zero-length space is a valid no-op: the objective is not evaluated and
+  !<  the returned array is empty, so the caller reads its size to tell the
+  !<  case apart from a rejection.
+  !< -The routine has no global state. Concurrent calls are safe provided the
+  !<  objective function is thread-safe.
+  !<
+
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      objective functions are invoked synchronously on the calling
+    !      thread.
+    !Note: UserContext must be declared CLASS(*), POINTER: the standard
+    !      requires a polymorphic actual for an INTENT(INOUT) unlimited
+    !      polymorphic dummy.
+    !Note: RECURSIVE guarantees that each activation keeps its own search
+    !      state, so an objective function may start another run (nested or
+    !      from a thread).
+    recursive module function BrentRootFinding(LeftPivot, &
+                                               RightPivot, &
+                                               ObjectiveFunction, &
+                                               MaxIterations, &
+                                               Tolerance, &
+                                               UserContext) &
+      result(Root)
+      real(C_DOUBLE),    intent(in)                       :: LeftPivot(:)
+      real(C_DOUBLE),    intent(in)                       :: RightPivot(:)
+      procedure(ObjectiveFunctionInterface),      pointer :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in)                       :: MaxIterations
+      real(C_DOUBLE),    intent(in)                       :: Tolerance
+      class(*),          intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Root(size(LeftPivot, KIND = C_SIZE_T))
+    end function BrentRootFinding
+  end interface
+
+  public :: BrentRootFinding
+
+  !< BrentMinimization locates the minimum of an objective function on the
+  !< segment which joins two pivots.
+  !<
+  !< -------------------------------------------------------------------------
+  !< MATHEMATICAL PROBLEM
+  !< -------------------------------------------------------------------------
+  !<
+  !< The problem is that of GoldenSectionMinimization: the segment which joins
+  !< the two pivots, and the assumption that the objective is unimodal along
+  !< it.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NUMERICAL METHOD
+  !< -------------------------------------------------------------------------
+  !<
+  !< The Brent method for minimization along the segment. The bracket is kept
+  !< in the parameter t together with three estimates: x, the best point
+  !< found, and w and v, the two points which precede it. Every iteration
+  !< fits the parabola through the three, and evaluates its vertex when the
+  !< vertex lies inside the bracket and is nearer to x than the step which
+  !< produced w. Otherwise it takes the golden-section step
+  !<
+  !<     d = c * e,     c = (3 - sqrt(5)) / 2, near 0.382,
+  !<
+  !< towards the larger part of the bracket. The point whose value is larger is
+  !< discarded together with the part of the bracket beyond it, so the three
+  !< estimates keep their meaning: the parabola is replaced by another as soon
+  !< as the objective departs from it.
+  !<
+  !< A point of the segment is the convex combination (1 - t) * LeftPivot +
+  !< t * RightPivot, so the points cannot overflow. The length of the segment
+  !< is measured in halves for the same reason, and is capped at the largest
+  !< value of the type when the segment is wider than its range. One point is
+  !< evaluated before the first iteration and at most one per iteration
+  !< afterwards.
+  !<
+  !< -------------------------------------------------------------------------
+  !< ACCURACY
+  !< -------------------------------------------------------------------------
+  !<
+  !< Whenever the parabola is rejected the bracket keeps a fraction rho of its
+  !< width, with rho = (sqrt(5) - 1) / 2, exactly as in golden-section search.
+  !< The rejected step is the golden-section step, so the worst case is that of
+  !< that search, up to a small factor in the iteration count, while a smooth
+  !< objective converges superlinearly and reaches the tolerance far sooner.
+  !<
+  !< The search stops at whichever of these conditions is met first: a bracket
+  !< whose width is less than or equal to twice Tolerance, a value which is
+  !< NaN, a step which lands on an end of the bracket or cannot move the
+  !< estimate, or MaxIterations iterations. In the first case the returned
+  !< point lies within twice Tolerance of a minimizer, and rounding is the only
+  !< reason why that bound may not be reached.
+  !<
+  !< Tolerance bounds the width of the bracket, and not the value of the
+  !< objective: it is a stopping rule and not a promise, so the caller
+  !< validates the returned point. No step lands nearer to the estimate than
+  !< Tolerance, so the bracket is measured against twice that value.
+  !<
+  !< -------------------------------------------------------------------------
+  !< NOTES
+  !< -------------------------------------------------------------------------
+  !<
+  !< The returned point was evaluated by the objective, unless the search
+  !< stopped before the first evaluation, in which case it is the midpoint of
+  !< the segment. It holds an answer only when the objective is unimodal along
+  !< the segment; when it is not, it is the best point of the last bracket, and
+  !< nothing reports it.
+  !<
+  !< -The pivots are read in place at every iteration: an objective which
+  !<  writes to their memory through UserContext alters the search.
+  !< -The pivots themselves are never evaluated, so a minimum at a pivot is
+  !<  approached only as the bracket shrinks onto it.
+  !< -A non-finite pivot (NaN or infinite), a size mismatch between the pivots,
+  !<  a negative or NaN Tolerance and a MaxIterations of zero are rejections:
+  !<  the objective is not evaluated, and the returned array is NaN.
+  !< -An objective which returns NaN terminates the search: the returned array
+  !<  is NaN.
+  !< -A zero-length space is a valid no-op: the objective is not evaluated and
+  !<  the returned array is empty, so the caller reads its size to tell the
+  !<  case apart from a rejection.
+  !< -The routine has no global state. Concurrent calls are safe provided the
+  !<  objective function is thread-safe.
+  !<
+
+  interface
+    !Note: UserContext is valid only for the duration of the call;
+    !      objective functions are invoked synchronously on the calling
+    !      thread.
+    !Note: UserContext must be declared CLASS(*), POINTER: the standard
+    !      requires a polymorphic actual for an INTENT(INOUT) unlimited
+    !      polymorphic dummy.
+    !Note: RECURSIVE guarantees that each activation keeps its own search
+    !      state, so an objective function may start another run (nested or
+    !      from a thread).
+    recursive module function BrentMinimization(LeftPivot, &
+                                                RightPivot, &
+                                                ObjectiveFunction, &
+                                                MaxIterations, &
+                                                Tolerance, &
+                                                UserContext) &
+      result(Minimum)
+      real(C_DOUBLE),    intent(in)                       :: LeftPivot(:)
+      real(C_DOUBLE),    intent(in)                       :: RightPivot(:)
+      procedure(ObjectiveFunctionInterface),      pointer :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in)                       :: MaxIterations
+      real(C_DOUBLE),    intent(in)                       :: Tolerance
+      class(*),          intent(inout), optional, pointer :: UserContext
+
+      real(C_DOUBLE) :: Minimum(size(LeftPivot, KIND = C_SIZE_T))
+    end function BrentMinimization
+  end interface
+
+  public :: BrentMinimization
+
+  !< Objective function signature, as called by C.
+  !<
+  !< Same contract as ObjectiveFunctionInterface, expressed with the C
+  !< conventions: the length of the point is explicit and both the point and
+  !< the context are plain addresses.
+  !<
+  !< -EvaluationPoint addresses Dimension C_DOUBLE values.
+  !< -UserContext carries the address which was passed to the C entry point,
+  !<  and may be C_NULL_PTR.
+  !<
+  abstract interface
+    function ObjectiveFunctionInterface_C(Dimension, EvaluationPoint, UserContext) &
+      bind(C) &
+      result(Value)
+      import C_SIZE_T, C_PTR, C_DOUBLE
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: EvaluationPoint
+
+      type(C_PTR), intent(in), value :: UserContext
+
+      real(C_DOUBLE) :: Value
+    end function ObjectiveFunctionInterface_C
+  end interface
+
+  !< BisectionRootFinding, as called from C.
+  !<
+  !< Same contract as the Fortran function, with the C conventions: every
+  !< array is passed by address, and the result is written through the Root
+  !< address supplied by the caller.
+  !<
+  !< -Root is filled with NaN before any other argument is validated, so a
+  !<  rejected call still leaves the caller with a defined value.
+  !< -Root must not overlap either pivot: the NaN fill runs before the pivots
+  !<  are read, so an overlapping buffer would be overwritten and the call
+  !<  would report the absence of an answer.
+  !< -A NULL pivot, a NULL objective, or a NULL Root is a rejection.
+  !< -Dimension = 0 is a no-op: nothing is written, not even the NaN fill, and
+  !<  no objective is evaluated.
+  !<
+  interface
+    !Note: The caller retains the ownership of every buffer: the entry point
+    !      only borrows them for the duration of the call.
+    module subroutine BisectionRootFinding_C(Dimension, &
+                                             LeftPivot, &
+                                             RightPivot, &
+                                             ObjectiveFunction, &
+                                             MaxIterations, &
+                                             Tolerance, &
+                                             Root, &
+                                             UserContext) &
+      bind(C, name="BisectionRootFinding")
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: LeftPivot
+      type(C_PTR),       intent(in), value :: RightPivot
+      type(C_FUNPTR),    intent(in), value :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in), value :: MaxIterations
+      real(C_DOUBLE),    intent(in), value :: Tolerance
+      type(C_PTR),       intent(in), value :: Root
+      type(C_PTR),       intent(in), value :: UserContext
+    end subroutine BisectionRootFinding_C
+  end interface
+
+  !< GoldenSectionMinimization, as called from C.
+  !<
+  !< Same contract as the Fortran function, with the C conventions: every
+  !< array is passed by address, and the result is written through the Minimum
+  !< address supplied by the caller.
+  !<
+  !< -Minimum is filled with NaN before any other argument is validated, so a
+  !<  rejected call still leaves the caller with a defined value.
+  !< -Minimum must not overlap either pivot: the NaN fill runs before the pivots
+  !<  are read, so an overlapping buffer would be overwritten and the call
+  !<  would report the absence of an answer.
+  !< -A NULL pivot, a NULL objective, or a NULL Minimum is a rejection.
+  !< -Dimension = 0 is a no-op: nothing is written, not even the NaN fill, and
+  !<  no objective is evaluated.
+  !<
+  interface
+    !Note: The caller retains the ownership of every buffer: the entry point
+    !      only borrows them for the duration of the call.
+    module subroutine GoldenSectionMinimization_C(Dimension, &
+                                                  LeftPivot, &
+                                                  RightPivot, &
+                                                  ObjectiveFunction, &
+                                                  MaxIterations, &
+                                                  Tolerance, &
+                                                  Minimum, &
+                                                  UserContext) &
+      bind(C, name="GoldenSectionMinimization")
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: LeftPivot
+      type(C_PTR),       intent(in), value :: RightPivot
+      type(C_FUNPTR),    intent(in), value :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in), value :: MaxIterations
+      real(C_DOUBLE),    intent(in), value :: Tolerance
+      type(C_PTR),       intent(in), value :: Minimum
+      type(C_PTR),       intent(in), value :: UserContext
+    end subroutine GoldenSectionMinimization_C
+  end interface
+
+  !< BrentRootFinding, as called from C.
+  !<
+  !< Same contract as the Fortran function, with the C conventions: every
+  !< array is passed by address, and the result is written through the Root
+  !< address supplied by the caller.
+  !<
+  !< -Root is filled with NaN before any other argument is validated, so a
+  !<  rejected call still leaves the caller with a defined value.
+  !< -Root must not overlap either pivot: the NaN fill runs before the pivots
+  !<  are read, so an overlapping buffer would be overwritten and the call
+  !<  would report the absence of an answer.
+  !< -A NULL pivot, a NULL objective, or a NULL Root is a rejection.
+  !< -Dimension = 0 is a no-op: nothing is written, not even the NaN fill, and
+  !<  no objective is evaluated.
+  !<
+  interface
+    !Note: The caller retains the ownership of every buffer: the entry point
+    !      only borrows them for the duration of the call.
+    module subroutine BrentRootFinding_C(Dimension, &
+                                         LeftPivot, &
+                                         RightPivot, &
+                                         ObjectiveFunction, &
+                                         MaxIterations, &
+                                         Tolerance, &
+                                         Root, &
+                                         UserContext) &
+      bind(C, name="BrentRootFinding")
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: LeftPivot
+      type(C_PTR),       intent(in), value :: RightPivot
+      type(C_FUNPTR),    intent(in), value :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in), value :: MaxIterations
+      real(C_DOUBLE),    intent(in), value :: Tolerance
+      type(C_PTR),       intent(in), value :: Root
+      type(C_PTR),       intent(in), value :: UserContext
+    end subroutine BrentRootFinding_C
+  end interface
+
+  !< BrentMinimization, as called from C.
+  !<
+  !< Same contract as the Fortran function, with the C conventions: every
+  !< array is passed by address, and the result is written through the Minimum
+  !< address supplied by the caller.
+  !<
+  !< -Minimum is filled with NaN before any other argument is validated, so a
+  !<  rejected call still leaves the caller with a defined value.
+  !< -Minimum must not overlap either pivot: the NaN fill runs before the pivots
+  !<  are read, so an overlapping buffer would be overwritten and the call
+  !<  would report the absence of an answer.
+  !< -A NULL pivot, a NULL objective, or a NULL Minimum is a rejection.
+  !< -Dimension = 0 is a no-op: nothing is written, not even the NaN fill, and
+  !<  no objective is evaluated.
+  !<
+  interface
+    !Note: The caller retains the ownership of every buffer: the entry point
+    !      only borrows them for the duration of the call.
+    module subroutine BrentMinimization_C(Dimension, &
+                                          LeftPivot, &
+                                          RightPivot, &
+                                          ObjectiveFunction, &
+                                          MaxIterations, &
+                                          Tolerance, &
+                                          Minimum, &
+                                          UserContext) &
+      bind(C, name="BrentMinimization")
+      integer(C_SIZE_T), intent(in), value :: Dimension
+      type(C_PTR),       intent(in), value :: LeftPivot
+      type(C_PTR),       intent(in), value :: RightPivot
+      type(C_FUNPTR),    intent(in), value :: ObjectiveFunction
+      integer(C_SIZE_T), intent(in), value :: MaxIterations
+      real(C_DOUBLE),    intent(in), value :: Tolerance
+      type(C_PTR),       intent(in), value :: Minimum
+      type(C_PTR),       intent(in), value :: UserContext
+    end subroutine BrentMinimization_C
+  end interface
+
+end module FunctionalOptimizationAlgorithms
+
+#endif

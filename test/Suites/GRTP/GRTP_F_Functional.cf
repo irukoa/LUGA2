@@ -336,7 +336,7 @@ TEST_E(GRTPFortranUninitializedObjects)
   Parent   = 42_C_SIZE_T
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
-  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE)))
   ASSERT(all(Parent == 42_C_SIZE_T))
 
   call Workspace%Free()
@@ -387,7 +387,7 @@ TEST_E(GRTPFortranWorkspaceNominal)
   Parent(6)   = 42_C_SIZE_T
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
-  ASSERT(abs(Distance(6) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(6) - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(Parent(6) == 42_C_SIZE_T)
 
   !Reallocating over a live workspace releases the previous handle.
@@ -395,7 +395,7 @@ TEST_E(GRTPFortranWorkspaceNominal)
   ASSERT_X(Workspace%Initialized())
   Distance(6) = -1.0_C_DOUBLE
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(6) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(6) - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
   Source = [0_C_SIZE_T]
 
@@ -404,10 +404,10 @@ TEST_E(GRTPFortranWorkspaceNominal)
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
 
-  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(.not.IEEE_IS_FINITE(Distance(5)))
 
   ASSERT(Parent(1) == UnreachableVertex)
@@ -424,7 +424,7 @@ TEST_E(GRTPFortranWorkspaceNominal)
   Weight => null()
   ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, Source, WeightFunction = Weight))
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Workspace%Free()
   ASSERT(.not.Workspace%Initialized())
@@ -434,7 +434,7 @@ TEST_E(GRTPFortranWorkspaceNominal)
   Parent   = 42_C_SIZE_T
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
-  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE)))
   ASSERT(all(Parent == 42_C_SIZE_T))
 
   call Support%Free()
@@ -466,7 +466,7 @@ TEST_E(GRTPFortranWorkspaceCopy)
   Parent   = 42_C_SIZE_T
   call EmptyCopy%Distance(Distance)
   call EmptyCopy%Parent(Parent)
-  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE)))
   ASSERT(all(Parent == 42_C_SIZE_T))
   ASSERT(.not.GraphDijkstra(EmptyCopy, 1_C_SIZE_T, [0_C_SIZE_T]))
 
@@ -496,7 +496,7 @@ TEST_E(GRTPFortranWorkspaceCopy)
 
   !Vertex #4 is unreachable, so only the reachable entries are comparable.
   call Copy%Distance(CopyDistance)
-  ASSERT(all(abs(CopyDistance(:4) - Distance(:4)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(abs(CopyDistance(:4) - Distance(:4)) < 10 * epsilon(1.0_C_DOUBLE)))
   ASSERT(.not.IEEE_IS_FINITE(CopyDistance(5)))
 
   call Copy%Parent(Parent)
@@ -507,8 +507,8 @@ TEST_E(GRTPFortranWorkspaceCopy)
   !A run through the alias is visible through the original.
   ASSERT_X(GraphDijkstra(Copy, 1_C_SIZE_T, [2_C_SIZE_T]))
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(3) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(4) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(.not.IEEE_IS_FINITE(Distance(1)))
 
   !Releasing the alias leaves the original owner untouched and usable.
@@ -519,14 +519,14 @@ TEST_E(GRTPFortranWorkspaceCopy)
   Parent   = 42_C_SIZE_T
   call Copy%Distance(Distance)
   call Copy%Parent(Parent)
-  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE)))
   ASSERT(all(Parent == 42_C_SIZE_T))
 
   ASSERT_X(Workspace%Initialized())
 
   ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !A copy of a released workspace is empty as well.
   call Workspace%Free()
@@ -538,7 +538,7 @@ TEST_E(GRTPFortranWorkspaceCopy)
   Parent   = 42_C_SIZE_T
   call EmptyCopy%Distance(Distance)
   call EmptyCopy%Parent(Parent)
-  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE)))
+  ASSERT(all(abs(Distance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE)))
   ASSERT(all(Parent == 42_C_SIZE_T))
   ASSERT(.not.GraphDijkstra(EmptyCopy, 1_C_SIZE_T, [0_C_SIZE_T]))
 
@@ -587,10 +587,10 @@ TEST_E(GRTPFortranWorkspaceWeighted)
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
 
-  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(4) - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 3.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(Parent(2) == 0_C_SIZE_T)
   ASSERT(Parent(3) == 0_C_SIZE_T)
   ASSERT(Parent(4) == 2_C_SIZE_T)
@@ -601,15 +601,15 @@ TEST_E(GRTPFortranWorkspaceWeighted)
   ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, ContextPtr))
   call Workspace%Distance(Distance)
 
-  ASSERT(abs(Distance(2) - 2.5_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(3) - 1.5_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(4) - 4.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 2.5_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.5_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 4.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   nullify(ContextPtr)
   !A present but disassociated context is ignored by the bridge.
   ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight, ContextPtr))
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   Weight => null()
 
@@ -687,11 +687,11 @@ TEST_E(GRTPFortranAliasFinalization)
   ASSERT(Workspace%Initialized())
   Distance(4) = -1.0_C_DOUBLE
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(4) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
   ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !Owned objects left to their finalizers are released exactly once.
   call FinalizeOwners()
@@ -726,7 +726,7 @@ TEST_E(GRTPFortranAliasFinalization)
       ASSERT(SupportAlias%EdgeCount() == 1)
       DistanceAlias(4) = -1.0_C_DOUBLE
       call WorkspaceAlias%Distance(DistanceAlias)
-      ASSERT(abs(DistanceAlias(4) - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+      ASSERT(abs(DistanceAlias(4) - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
       !No Free here: the finalizers of the aliases must not release the graphs.
     end subroutine FinalizeAliases
@@ -816,7 +816,7 @@ TEST_E(GRTPFortranBidirectionalNominal)
   ASSERT(Path(1) == 0_C_SIZE_T)
   ASSERT(Path(3) == 3_C_SIZE_T)
   ASSERT((Path(2) == 1_C_SIZE_T) .or. (Path(2) == 2_C_SIZE_T))
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !Only the first Count entries belong to the path: the tail stays untouched.
   ASSERT(all(Path(Count + 1_C_SIZE_T:4) == 42_C_SIZE_T))
@@ -828,15 +828,15 @@ TEST_E(GRTPFortranBidirectionalNominal)
   call Backward%Distance(BackwardDistance)
   call Backward%Parent(BackwardParent)
 
-  ASSERT(abs(ForwardDistance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ForwardDistance(1) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(ForwardParent(1) == UnreachableVertex)
-  ASSERT(abs(ForwardDistance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ForwardDistance(4) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT((ForwardParent(4) == 1_C_SIZE_T) .or. (ForwardParent(4) == 2_C_SIZE_T))
-  ASSERT(abs(BackwardDistance(4) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(BackwardDistance(4) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(BackwardParent(4) == UnreachableVertex)
   !Both trees are partial by design: each search stops as soon as the meeting
   !point is settled, so the backward half only covers the target neighbourhood.
-  ASSERT(abs(BackwardDistance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(BackwardDistance(2) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Forward%Free()
   ASSERT(.not.Forward%Initialized())
@@ -1004,7 +1004,7 @@ TEST_E(GRTPFortranBidirectionalRejected)
 
   ASSERT(all(Path == 42_C_SIZE_T))
   ASSERT(Count == 99_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Forward%Free()
   ASSERT(.not.Forward%Initialized())
@@ -1086,7 +1086,7 @@ TEST_E(GRTPFortranBidirectionalWeighted)
   ASSERT(Path(1) == 0_C_SIZE_T)
   ASSERT(Path(2) == 2_C_SIZE_T)
   ASSERT(Path(3) == 3_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !The user context reaches the Fortran weight function unchanged.
   Toll       = 0.5_C_DOUBLE
@@ -1100,7 +1100,7 @@ TEST_E(GRTPFortranBidirectionalWeighted)
   ASSERT_X(Success)
   ASSERT(Count == 3_C_SIZE_T)
   ASSERT(Path(2) == 2_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - 3.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 3.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !A present but disassociated context is ignored by the bridge, and the path
   !buffer stays optional: without it the scratch buffer is not even allocated.
@@ -1130,7 +1130,7 @@ TEST_E(GRTPFortranBidirectionalWeighted)
                                                 UserContext = ContextPtr, &
                                                 ShortestDistance = ShortestDistance)
   ASSERT(.not.Success)
-  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - (-1.0_C_DOUBLE)) < 10 * epsilon(1.0_C_DOUBLE))
 
   !A disassociated weight function falls back to the unit weights.
   nullify(ContextPtr)
@@ -1141,7 +1141,7 @@ TEST_E(GRTPFortranBidirectionalWeighted)
                                        ShortestDistance = ShortestDistance)
   ASSERT_X(Success)
   ASSERT(Count == 3_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Forward%Free()
   ASSERT(.not.Forward%Initialized())
@@ -1243,7 +1243,7 @@ TEST_E(GRTPFortranBidirectionalAsymmetricWeights)
   ASSERT(Path(1) == 0_C_SIZE_T)
   ASSERT(Path(2) == 1_C_SIZE_T)
   ASSERT(Path(3) == 2_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !A symmetric weighting is consistent with the transpose and reports the true
   !cost of the path.
@@ -1258,7 +1258,7 @@ TEST_E(GRTPFortranBidirectionalAsymmetricWeights)
   ASSERT(Path(1) == 0_C_SIZE_T)
   ASSERT(Path(2) == 1_C_SIZE_T)
   ASSERT(Path(3) == 2_C_SIZE_T)
-  ASSERT(abs(ShortestDistance - 4.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(ShortestDistance - 4.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   Weight => null()
 
@@ -1355,10 +1355,10 @@ TEST_E(GRTPFortranBellmanFordNominal)
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
 
-  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 2.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   ASSERT(Parent(1) == UnreachableVertex)
   ASSERT(Parent(2) == 0_C_SIZE_T)
@@ -1371,10 +1371,10 @@ TEST_E(GRTPFortranBellmanFordNominal)
   ASSERT_X(Success)
   ASSERT(.not.HasNegativeCycles)
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(1) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(2) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(4) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(1) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(3) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(4) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Workspace%Free()
   ASSERT(.not.Workspace%Initialized())
@@ -1487,8 +1487,8 @@ TEST_E(GRTPFortranBellmanFordWeighted)
   call Workspace%Distance(Distance)
   call Workspace%Parent(Parent)
 
-  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
-  ASSERT(abs(Distance(2) - 5.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(1) - 0.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 5.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
   ASSERT(.not.IEEE_IS_FINITE(Distance(3)))
   ASSERT(.not.IEEE_IS_FINITE(Distance(4)))
 
@@ -1508,7 +1508,7 @@ TEST_E(GRTPFortranBellmanFordWeighted)
                                 UserContext = ContextPtr)
   ASSERT_X(Success)
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(2) - 6.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 6.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !A present but disassociated context is ignored by the bridge.
   nullify(ContextPtr)
@@ -1516,7 +1516,7 @@ TEST_E(GRTPFortranBellmanFordWeighted)
                              UserContext = ContextPtr)
   ASSERT_X(Success)
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(2) - 5.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 5.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   !A weighted failure publishes nothing, not even the detection report.
   HasNegativeCycles = .true.
@@ -1530,7 +1530,7 @@ TEST_E(GRTPFortranBellmanFordWeighted)
   Success = GraphBellmanFord(Workspace, 1_C_SIZE_T, [0_C_SIZE_T], Weight)
   ASSERT_X(Success)
   call Workspace%Distance(Distance)
-  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10*epsilon(1.0_C_DOUBLE))
+  ASSERT(abs(Distance(2) - 1.0_C_DOUBLE) < 10 * epsilon(1.0_C_DOUBLE))
 
   call Workspace%Free()
   ASSERT(.not.Workspace%Initialized())

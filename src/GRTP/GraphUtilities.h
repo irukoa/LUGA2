@@ -28,6 +28,7 @@
 /**
  * @brief Sentinel value representing the absence of a predecessor.
  *
+ * @details
  * Used by shortest-path algorithms to indicate that no parent vertex
  * exists for a particular vertex.
  */
@@ -36,8 +37,9 @@
 /**
  * @brief Sentinel value representing the distance to an unreachable vertex.
  *
- * Used by shortest-path algorithms to indicate that no parent vertex
- * exists for a particular vertex.
+ * @details
+ * Used by shortest-path algorithms to indicate that no path from the source
+ * vertex exists.
  *
  * @note
  * The value can be passed to `isinf`.
@@ -69,12 +71,12 @@ typedef struct GraphSupportBuilder GraphSupportBuilder;
 /**
  * @brief Frees a graph topology builder.
  *
- * @param[in,out] BuilderReference
- *     Reference to the GraphSupportBuilder pointer to be freed.
- *
  * @details
  * Releases all memory owned by the specified GraphSupportBuilder instance.
  * After the call, the containing pointer is set to NULL.
+ *
+ * @param[in,out] BuilderReference
+ *     Reference to the GraphSupportBuilder pointer to be freed.
  *
  * @note
  * - Safe to call with NULL.
@@ -289,12 +291,12 @@ typedef struct GraphSupport GraphSupport;
 /**
  * @brief Frees an immutable graph topology.
  *
- * @param[in,out] SupportReference
- *     Reference to the GraphSupport pointer to be freed.
- *
  * @details
  * Releases all memory owned by the specified GraphSupport instance.
  * After the call, the containing pointer is set to NULL.
+ *
+ * @param[in,out] SupportReference
+ *     Reference to the GraphSupport pointer to be freed.
  *
  * @note
  * - Safe to call with NULL.
@@ -306,19 +308,19 @@ void FreeGraphSupport(GraphSupport **SupportReference);
 /**
  * @brief Builds an immutable graph topology from a graph builder.
  *
- * @param[in] Builder
- *     Graph topology builder.
- *
- * @return
- *     Pointer to a newly allocated GraphSupport instance on success,
- *     or NULL on failure.
- *
  * @details
  * Finalizes the graph stored in Builder into an immutable representation
  * optimized for graph traversal and shortest-path algorithms.
  *
  * Neighbor lists are internally sorted in ascending vertex order to enable
  * efficient edge lookup.
+ *
+ * @param[in] Builder
+ *     Graph topology builder.
+ *
+ * @return
+ *     Pointer to a newly allocated GraphSupport instance on success,
+ *     or NULL on failure.
  *
  * @note
  * - The returned object is owned by the caller.
@@ -391,6 +393,14 @@ const size_t *GraphSupportGetNeighbors(const GraphSupport *Support,
 /**
  * @brief Returns the internal identifier of a directed edge.
  *
+ * @details
+ * Each directed edge stored in GraphSupport is assigned a unique internal
+ * identifier in the range [0, GraphSupportGetEdgeCount(Support) - 1].
+ *
+ * This identifier remains stable for the lifetime of the GraphSupport
+ * instance and can be used by algorithms that associate information with
+ * individual edges.
+ *
  * @param[in] Support
  *     Graph topology.
  *
@@ -406,14 +416,6 @@ const size_t *GraphSupportGetNeighbors(const GraphSupport *Support,
  * @return
  *     true if the edge exists; false otherwise.
  *
- * @details
- * Each directed edge stored in GraphSupport is assigned a unique internal
- * identifier in the range [0, GraphSupportGetEdgeCount(Support) - 1].
- *
- * This identifier remains stable for the lifetime of the GraphSupport
- * instance and can be used by algorithms that associate information with
- * individual edges.
- *
  * @see GraphSupportGetEdgeVertices
  */
 bool GraphSupportGetEdgeIndex(const GraphSupport *Support,
@@ -423,6 +425,10 @@ bool GraphSupportGetEdgeIndex(const GraphSupport *Support,
 
 /**
  * @brief Returns the endpoints of an edge.
+ *
+ * @details
+ * This function is the inverse operation of
+ * GraphSupportGetEdgeIndex().
  *
  * @param[in] Support
  *     Graph topology.
@@ -438,10 +444,6 @@ bool GraphSupportGetEdgeIndex(const GraphSupport *Support,
  *
  * @return
  *     true on success; false if EdgeIndex is invalid.
- *
- * @details
- * This function is the inverse operation of
- * GraphSupportGetEdgeIndex().
  *
  * @see GraphSupportGetEdgeIndex
  */
@@ -497,8 +499,7 @@ bool GraphSupportHasEdge(const GraphSupport *Support,
  *     Destination vertex.
  *
  * @param[in] UserContext
- *     Optional caller-defined context passed unchanged to every callback
- *     invocation.
+ *     Optional caller-defined context forwarded to every callback invocation.
  *
  * @return
  *     Weight associated with the specified directed edge.
@@ -508,6 +509,9 @@ bool GraphSupportHasEdge(const GraphSupport *Support,
  *   assume unit edge weights.
  * - Dijkstra's algorithm requires all returned weights to be
  *   non-negative.
+ * - UserContext is forwarded as a mutable `void *`: the callback may modify
+ *   the object it points to, and the algorithm only stores and forwards the
+ *   pointer.
  */
 typedef double (*GraphWeightFunction)(const GraphSupport *Support,
                                       const size_t        Origin,
@@ -536,12 +540,12 @@ typedef struct GraphWorkspace GraphWorkspace;
 /**
  * @brief Frees a graph workspace.
  *
- * @param[in,out] WorkspaceReference
- *     Reference to the workspace pointer to be freed.
- *
  * @details
  * Releases all memory owned by the specified workspace.
  * After the call, the containing pointer is set to NULL.
+ *
+ * @param[in,out] WorkspaceReference
+ *     Reference to the workspace pointer to be freed.
  *
  * @note
  * - Safe to call with NULL.
@@ -552,18 +556,18 @@ void FreeGraphWorkspace(GraphWorkspace **WorkspaceReference);
 /**
  * @brief Allocates a graph workspace for shortest-path algorithms.
  *
- * @param[in] Support
- *     Graph topology on which the workspace will operate.
- *
- * @return
- *     Pointer to a newly allocated workspace on success, or NULL on failure.
- *
  * @details
  * Allocates all internal memory required to execute shortest-path algorithms
  * on the specified graph.
  *
  * The returned workspace may be reused for multiple shortest-path
  * computations on the same graph.
+ *
+ * @param[in] Support
+ *     Graph topology on which the workspace will operate.
+ *
+ * @return
+ *     Pointer to a newly allocated workspace on success, or NULL on failure.
  *
  * @note
  * - The returned object is owned by the caller.
@@ -576,17 +580,17 @@ GraphWorkspace *NewGraphWorkspace(const GraphSupport *Support);
  * shortest path algorithms which take a GraphWorkspace instance as an
  * input.
  *
- * @param[in] Workspace
- *     Graph workspace.
- *
- * @return
- *     Pointer to the internal distance array.
- *
  * @details
  * The returned array contains one entry per graph vertex.
  *
  * Vertices that are unreachable from the selected source have distance
  * UnreachableDistance.
+ *
+ * @param[in] Workspace
+ *     Graph workspace.
+ *
+ * @return
+ *     Pointer to the internal distance array.
  *
  * @note
  * - The returned pointer is owned by the workspace.
@@ -599,18 +603,18 @@ const double *GraphWorkspaceGetDistance(const GraphWorkspace *Workspace);
  * shortest path algorithms which take a GraphWorkspace instance as an
  * input.
  *
- * @param[in] Workspace
- *     Graph workspace.
- *
- * @return
- *     Pointer to the internal predecessor array.
- *
  * @details
  * For every reachable vertex, the predecessor array stores the previous
  * vertex along one shortest path from the selected source.
  *
  * The source vertex and unreachable vertices contain
  * UnreachableVertex.
+ *
+ * @param[in] Workspace
+ *     Graph workspace.
+ *
+ * @return
+ *     Pointer to the internal predecessor array.
  *
  * @note
  * - The returned pointer is owned by the workspace.
@@ -620,6 +624,16 @@ const size_t *GraphWorkspaceGetParent(const GraphWorkspace *Workspace);
 
 /**
  * @brief Computes multiple-source shortest paths using Dijkstra's algorithm.
+ *
+ * @details
+ * Computes the shortest-path tree rooted at the vertices specified in the
+ * Source array.
+ *
+ * Upon successful completion, the workspace contains the shortest-path
+ * distance and predecessor arrays, which remain valid until the next
+ * execution of the algorithm using the same workspace.
+ *
+ * If WeightFunction is NULL, every edge is assumed to have unit weight.
  *
  * @param[in,out] Workspace
  *     Graph workspace.
@@ -634,20 +648,11 @@ const size_t *GraphWorkspaceGetParent(const GraphWorkspace *Workspace);
  *     Edge weighting callback.
  *
  * @param[in] UserContext
- *     Optional caller-defined context passed to WeightFunction.
+ *     Optional caller-defined context forwarded to WeightFunction. The
+ *     callback receives it as a mutable `void *`; see GraphWeightFunction().
  *
  * @return
  *     true on success; false if the computation could not be performed.
- *
- * @details
- * Computes the shortest-path tree rooted at the vertices specified in the
- * Source array.
- *
- * Upon successful completion, the workspace contains the shortest-path
- * distance and predecessor arrays, which remain valid until the next
- * execution of the algorithm using the same workspace.
- *
- * If WeightFunction is NULL, every edge is assumed to have unit weight.
  *
  * @note
  * Dijkstra's algorithm assumes that all edge weights are non-negative.
@@ -664,38 +669,6 @@ bool GraphDijkstra(GraphWorkspace           *Workspace,
 /**
  * @brief Computes the shortest path between two vertices using
  * bidirectional Dijkstra's algorithm.
- *
- * @param[in,out] ForwardWorkspace
- *     Graph workspace associated with a given graph.
- *
- * @param[in,out] BackwardWorkspace
- *     Graph workspace associated with the transpose graph.
- *
- * @param[in] Source
- *     Source vertex.
- *
- * @param[in] Target
- *     Target vertex.
- *
- * @param[in] WeightFunction
- *     Edge weighting callback.
- *
- * @param[in] UserContext
- *     Optional caller-defined context passed to WeightFunction.
- *
- * @param[out] ShortestPath
- *     Optional array receiving the sequence of vertices defining the
- *     shortest path from Source to Target.
- *
- * @param[out] ShortestPathVertexCount
- *     Optional reference receiving the number of vertices written to
- *     ShortestPath.
- *
- * @param[out] ShortestDistance
- *     Optional reference receiving the shortest-path distance.
- *
- * @return
- *     true on success; false if the computation could not be performed.
  *
  * @details
  * Computes the shortest path between Source and Target by simultaneously
@@ -716,6 +689,39 @@ bool GraphDijkstra(GraphWorkspace           *Workspace,
  * - No vertices are written to ShortestPath.
  *
  * If WeightFunction is NULL, every edge is assumed to have unit weight.
+ *
+ * @param[in,out] ForwardWorkspace
+ *     Graph workspace associated with a given graph.
+ *
+ * @param[in,out] BackwardWorkspace
+ *     Graph workspace associated with the transpose graph.
+ *
+ * @param[in] Source
+ *     Source vertex.
+ *
+ * @param[in] Target
+ *     Target vertex.
+ *
+ * @param[in] WeightFunction
+ *     Edge weighting callback.
+ *
+ * @param[in] UserContext
+ *     Optional caller-defined context forwarded to WeightFunction. The
+ *     callback receives it as a mutable `void *`; see GraphWeightFunction().
+ *
+ * @param[out] ShortestPath
+ *     Optional array receiving the sequence of vertices defining the
+ *     shortest path from Source to Target.
+ *
+ * @param[out] ShortestPathVertexCount
+ *     Optional reference receiving the number of vertices written to
+ *     ShortestPath.
+ *
+ * @param[out] ShortestDistance
+ *     Optional reference receiving the shortest-path distance.
+ *
+ * @return
+ *     true on success; false if the computation could not be performed.
  *
  * @note
  * - Dijkstra's algorithm assumes that all edge weights are non-negative.
@@ -739,28 +745,6 @@ bool GraphBidirectionalDijkstra(GraphWorkspace           *ForwardWorkspace,
  * @brief Computes multiple-source shortest paths using the Bellman-Ford
  * algorithm.
  *
- * @param[in,out] Workspace
- *     Graph workspace.
- *
- * @param[in] SourceCount
- *     Number of vertices in the Source array.
- *
- * @param[in] Source
- *     Array containing source vertices.
- *
- * @param[in] WeightFunction
- *     Edge weighting callback.
- *
- * @param[in] UserContext
- *     Optional caller-defined context passed to WeightFunction.
- *
- * @param[out] NegativeCycles
- *     Optional pointer receiving whether a reachable negative-weight cycle
- *     exists.
- *
- * @return
- *     true on success; false if the computation could not be performed.
- *
  * @details
  * Computes the shortest-path tree rooted at the vertices specified in the
  * Source array.
@@ -775,6 +759,29 @@ bool GraphBidirectionalDijkstra(GraphWorkspace           *ForwardWorkspace,
  * verification pass after computing the shortest paths to determine whether
  * any reachable negative-weight cycle exists. The result is written to the
  * location pointed to by NegativeCycles.
+ *
+ * @param[in,out] Workspace
+ *     Graph workspace.
+ *
+ * @param[in] SourceCount
+ *     Number of vertices in the Source array.
+ *
+ * @param[in] Source
+ *     Array containing source vertices.
+ *
+ * @param[in] WeightFunction
+ *     Edge weighting callback.
+ *
+ * @param[in] UserContext
+ *     Optional caller-defined context forwarded to WeightFunction. The
+ *     callback receives it as a mutable `void *`; see GraphWeightFunction().
+ *
+ * @param[out] NegativeCycles
+ *     Optional pointer receiving whether a reachable negative-weight cycle
+ *     exists.
+ *
+ * @return
+ *     true on success; false if the computation could not be performed.
  *
  * @note
  * Bellman-Ford supports graphs containing negative-weight edges.

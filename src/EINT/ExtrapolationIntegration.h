@@ -83,7 +83,39 @@ double EINT(const size_t Count,
             const size_t Base);
 
 /**
- * - Parallel version (OMP).
+ * @brief Computes the normalized integral (mean value) of a function on a
+ * uniform grid on the interval [a, b] using extrapolated quadrature, in
+ * parallel.
+ *
+ * @details
+ * OpenMP version of EINT(): the same normalized integral computed with the
+ * same extrapolation sequence:
+ *
+ *     I = (1 / (b - a)) * ∫_a^b f(x) dx.
+ *
+ * -------------------------------------------------------------------------
+ * NUMERICAL METHOD
+ * -------------------------------------------------------------------------
+ *
+ * The trapezoidal sums of every refinement level are accumulated by the
+ * threads of the current team in an OpenMP reduction, and the extrapolation
+ * table is then built serially.
+ *
+ * @param[in] Count
+ *     Number of samples in Array.
+ *
+ * @param[in] Array
+ *     Function values f(x_i) sampled on a uniform grid.
+ *     Must contain Count elements.
+ *
+ * @param[in] Base
+ *     Extrapolation base. Must be a prime number.
+ *     If invalid, a default value of 2 is used.
+ *
+ * @return
+ *     Approximated value of the normalized integral.
+ *
+ * @see EINT
  */
 double EINT_P(const size_t Count,
               const double Array[Count],

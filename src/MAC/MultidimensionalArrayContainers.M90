@@ -27,7 +27,7 @@ module MultidimensionalArrayContainers
     logical     :: Owner        = .true.
     contains
     procedure, public, pass(Container) :: Free             => FortranFreeMAC
-    procedure, public, pass(Container) :: Specify          => FortranNewMAC
+    procedure, public, pass(Container) :: New              => FortranNewMAC
     procedure, public, pass(Container) :: Initialized      => FortranInitialized
     procedure, public, pass(Container) :: Rank             => FortranMACGetRank
     procedure, public, pass(Container) :: Shape            => FortranMACGetShape

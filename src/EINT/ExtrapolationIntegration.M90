@@ -76,8 +76,16 @@ module ExtrapolationIntegration
     end function EINT
   end interface
 
+  !< Computes the normalized integral (mean value) of a function on a uniform
+  !< grid on the interval [a, b] using extrapolated quadrature, in parallel.
   !<
-  !< - Parallel version (OMP).
+  !< -------------------------------------------------------------------------
+  !< NUMERICAL METHOD
+  !< -------------------------------------------------------------------------
+  !<
+  !< OpenMP version of EINT(): the same extrapolation sequence, with the
+  !< trapezoidal sums of every refinement level accumulated in an OpenMP
+  !< reduction and the extrapolation table built serially.
   !<
   interface
     real(C_DOUBLE) module function EINT_P(Array, Base)

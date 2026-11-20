@@ -52,13 +52,13 @@ typedef struct MAC MAC;
 /**
  * @brief Frees a multidimensional array container (MAC).
  *
- * @param[in,out] ContainerReference
- *     Reference to the MAC pointer to be freed.
- *
  * @details
  * Releases all memory owned by the specified MAC instance, including
  * internally allocated shape metadata. After the call, the containing pointer
  * is set to NULL.
+ *
+ * @param[in,out] ContainerReference
+ *     Reference to the MAC pointer to be freed.
  *
  * @note
  * - Safe to call with NULL.
@@ -135,14 +135,14 @@ const size_t *MACGetShape(const MAC *Container);
  * @brief Returns the total number of addressable elements of a multidimensional
  * array container (MAC).
  *
+ * @details
+ * The returned value corresponds to the product of all dimension extents.
+ *
  * @param[in] Container
  *     Pointer to the MAC instance.
  *
  * @return
  *     Total number of elements represented by the multidimensional shape.
- *
- * @details
- * The returned value corresponds to the product of all dimension extents.
  */
 size_t MACGetElementCount(const MAC *Container);
 

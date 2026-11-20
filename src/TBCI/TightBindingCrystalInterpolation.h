@@ -49,13 +49,13 @@ typedef struct TBCrystal TBCrystal;
 /**
  * @brief Frees a tight-binding crystal.
  *
- * @param[in,out] CrystalReference
- *     Reference to the TBCrystal pointer to be freed.
- *
  * @details
  * Releases the direct lattice, the site offsets, the Hamiltonian and the
  * Berry connection storage owned by the specified instance. After the call,
  * the containing pointer is set to NULL.
+ *
+ * @param[in,out] CrystalReference
+ *     Reference to the TBCrystal pointer to be freed.
  *
  * @note
  * - Safe to call with NULL.
@@ -76,7 +76,7 @@ void FreeTBCrystal(TBCrystal **CrystalReference);
  * starts at zero, so the caller must populate the direct lattice, the site
  * offsets, the Hamiltonian blocks and the Berry connection blocks before
  * evaluating k-resolved quantities (see TBCrystalHamiltonian() and
- * TBPositionOperator()).
+ * TBCrystalPositionOperator()).
  *
  * @param[in] Dimensionality
  *     Number of spatial dimensions D. Must be greater than zero.
@@ -373,7 +373,7 @@ bool TBCrystalGetTBHamiltonian(const TBCrystal *Crystal,
  * - As for the Hamiltonian blocks, no symmetry is enforced.
  *
  * @see TBCrystalGetTBPositionOperator
- * @see TBPositionOperator
+ * @see TBCrystalPositionOperator
  */
 bool TBCrystalSetTBPositionOperator(TBCrystal           *Crystal,
                                     const size_t         BandId1,
@@ -611,13 +611,13 @@ bool TBCrystalHamiltonian(const TBCrystal *Crystal,
  *   allocation is reported through the return value.
  * - The routine keeps no state; concurrent calls are safe.
  */
-bool TBPositionOperator(const TBCrystal *Crystal,
-                        const size_t     Dimensionality,
-                        const double     KPoint[Dimensionality],
-                        const size_t     Derivative,
-                        const size_t     ArraySize,
-                        double complex   Array[ArraySize],
-                        const size_t     ArrayShapeSize,
-                        size_t           ArrayShape[ArrayShapeSize]);
+bool TBCrystalPositionOperator(const TBCrystal *Crystal,
+                               const size_t     Dimensionality,
+                               const double     KPoint[Dimensionality],
+                               const size_t     Derivative,
+                               const size_t     ArraySize,
+                               double complex   Array[ArraySize],
+                               const size_t     ArrayShapeSize,
+                               size_t           ArrayShape[ArrayShapeSize]);
 
 #endif

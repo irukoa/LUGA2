@@ -20,10 +20,10 @@ module GraphUtilities
   integer(C_SIZE_T), protected, bind(C, name="C_SIZE_MAX"), public :: UnreachableVertex
 
   !< Sentinel value representing the distance to an unreachable vertex.
-  !< Used by shortest-path algorithms to indicate that no parent vertex
-  !< exists for a particular vertex.
+  !< Used by shortest-path algorithms to indicate that no path from the
+  !< source vertex exists.
   !< Values are provided by the C implementation.
-  real(C_DOUBLE), protected, bind(C, name="C_INFINITY"), public :: INFINITY
+  real(C_DOUBLE), protected, bind(C, name="C_INFINITY"), public :: UnreachableDistance
 
   type, public :: GraphSupportBuilder
     private

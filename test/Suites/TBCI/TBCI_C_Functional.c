@@ -947,8 +947,8 @@ TEST_SUITE(TBCIFunctionalBlochHamiltonianSuite,
            TBCrystalBlochHamiltonian_TwoOrbitalChain,
            TBCrystalBlochHamiltonian_BadInput);
 
-// TBPositionOperator evaluates the Derivative-th Cartesian k-derivative of the
-// Bloch Berry connection,
+// TBCrystalPositionOperator evaluates the Derivative-th Cartesian k-derivative
+// of the Bloch Berry connection,
 //
 //     d^m A_c(k)/dk^m = d^m/dk^m sum_S A(b1, b2, c, S) exp(i k.R_S),
 //
@@ -1004,8 +1004,8 @@ TEST(TBCrystalBlochPositionOperator_ChainDispersion) {
     ArrayShape[0] = 0;
     ArrayShape[1] = 0;
     ArrayShape[2] = 0;
-    Success =
-        TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+    Success = TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3,
+                                        ArrayShape);
     ASSERT_X(Success);
     ASSERT(ArrayShape[0] == 1);
     ASSERT(ArrayShape[1] == 1);
@@ -1018,51 +1018,60 @@ TEST(TBCrystalBlochPositionOperator_ChainDispersion) {
   // Nodes at x = 0 and x = 1/2, extrema +2 i a at x = 1/4 and -2 i a at
   // x = -1/4.
   KPoint[0] = 0.0;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0]) < Tolerance);
 
   KPoint[0] = 0.25;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] - 2.0 * Lattice * I) < Tolerance);
 
   KPoint[0] = -0.25;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] + 2.0 * Lattice * I) < Tolerance);
 
   KPoint[0] = 0.5;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0]) < Tolerance);
 
   // The phase is periodic in every reduced coordinate with period 1, so
   // replicas of the same point must agree.
   KPoint[0] = 0.2;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   Reference = Array[0];
 
   KPoint[0] = 1.2;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] - Reference) < Tolerance);
 
   KPoint[0] = -1.8;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] - Reference) < Tolerance);
 
   // x is a reduced coordinate, so the zeroth derivative does not depend on
   // the length of the direct lattice vector: only k a enters the phase.
   KPoint[0] = 0.3;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   Reference = Array[0];
 
   ASSERT(TBCrystalSetDirectLatticeVal(Crystal, 0, 0, 3.7));
-  Success = TBPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 1, Array, 3, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] - Reference) < Tolerance);
 
@@ -1116,8 +1125,8 @@ TEST(TBCrystalBlochPositionOperator_ChainDerivatives) {
       for (t = 0; t < m + 3; t++) {
         ArrayShape[t] = 0;
       }
-      Success = TBPositionOperator(Crystal, 1, KPoint, m, 1, Array, m + 3,
-                                   ArrayShape);
+      Success = TBCrystalPositionOperator(Crystal, 1, KPoint, m, 1, Array,
+                                          m + 3, ArrayShape);
       ASSERT_X(Success);
 
       // BandCount, BandCount, the undifferentiated component and then one
@@ -1138,19 +1147,23 @@ TEST(TBCrystalBlochPositionOperator_ChainDerivatives) {
   // At x = 0 the odd derivatives alternate between +2 i a^(m+1) P0 and
   // -2 i a^(m+1) P0, while the even ones vanish.
   KPoint[0] = 0.0;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 1, 1, Array, 4, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 1, 1, Array, 4, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] - 2.0 * I * Prefactor * Lattice * Lattice) < Tolerance);
 
-  Success = TBPositionOperator(Crystal, 1, KPoint, 2, 1, Array, 5, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 2, 1, Array, 5, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0]) < Tolerance);
 
-  Success = TBPositionOperator(Crystal, 1, KPoint, 3, 1, Array, 6, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 3, 1, Array, 6, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] + 2.0 * I * Prefactor * pow(Lattice, 4.0)) < Tolerance);
 
-  Success = TBPositionOperator(Crystal, 1, KPoint, 4, 1, Array, 7, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 4, 1, Array, 7, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0]) < Tolerance);
 
@@ -1160,12 +1173,14 @@ TEST(TBCrystalBlochPositionOperator_ChainDerivatives) {
   // integer site offsets, rather than their Cartesian positions, reached the
   // derivative.
   KPoint[0] = 0.375;
-  Success = TBPositionOperator(Crystal, 1, KPoint, 2, 1, Array, 5, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 2, 1, Array, 5, ArrayShape);
   ASSERT_X(Success);
   Scaled = Array[0];
 
   ASSERT(TBCrystalSetDirectLatticeVal(Crystal, 0, 0, 3.7));
-  Success = TBPositionOperator(Crystal, 1, KPoint, 2, 1, Array, 5, ArrayShape);
+  Success =
+      TBCrystalPositionOperator(Crystal, 1, KPoint, 2, 1, Array, 5, ArrayShape);
   ASSERT_X(Success);
   ASSERT(cabs(Array[0] - Scaled * pow(3.7 / Lattice, 2.0)) < Tolerance);
 
@@ -1263,8 +1278,8 @@ TEST(TBCrystalBlochPositionOperator_Layout) {
       ArrayShape[t] = (size_t)-1;
     }
 
-    Success = TBPositionOperator(Crystal, Dim, KPoint, m, Elements, Array,
-                                 m + 3, ArrayShape);
+    Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, m, Elements,
+                                        Array, m + 3, ArrayShape);
     ASSERT_X(Success);
     ASSERT(ArrayShape[0] == Bands);
     ASSERT(ArrayShape[1] == Bands);
@@ -1331,8 +1346,8 @@ TEST(TBCrystalBlochPositionOperator_Layout) {
   ASSERT(Skewed);
   ASSERT(TBCrystalSetTBPositionOperator(Skewed, 0, 1, 0, 1, Expected));
 
-  Success = TBPositionOperator(Skewed, Dim, Origin, 0, 8, SkewedArray, 3,
-                               SkewedShape);
+  Success = TBCrystalPositionOperator(Skewed, Dim, Origin, 0, 8, SkewedArray, 3,
+                                      SkewedShape);
   ASSERT_X(Success);
   ASSERT(SkewedShape[0] == Bands);
   ASSERT(SkewedShape[1] == Bands);
@@ -1348,8 +1363,8 @@ TEST(TBCrystalBlochPositionOperator_Layout) {
   // Element 1 is (BandId1, BandId2, ComponentId) = (1, 0, 0).
   Expected = 2.0 - 1.0 * I;
   ASSERT(TBCrystalSetTBPositionOperator(Skewed, 1, 0, 0, 0, Expected));
-  Success = TBPositionOperator(Skewed, Dim, Origin, 0, 8, SkewedArray, 3,
-                               SkewedShape);
+  Success = TBCrystalPositionOperator(Skewed, Dim, Origin, 0, 8, SkewedArray, 3,
+                                      SkewedShape);
   ASSERT_X(Success);
   ASSERT(cabs(SkewedArray[1] - Expected) < Tolerance);
   ASSERT(cabs(SkewedArray[6] - (1.0 + 1.0 * I)) < Tolerance);
@@ -1454,8 +1469,8 @@ TEST(TBCrystalBlochPositionOperator_StridedLayout) {
       ArrayShape[t] = (size_t)-1;
     }
 
-    Success = TBPositionOperator(Crystal, Dim, KPoint, m, Elements, Array,
-                                 m + 3, ArrayShape);
+    Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, m, Elements,
+                                        Array, m + 3, ArrayShape);
     ASSERT_X(Success);
     ASSERT(ArrayShape[0] == Bands);
     ASSERT(ArrayShape[1] == Bands);
@@ -1526,8 +1541,8 @@ TEST(TBCrystalBlochPositionOperator_StridedLayout) {
   Reference = 3.0 + 4.0 * I;
   ASSERT(TBCrystalSetTBPositionOperator(Probe, 1, 2, 3, 1, Reference));
 
-  Success =
-      TBPositionOperator(Probe, Dim, Origin, 0, 27, ProbeArray, 3, ProbeShape);
+  Success = TBCrystalPositionOperator(Probe, Dim, Origin, 0, 27, ProbeArray, 3,
+                                      ProbeShape);
   ASSERT_X(Success);
   ASSERT(ProbeShape[0] == Bands);
   ASSERT(ProbeShape[1] == Bands);
@@ -1604,8 +1619,8 @@ TEST(TBCrystalBlochPositionOperator_TwoOrbitalChain) {
     Phase     = 2.0 * Pi * Points[i];
 
     for (m = 0; m <= 2; m++) {
-      Success = TBPositionOperator(Crystal, 1, KPoint, m, 4, Array, m + 3,
-                                   ArrayShape);
+      Success = TBCrystalPositionOperator(Crystal, 1, KPoint, m, 4, Array,
+                                          m + 3, ArrayShape);
       ASSERT_X(Success);
       ASSERT(ArrayShape[0] == 2);
       ASSERT(ArrayShape[1] == 2);
@@ -1656,8 +1671,8 @@ TEST(TBCrystalBlochPositionOperator_TwoOrbitalChain) {
     Success = TBCrystalHamiltonian(Chain, 1, KPoint, 1, 4, Hamiltonian, 3,
                                    ArrayShape);
     ASSERT_X(Success);
-    Success =
-        TBPositionOperator(Crystal, 1, KPoint, 0, 4, Array, 3, ArrayShape);
+    Success = TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 4, Array, 3,
+                                        ArrayShape);
     ASSERT_X(Success);
 
     for (m = 0; m < 4; m++) {
@@ -1750,11 +1765,11 @@ TEST(TBCrystalBlochPositionOperator_CrossKernelConsistency) {
                                  ArrayShape);
   ASSERT_X(Success);
 
-  Success =
-      TBPositionOperator(Crystal, Dim, KPoint, 0, 8, Position0, 3, ArrayShape);
+  Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Position0, 3,
+                                      ArrayShape);
   ASSERT_X(Success);
-  Success =
-      TBPositionOperator(Crystal, Dim, KPoint, 1, 16, Position1, 4, ArrayShape);
+  Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, 1, 16, Position1, 4,
+                                      ArrayShape);
   ASSERT_X(Success);
 
   // The identity compares two computed quantities, so neither side may be
@@ -1794,12 +1809,14 @@ TEST(TBCrystalBlochPositionOperator_BadInput) {
   ASSERT(Crystal);
 
   // A KPoint size other than the crystal dimensionality is rejected.
-  ASSERT(!TBPositionOperator(Crystal, 1, KPoint, 0, 8, Array, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, 3, KPoint, 0, 8, Array, 3, ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, 1, KPoint, 0, 8, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, 3, KPoint, 0, 8, Array, 3,
+                                    ArrayShape));
 
   // Derivative = 0: three shape entries and eight elements.
-  Success =
-      TBPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 3, ArrayShape);
+  Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 3,
+                                      ArrayShape);
   ASSERT_X(Success);
   ASSERT(ArrayShape[0] == Bands);
   ASSERT(ArrayShape[1] == Bands);
@@ -1807,44 +1824,53 @@ TEST(TBCrystalBlochPositionOperator_BadInput) {
 
   // Too few or too many elements are rejected, and so is the two-entry shape
   // of the Hamiltonian kernel: the component index is mandatory.
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 0, 7, Array, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 0, 9, Array, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 2, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 4, ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 7, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 9, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 2,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 4,
+                                    ArrayShape));
 
   // Derivative = 1: sixteen elements and four shape entries.
-  ASSERT(
-      !TBPositionOperator(Crystal, Dim, KPoint, 1, 16, Array, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 1, 8, Array, 4, ArrayShape));
-  Success =
-      TBPositionOperator(Crystal, Dim, KPoint, 1, 16, Array, 4, ArrayShape);
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 1, 16, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 1, 8, Array, 4,
+                                    ArrayShape));
+  Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, 1, 16, Array, 4,
+                                      ArrayShape);
   ASSERT_X(Success);
   ASSERT(ArrayShape[3] == Dim);
 
   // Derivative = 2: thirty-two elements and five shape entries.
-  ASSERT(
-      !TBPositionOperator(Crystal, Dim, KPoint, 2, 32, Array, 4, ArrayShape));
-  ASSERT(
-      !TBPositionOperator(Crystal, Dim, KPoint, 2, 16, Array, 5, ArrayShape));
-  Success =
-      TBPositionOperator(Crystal, Dim, KPoint, 2, 32, Array, 5, ArrayShape);
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 2, 32, Array, 4,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 2, 16, Array, 5,
+                                    ArrayShape));
+  Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, 2, 32, Array, 5,
+                                      ArrayShape);
   ASSERT_X(Success);
   ASSERT(ArrayShape[4] == Dim);
 
   // A rank that cannot be represented is rejected up front, instead of
   // wrapping around to a small, accidentally valid rank.
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, SIZE_MAX, 8, Array, 3,
-                             ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, SIZE_MAX, 8, Array, 3,
+                                    ArrayShape));
 
   // A missing crystal or a missing buffer is reported, never dereferenced.
-  ASSERT(!TBPositionOperator(NULL, Dim, KPoint, 0, 8, Array, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, NULL, 0, 8, Array, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 0, 8, NULL, 3, ArrayShape));
-  ASSERT(!TBPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 3, NULL));
+  ASSERT(!TBCrystalPositionOperator(NULL, Dim, KPoint, 0, 8, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, NULL, 0, 8, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, NULL, 3,
+                                    ArrayShape));
+  ASSERT(
+      !TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 3, NULL));
 
   // The rejections left no state behind: a well-formed call still succeeds.
-  Success =
-      TBPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 3, ArrayShape);
+  Success = TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, 3,
+                                      ArrayShape);
   ASSERT_X(Success);
   ASSERT(ArrayShape[0] == Bands);
   ASSERT(ArrayShape[1] == Bands);

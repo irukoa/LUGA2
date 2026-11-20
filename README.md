@@ -40,7 +40,7 @@ Enabling OpenMP adds a runtime dependency on the OpenMP runtime (e.g. `libgomp`)
 
 Deferred LAPACK wrappers: LAPACK procedures are supplied by the application at runtime rather than linked into LUGA2.
 
-Provides Hermitian diagonalization (`DiagHermitian`), Schur decomposition (`SchurDecomposition`), singular value decomposition (`SVDDecomposition`), and generalized Schur decomposition (`GeneralizedSchurDecomposition`) through a caller-supplied `ZHEEVD`/`ZGEES`/`ZGESDD`/`ZGGES` procedure, and consecutive eigenvalue grouping (`DegeneracyGroup`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
+Provides Hermitian diagonalization (`HermitianEigendecomposition`), Schur decomposition (`SchurDecomposition`), singular value decomposition (`SVDecomposition`), and generalized Schur decomposition (`GeneralizedSchurDecomposition`) through a caller-supplied `ZHEEVD`/`ZGEES`/`ZGESDD`/`ZGGES` procedure, and consecutive eigenvalue grouping (`DegeneracyGrouping`). Applications using LDW must provide a compatible LAPACK/BLAS implementation and link it themselves.
 
 ## Graph Topologies and Shortest-path Algorithms (GRTP)
 
@@ -63,7 +63,24 @@ $$
 H(\textbf{k}) = \sum_{R}H(\textbf{R})e^{i\textbf{k}\textbf{R}}, \qquad A^j(\textbf{k}) = \sum_{R}A^j(\textbf{R})e^{i\textbf{k}\textbf{R}}.
 $$
 
-`TBCrystalHamiltonian` and `TBPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
+`TBCrystalHamiltonian` and `TBCrystalPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
+
+## Functional Optimization Algorithms (FOA)
+
+Root finding and unimodal minimization along the segment
+
+$$
+\textbf{x}(t) = \textbf{a} + t\left(\textbf{b} - \textbf{a}\right), \qquad t \in [0, 1],
+$$
+
+which joins two pivots $\textbf{a}$ and $\textbf{b}$ of $\mathbb{R}^n$:
+
+- **`BisectionRootFinding`** — sign change of a function $f(\textbf{x})$ which takes opposite signs at the pivots. One halving of the segment per iteration, so after $k$ iterations the returned point lies within $|\textbf{b} - \textbf{a}| / 2^k$ of a sign change, in any norm.
+- **`BrentRootFinding`** — the same sign change by inverse quadratic interpolation and secant steps, backed by bisection: superlinear on a smooth function, and at most twice the iterations of bisection in the worst case.
+- **`GoldenSectionMinimization`** — minimum of a unimodal function. The bracket keeps a fraction $\rho = (\sqrt{5} - 1)/2$ of its width per iteration, so after $k$ iterations the returned point lies within $\rho^k |\textbf{b} - \textbf{a}| / 2$ of a minimizer, in the largest component.
+- **`BrentMinimization`** — the same minimum by successive parabolic interpolation, with the golden-section step whenever the parabola is not trusted: superlinear on a smooth function, and no worse than golden-section search up to a small factor in the iteration count.
+
+Only the sign change, or the unimodality, is assumed: neither continuity nor differentiability is required. The bracket is kept in the parameter $t$, so no point or width can overflow, and a point of the segment is a convex combination of the pivots. The objective is a callback, optionally carrying a caller-defined context. No error code is returned: a rejected argument, a segment which does not bracket a sign change, a function which is not unimodal, or a NaN value leaves the result filled with NaN, and `Tolerance` is a stopping rule rather than a promise, so the caller validates the result. FOA keeps no global state and needs no storage beyond a few work arrays sized by the point, so concurrent calls are safe provided the callback is thread-safe.
 
 # Building and Installation
 
@@ -100,6 +117,7 @@ After installation, the generated artifacts are installed as follows:
   - `LapackDeferredWrappers.h`, `LapackDeferredWrappers.F90` (LDW)
   - `GraphUtilities.h`, `GraphUtilities.F90` (GRTP)
   - `TightBindingCrystalInterpolation.h`, `TightBindingCrystalInterpolation.F90` (TBCI)
+  - `FunctionalOptimizationAlgorithms.h`, `FunctionalOptimizationAlgorithms.F90` (FOA)
 
 ## Build targets
 
