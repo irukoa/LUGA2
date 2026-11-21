@@ -166,6 +166,7 @@ TEST(FreeMCIFormat_NominalAndDoubleFree) {
   if (!CompiledFormat) {
     return;
   }
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 16);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
   ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 2);
 
@@ -175,6 +176,8 @@ TEST(FreeMCIFormat_NominalAndDoubleFree) {
   FreeMCIFormat(&CompiledFormat);
   ASSERT(!CompiledFormat);
 }
+
+TEST(GetMCIMessageBitSize_BadInput) { ASSERT(GetMCIMessageBitSize(NULL) == 0); }
 
 TEST(GetMCIMessageByteSize_BadInput) {
   ASSERT(GetMCIMessageByteSize(NULL) == 0);
@@ -651,6 +654,7 @@ TEST(DecodeMCIMessage_DoesNotModifyMessage) {
 TEST_SUITE(MCIStructuralContractSuite,
            FreeMCIFormat_BadInput,
            FreeMCIFormat_NominalAndDoubleFree,
+           GetMCIMessageBitSize_BadInput,
            GetMCIMessageByteSize_BadInput,
            GetMCIMessageFieldCount_BadInput,
            GetMCIMessageFieldId_MaximumDepth,

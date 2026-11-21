@@ -46,6 +46,10 @@ submodule (MessageCodingInterface:MCI_C_Interfaces) MCI_F_Implementation
     Initialized = CompiledFormat%Init
   end procedure FortranInitialized
 
+  module procedure FortranGetMCIMessageBitSize
+    BitSize = GetMCIMessageBitSize(CompiledFormat%OpaqueHandle)
+  end procedure FortranGetMCIMessageBitSize
+
   module procedure FortranGetMCIMessageByteSize
     ByteSize = GetMCIMessageByteSize(CompiledFormat%OpaqueHandle)
   end procedure FortranGetMCIMessageByteSize

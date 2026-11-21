@@ -395,6 +395,13 @@ cleanup:
   return NULL;
 }
 
+size_t GetMCIMessageBitSize(const MCICompiledFormat *CompiledFormat) {
+  if (!CompiledFormat) {
+    return 0;
+  }
+  return CompiledFormat->TotalBits;
+}
+
 size_t GetMCIMessageByteSize(const MCICompiledFormat *CompiledFormat) {
   if (!CompiledFormat) {
     return 0;

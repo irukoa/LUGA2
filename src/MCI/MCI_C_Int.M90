@@ -30,6 +30,17 @@ submodule (MessageCodingInterface) MCI_C_Interfaces
   end interface
 
   interface
+    pure function GetMCIMessageBitSize(CompiledFormat) &
+      bind(C, name="GetMCIMessageBitSize") &
+      result(BitSize)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: CompiledFormat
+
+      integer(C_SIZE_T) :: BitSize
+    end function GetMCIMessageBitSize
+  end interface
+
+  interface
     pure function GetMCIMessageByteSize(CompiledFormat) &
       bind(C, name="GetMCIMessageByteSize") &
       result(ByteSize)
@@ -91,7 +102,7 @@ submodule (MessageCodingInterface) MCI_C_Interfaces
       unsigned(C_UINT8_T),     intent(in)        :: Message(MessageByteSize)
       integer(C_SIZE_T),       intent(in), value :: FieldId
       integer(EncodingLayout), intent(in), value :: Encoding
-      integer(C_SIZE_T),       intent(out)       :: Val
+      integer(C_SIZE_T),       intent(inout)     :: Val
 
       logical(C_BOOL) :: Success
     end function DecodeMCIMessage

@@ -30,6 +30,7 @@ module MessageCodingInterface
     procedure, public, pass(CompiledFormat) :: Free          => FortranFreeMCIFormat
     procedure, public, pass(CompiledFormat) :: New           => FortranCompileMCIFormat
     procedure, public, pass(CompiledFormat) :: Initialized   => FortranInitialized
+    procedure, public, pass(CompiledFormat) :: BitSize       => FortranGetMCIMessageBitSize
     procedure, public, pass(CompiledFormat) :: ByteSize      => FortranGetMCIMessageByteSize
     procedure, public, pass(CompiledFormat) :: FieldCount    => FortranGetMCIMessageFieldCount
     procedure, public, pass(CompiledFormat) :: FieldId       => FortranGetMCIMessageFieldId
@@ -74,6 +75,15 @@ module MessageCodingInterface
 
       logical :: Initialized
     end function FortranInitialized
+  end interface
+
+  interface
+    pure module function FortranGetMCIMessageBitSize(CompiledFormat) &
+      result(BitSize)
+      class(MCICompiledFormat), intent(in) :: CompiledFormat
+
+      integer(C_SIZE_T) :: BitSize
+    end function FortranGetMCIMessageBitSize
   end interface
 
   interface

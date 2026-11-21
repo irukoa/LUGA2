@@ -117,14 +117,26 @@ TEST(MCICompile_ValidSizes) {
   static const struct {
     const char *Format;
     size_t      MaxFieldBitSize;
+    size_t      BitSize;
     size_t      ByteSize;
   } Cases[] = {
-      {"1", 1, 1},           {"7", 7, 1},         {"8", 8, 1},
-      {"9", 9, 2},           {"16", 16, 2},       {"17", 17, 3},
-      {"8|16|3", 16, 4},     {"1R(8)", 8, 1},     {"2R(4)", 4, 1},
-      {"2R(1|2)", 2, 1},     {"2R(2|3)", 3, 2},   {"2R(2R(3))", 3, 2},
-      {"2R(2R(3|4))", 4, 4}, {"8|2R(2|3)", 8, 3}, {"0008|0004", 8, 2},
-      {"01", 1, 1},          {"64R(1)", 1, 8},
+      {"1", 1, 1, 1},
+      {"7", 7, 7, 1},
+      {"8", 8, 8, 1},
+      {"9", 9, 9, 2},
+      {"16", 16, 16, 2},
+      {"17", 17, 17, 3},
+      {"8|16|3", 16, 27, 4},
+      {"1R(8)", 8, 8, 1},
+      {"2R(4)", 4, 8, 1},
+      {"2R(1|2)", 2, 6, 1},
+      {"2R(2|3)", 3, 10, 2},
+      {"2R(2R(3))", 3, 12, 2},
+      {"2R(2R(3|4))", 4, 28, 4},
+      {"8|2R(2|3)", 8, 18, 3},
+      {"0008|0004", 8, 12, 2},
+      {"01", 1, 1, 1},
+      {"64R(1)", 1, 64, 8},
   };
   MCICompiledFormat *CompiledFormat;
   size_t             i;
@@ -134,6 +146,7 @@ TEST(MCICompile_ValidSizes) {
     if (!CompiledFormat) {
       continue;
     }
+    ASSERT(GetMCIMessageBitSize(CompiledFormat) == Cases[i].BitSize);
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == Cases[i].ByteSize);
     FreeMCIFormat(&CompiledFormat);
   }
@@ -170,12 +183,14 @@ TEST(MCICompile_FieldLimits) {
 
   CompiledFormat = CompileForTest("1", 1);
   if (CompiledFormat) {
+    ASSERT(GetMCIMessageBitSize(CompiledFormat) == 1);
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
     FreeMCIFormat(&CompiledFormat);
   }
 
   CompiledFormat = CompileForTest("8", 8);
   if (CompiledFormat) {
+    ASSERT(GetMCIMessageBitSize(CompiledFormat) == 8);
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
     FreeMCIFormat(&CompiledFormat);
   }
@@ -212,6 +227,7 @@ TEST(MCICompile_FieldCount) {
     return;
   }
   ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 5);
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 18);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 3);
   FreeMCIFormat(&CompiledFormat);
 
@@ -220,6 +236,7 @@ TEST(MCICompile_FieldCount) {
     return;
   }
   ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 64);
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 64);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 8);
   FreeMCIFormat(&CompiledFormat);
 }
@@ -227,6 +244,7 @@ TEST(MCICompile_FieldCount) {
 TEST(MCICompile_AccessorsAndFree) {
   MCICompiledFormat *CompiledFormat = NULL;
 
+  ASSERT(GetMCIMessageBitSize(NULL) == 0);
   ASSERT(GetMCIMessageByteSize(NULL) == 0);
   FreeMCIFormat(NULL);
   FreeMCIFormat(&CompiledFormat);
@@ -236,6 +254,7 @@ TEST(MCICompile_AccessorsAndFree) {
   if (!CompiledFormat) {
     return;
   }
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 8);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
   FreeMCIFormat(&CompiledFormat);
   ASSERT(CompiledFormat == NULL);

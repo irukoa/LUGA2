@@ -107,6 +107,7 @@ void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference);
  *   may be much larger than the source string when repetition is used.
  *
  * @see FreeMCIFormat
+ * @see GetMCIMessageBitSize
  * @see GetMCIMessageByteSize
  * @see GetMCIMessageFieldCount
  */
@@ -114,11 +115,40 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
                                     const size_t MaxFieldBitSize);
 
 /**
+ * @brief Returns the number of meaningful bits in a message.
+ *
+ * @details
+ * The size is the sum of the expanded field widths and excludes the padding
+ * bits which are present when that sum is not a multiple of eight. It is the
+ * total number of bits occupied by the fields: the bits written when encoding
+ * every field and read when decoding every field. GetMCIMessageByteSize rounds
+ * this value up to whole bytes.
+ *
+ * @param[in] CompiledFormat
+ *     Pointer to the compiled format.
+ *
+ * @return
+ *     Message size in bits, or 0 when CompiledFormat is NULL.
+ *
+ * @note
+ * - A valid compiled format always contains at least one bit.
+ * - The value is fixed for the lifetime of the compiled format.
+ * - GetMCIMessageByteSize(CompiledFormat) equals
+ *   (GetMCIMessageBitSize(CompiledFormat) + 7) / 8 for a valid format.
+ *
+ * @see GetMCIMessageByteSize
+ * @see GetMCIMessageFieldCount
+ * @see EncodeMCIMessage
+ * @see DecodeMCIMessage
+ */
+size_t GetMCIMessageBitSize(const MCICompiledFormat *CompiledFormat);
+
+/**
  * @brief Returns the minimum message size required by a compiled format.
  *
  * @details
- * The size is the total number of field bits rounded up to a whole number of
- * bytes. It is the smallest value that may be passed as MessageByteSize to
+ * The size is GetMCIMessageBitSize rounded up to a whole number of bytes. It
+ * is the smallest value that may be passed as MessageByteSize to
  * EncodeMCIMessage or DecodeMCIMessage for this format.
  *
  * @param[in] CompiledFormat
@@ -131,7 +161,10 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
  * - A valid compiled format always requires at least one byte.
  * - Larger buffers are accepted by the encode and decode operations; only the
  *   first GetMCIMessageByteSize bytes participate in the message.
+ * - The unused high bits of the final byte are padding and are not counted by
+ *   GetMCIMessageBitSize.
  *
+ * @see GetMCIMessageBitSize
  * @see GetMCIMessageFieldCount
  * @see EncodeMCIMessage
  * @see DecodeMCIMessage

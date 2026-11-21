@@ -16,6 +16,7 @@ TEST_E(MCIFortranCompileAndAccessors)
 
   !A default-initialized wrapper owns no C-side state.
   ASSERT(.not.CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 0_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 0_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 0_C_SIZE_T)
   call CheckFieldId(CompiledFormat, "1", InvalidFieldId)
@@ -23,6 +24,7 @@ TEST_E(MCIFortranCompileAndAccessors)
   Format = "8|2R(2|3)"
   call CompiledFormat%New(Format, 8_C_SIZE_T)
   ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 18_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 3_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 5_C_SIZE_T)
   call CheckFieldId(CompiledFormat, "1", 0_C_SIZE_T)
@@ -45,6 +47,7 @@ TEST_E(MCIFortranCompileAndAccessors)
   Format = "2R(3R(4|5))"
   call CompiledFormat%New(Format, 5_C_SIZE_T)
   ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 54_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 7_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 12_C_SIZE_T)
   call CheckFieldId(CompiledFormat, "1.1.1", 0_C_SIZE_T)
@@ -56,6 +59,8 @@ TEST_E(MCIFortranCompileAndAccessors)
   Format = "7|2R(3|5)"
   call CompiledFormat%New(Format, 7_C_SIZE_T)
   ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 23_C_SIZE_T)
+  ASSERT(CompiledFormat%ByteSize() == 3_C_SIZE_T)
   Format = "not the original format"
   call CheckFieldId(CompiledFormat, "2.2", 2_C_SIZE_T)
   call CheckFieldId(CompiledFormat, "3.2", 4_C_SIZE_T)
@@ -64,17 +69,20 @@ TEST_E(MCIFortranCompileAndAccessors)
   Format = "8"
   call CompiledFormat%New(Format, 8_C_SIZE_T)
   ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 8_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 1_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 1_C_SIZE_T)
 
   Format = "16|16"
   call CompiledFormat%New(Format, 16_C_SIZE_T)
   ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 32_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 4_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 2_C_SIZE_T)
 
   call CompiledFormat%Free()
   ASSERT(.not.CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 0_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 0_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 0_C_SIZE_T)
   call CheckFieldId(CompiledFormat, "1", InvalidFieldId)
@@ -135,8 +143,66 @@ TEST_E(MCIFortranCompileRejectsInvalidFormats)
   ASSERT_X(CompiledFormat%Initialized())
   call CompiledFormat%New("1R(0)", 8_C_SIZE_T)
   ASSERT(.not.CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 0_C_SIZE_T)
   ASSERT(CompiledFormat%ByteSize() == 0_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 0_C_SIZE_T)
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranMessageBitSize)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat) :: CompiledFormat
+
+  ASSERT(CompiledFormat%BitSize() == 0_C_SIZE_T)
+
+  call ExpectBitSize(CompiledFormat, "1", 1_C_SIZE_T, 1_C_SIZE_T, 1_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "7", 7_C_SIZE_T, 7_C_SIZE_T, 1_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "8", 8_C_SIZE_T, 8_C_SIZE_T, 1_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "9", 9_C_SIZE_T, 9_C_SIZE_T, 2_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "16", 16_C_SIZE_T, 16_C_SIZE_T, 2_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "17", 17_C_SIZE_T, 17_C_SIZE_T, 3_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "8|16|3", 16_C_SIZE_T, 27_C_SIZE_T, &
+                     4_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "2R(1|2)", 2_C_SIZE_T, 6_C_SIZE_T, &
+                     1_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "2R(2|3)", 3_C_SIZE_T, 10_C_SIZE_T, &
+                     2_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "2R(2R(3))", 3_C_SIZE_T, 12_C_SIZE_T, &
+                     2_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "2R(2R(3|4))", 4_C_SIZE_T, 28_C_SIZE_T, &
+                     4_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "8|2R(2|3)", 8_C_SIZE_T, 18_C_SIZE_T, &
+                     3_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "0008|0004", 8_C_SIZE_T, 12_C_SIZE_T, &
+                     2_C_SIZE_T)
+  call ExpectBitSize(CompiledFormat, "64R(1)", 1_C_SIZE_T, 64_C_SIZE_T, &
+                     8_C_SIZE_T)
+
+  call CompiledFormat%Free()
+  ASSERT(CompiledFormat%BitSize() == 0_C_SIZE_T)
+
+  contains
+
+    subroutine ExpectBitSize(CompiledFormat, Format, MaxFieldBitSize, &
+                             ExpectedBits, ExpectedBytes)
+      type(MCICompiledFormat), intent(inout) :: CompiledFormat
+      character(*),            intent(in)    :: Format
+      integer(C_SIZE_T),       intent(in)    :: MaxFieldBitSize
+      integer(C_SIZE_T),       intent(in)    :: ExpectedBits
+      integer(C_SIZE_T),       intent(in)    :: ExpectedBytes
+
+      call CompiledFormat%New(Format, MaxFieldBitSize)
+      ASSERT_X(CompiledFormat%Initialized())
+      ASSERT(CompiledFormat%BitSize() == ExpectedBits)
+      ASSERT(CompiledFormat%ByteSize() == ExpectedBytes)
+      call CompiledFormat%Free()
+      ASSERT(.not.CompiledFormat%Initialized())
+    end subroutine ExpectBitSize
 #endif
 END_TEST_E
 
@@ -157,10 +223,12 @@ TEST_E(MCIFortranCopyOwnership)
 
   call Original%New("8|8", 8_C_SIZE_T)
   ASSERT_X(Original%Initialized())
+  ASSERT(Original%BitSize() == 16_C_SIZE_T)
 
   !Assignment aliases the C-side format instead of duplicating it.
   Copy = Original
   ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%BitSize() == 16_C_SIZE_T)
   ASSERT(Copy%ByteSize() == 2_C_SIZE_T)
   call CheckFieldId(Copy, "2", 1_C_SIZE_T)
 
@@ -168,14 +236,17 @@ TEST_E(MCIFortranCopyOwnership)
   call Copy%Free()
   ASSERT(.not.Copy%Initialized())
   ASSERT(Original%Initialized())
+  ASSERT(Original%BitSize() == 16_C_SIZE_T)
   ASSERT(Original%ByteSize() == 2_C_SIZE_T)
 
   !Rebinding an owning alias releases its previous handle first.
   call Copy%New("4", 4_C_SIZE_T)
   ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%BitSize() == 4_C_SIZE_T)
   ASSERT(Copy%ByteSize() == 1_C_SIZE_T)
   Copy = Original
   ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%BitSize() == 16_C_SIZE_T)
   ASSERT(Copy%ByteSize() == 2_C_SIZE_T)
   call Copy%Free()
   ASSERT(.not.Copy%Initialized())
@@ -187,8 +258,10 @@ TEST_E(MCIFortranCopyOwnership)
   ASSERT_X(Copy%Initialized())
   call Copy%New("4", 4_C_SIZE_T)
   ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%BitSize() == 4_C_SIZE_T)
   ASSERT(Copy%ByteSize() == 1_C_SIZE_T)
   ASSERT(Copy%FieldCount() == 1_C_SIZE_T)
+  ASSERT(Original%BitSize() == 16_C_SIZE_T)
   ASSERT(Original%ByteSize() == 2_C_SIZE_T)
   ASSERT(Original%FieldCount() == 2_C_SIZE_T)
   call Copy%Free()
@@ -789,7 +862,8 @@ END_TEST_E
 #ifdef TSD_KERNEL
 TEST_SUITE(MCIFortranCompileSuite,
            MCIFortranCompileAndAccessors,
-           MCIFortranCompileRejectsInvalidFormats);
+           MCIFortranCompileRejectsInvalidFormats,
+           MCIFortranMessageBitSize);
 
 TEST_SUITE(MCIFortranOwnershipSuite,
            MCIFortranCopyOwnership);
