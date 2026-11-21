@@ -156,8 +156,58 @@ size_t GetMCIMessageByteSize(const MCICompiledFormat *CompiledFormat);
  *
  * @see EncodeMCIMessage
  * @see DecodeMCIMessage
+ * @see GetMCIMessageFieldId
  */
 size_t GetMCIMessageFieldCount(const MCICompiledFormat *CompiledFormat);
+
+/**
+ * @brief Resolves a semantic field identifier to a flat field index.
+ *
+ * @details
+ * Semantic identifiers address a field through the expanded group structure of
+ * the source format, using one-based decimal components separated by periods.
+ * At each format level, every plain field and every repetition copy is one
+ * group, numbered from one in expanded left-to-right order. A plain field is
+ * selected by its group number alone. A repetition copy is selected by its
+ * group number followed by the path to a field inside its inner sequence.
+ *
+ * For example, "7|2R(3|5)" expands to five fields with flat indices 0 through
+ * 4. The semantic identifiers are:
+ *
+ *     "1"   -> 0    (the field of width 7)
+ *     "2.1" -> 1    (first copy of the group, first inner field)
+ *     "2.2" -> 2    (first copy of the group, second inner field)
+ *     "3.1" -> 3    (second copy of the group, first inner field)
+ *     "3.2" -> 4    (second copy of the group, second inner field)
+ *
+ * Nested repetitions extend the path with one component per level. For
+ * example, "2R(3R(4|5))" contains identifiers such as "1.1.1" and "1.2.2".
+ *
+ * @param[in] CompiledFormat
+ *     Pointer to the compiled format.
+ *
+ * @param[in] SemanticId
+ *     NUL-terminated semantic field identifier. Components must be positive
+ *     decimal integers without leading zeros.
+ *
+ * @return
+ *     Zero-based flat field index on success, or SIZE_MAX when an argument is
+ *     invalid, the identifier is malformed, or no field matches the identifier.
+ *
+ * @note
+ * - Semantic components are one-based; the returned field index is zero-based.
+ * - A repeated group is not a leaf, so a field inside "2R(7)" is addressed as
+ *   "1.1" or "2.1", not as "1" or "2".
+ * - The lookup parses the retained source format and does not allocate. Callers
+ *   that resolve the same identifier repeatedly may cache the result.
+ * - A successful result is always smaller than GetMCIMessageFieldCount.
+ *
+ * @see GetMCIMessageFieldCount
+ * @see EncodeMCIMessage
+ * @see DecodeMCIMessage
+ */
+size_t GetMCIMessageFieldId(const MCICompiledFormat *CompiledFormat,
+                            const char               SemanticId[]);
 
 /**
  * @brief Encodes one field value into a message buffer.

@@ -12,6 +12,7 @@
 // CompileMCIFormat itself cannot produce. Keep this layout in sync with
 // src/MCI/MCI_C_Imp.c.
 struct MCICompiledFormat {
+  char   *FormatCopy;
   size_t  NumFields;
   size_t *BitSize;
   size_t *BitOffset;
@@ -70,6 +71,86 @@ static void BuildNestedFormat(char        *Buffer,
   Buffer[Position] = '\0';
 }
 
+static void BuildSemanticPath(char        *Buffer,
+                              const size_t ComponentCount) {
+  size_t i;
+  size_t Position = 0;
+
+  for (i = 0; i < ComponentCount; i++) {
+    if (i > 0) {
+      Buffer[Position++] = '.';
+    }
+    Buffer[Position++] = '1';
+  }
+  Buffer[Position] = '\0';
+}
+
+static void AppendText(char       *Buffer,
+                       size_t     *Position,
+                       const char *Text) {
+  while (*Text) {
+    Buffer[(*Position)++] = *Text++;
+  }
+  Buffer[*Position] = '\0';
+}
+
+static void AppendDecimal(char        *Buffer,
+                          size_t      *Position,
+                          const size_t Value) {
+  char   Digits[24];
+  size_t Count     = 0;
+  size_t Remaining = Value;
+  size_t i;
+
+  if (Remaining == 0) {
+    Digits[Count++] = '0';
+  }
+  while (Remaining > 0) {
+    Digits[Count++] = (char)('0' + (Remaining % 10));
+    Remaining /= 10;
+  }
+  for (i = Count; i > 0; i--) {
+    Buffer[(*Position)++] = Digits[i - 1];
+  }
+  Buffer[*Position] = '\0';
+}
+
+// Appends "<Count>R(" followed by InnerDepth copies of "<InnerCount>R(", a
+// single field and the matching closing parentheses.
+static void AppendNestedRepeatedFormat(char        *Buffer,
+                                       size_t      *Position,
+                                       const size_t Count,
+                                       const size_t InnerCount,
+                                       const size_t InnerDepth) {
+  size_t i;
+
+  AppendDecimal(Buffer, Position, Count);
+  AppendText(Buffer, Position, "R(");
+  for (i = 0; i < InnerDepth; i++) {
+    AppendDecimal(Buffer, Position, InnerCount);
+    AppendText(Buffer, Position, "R(");
+  }
+  AppendText(Buffer, Position, "1");
+  for (i = 0; i <= InnerDepth; i++) {
+    AppendText(Buffer, Position, ")");
+  }
+}
+
+// Builds a sequence whose expanded field count is exactly SIZE_MAX:
+// 2^64 - 1 = 15 * 64^10 + 63 * (64^9 + ... + 1).
+static void BuildMaximumFieldCountSequence(char   *Buffer,
+                                           size_t *GroupCount) {
+  size_t Position = 0;
+  size_t k;
+
+  for (k = 0; k < 10; k++) {
+    AppendNestedRepeatedFormat(Buffer, &Position, 63, 64, k);
+    AppendText(Buffer, &Position, "|");
+  }
+  AppendNestedRepeatedFormat(Buffer, &Position, 15, 64, 10);
+  *GroupCount = (10 * 63) + 15;
+}
+
 TEST(FreeMCIFormat_BadInput) {
   MCICompiledFormat *CompiledFormat = NULL;
 
@@ -101,6 +182,200 @@ TEST(GetMCIMessageByteSize_BadInput) {
 
 TEST(GetMCIMessageFieldCount_BadInput) {
   ASSERT(GetMCIMessageFieldCount(NULL) == 0);
+}
+
+TEST(GetMCIMessageFieldId_MaximumDepth) {
+  char               Format[512];
+  char               Path[256];
+  MCICompiledFormat *CompiledFormat;
+
+  BuildNestedFormat(Format, 64, "1");
+  BuildSemanticPath(Path, 65);
+  CompiledFormat = CompileForStructuralTest(Format, 1);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, Path) == 0);
+
+  BuildSemanticPath(Path, 66);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, Path) == SIZE_MAX);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(GetMCIMessageFieldId_BadInput) {
+  MCICompiledFormat *CompiledFormat = CompileForStructuralTest("7|8", 8);
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ASSERT(GetMCIMessageFieldId(NULL, "1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, NULL) == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1") == 0);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2") == 1);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(GetMCIMessageFieldId_RejectsMalformedCompiledFormat) {
+  MCICompiledFormat CompiledFormat = {
+      .FormatCopy = NULL,
+      .NumFields  = 1,
+      .BitSize    = NULL,
+      .BitOffset  = NULL,
+      .TotalBits  = 0,
+      .TotalBytes = 0,
+  };
+
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1";
+  CompiledFormat.NumFields  = 0;
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.NumFields = 1;
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == 0);
+
+  CompiledFormat.FormatCopy = (char *)"1x";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"0R(1)";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(1";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(1)2";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "2.1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1|2x";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "2") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(1)|";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "2.1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(2R)";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(0R(1))";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(2R(3";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(2x)";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  CompiledFormat.FormatCopy = (char *)"1R(2R(3)4)";
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  {
+    char Format[512];
+    BuildNestedFormat(Format, 65, "1");
+    CompiledFormat.FormatCopy = Format;
+    ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+  }
+}
+
+TEST(GetMCIMessageFieldId_RejectsOverflowingFormats) {
+  char              A63[512];
+  char              A12[256];
+  char              Maximum[4096];
+  char              Format[8192];
+  char              Path[16];
+  size_t            GroupCount;
+  size_t            PathLength     = 0;
+  size_t            Position       = 0;
+  MCICompiledFormat CompiledFormat = {
+      .FormatCopy = NULL,
+      .NumFields  = 1,
+      .BitSize    = NULL,
+      .BitOffset  = NULL,
+      .TotalBits  = 0,
+      .TotalBytes = 0,
+  };
+
+  // A twelve-level repetition of count 64 overflows while measuring.
+  AppendNestedRepeatedFormat(A12, &Position, 64, 64, 12);
+  CompiledFormat.FormatCopy = A12;
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  Position = 0;
+  AppendNestedRepeatedFormat(A63, &Position, 2, 2, 62);
+
+  // Two 2^63-field groups overflow when their counts are added.
+  Position = 0;
+  AppendText(Format, &Position, "1R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, ")");
+  CompiledFormat.FormatCopy = Format;
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  // A maximum-count sequence followed by a plain field overflows the plain
+  // field count.
+  BuildMaximumFieldCountSequence(Maximum, &GroupCount);
+  Position = 0;
+  AppendText(Format, &Position, "1R(");
+  AppendText(Format, &Position, Maximum);
+  AppendText(Format, &Position, "|1)");
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "1.1") == SIZE_MAX);
+
+  // A selected repetition copy overflows the base plus offset sum.
+  Position = 0;
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|2R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|2R(1))");
+  CompiledFormat.FormatCopy = Format;
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "3.3.1") == SIZE_MAX);
+
+  // A selected repetition copy overflows the candidate plus copy offset sum.
+  Position = 0;
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|2R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, ")");
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "4.1") == SIZE_MAX);
+
+  // Skipping repetition copies overflows the accumulated copy offset.
+  Position = 0;
+  AppendText(Format, &Position, "2R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, ")");
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "3") == SIZE_MAX);
+
+  // Skipping a repetition overflows the accumulated flat offset.
+  Position = 0;
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|1R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, ")");
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "4") == SIZE_MAX);
+
+  // Selecting a plain field overflows the base plus offset sum.
+  Position = 0;
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|2R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, "|1)");
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, "3.3") == SIZE_MAX);
+
+  // Skipping a plain field overflows when the offset is already SIZE_MAX.
+  Position = 0;
+  AppendText(Format, &Position, Maximum);
+  AppendText(Format, &Position, "|1");
+  CompiledFormat.FormatCopy = Format;
+  AppendDecimal(Path, &PathLength, GroupCount + 2);
+  ASSERT(GetMCIMessageFieldId(&CompiledFormat, Path) == SIZE_MAX);
 }
 
 TEST(CompileMCIFormat_BadInput) {
@@ -245,7 +520,14 @@ TEST(EncodeMCIMessage_RejectsMalformedCompiledFormat) {
   size_t            BitOffset[2]   = {0, 3};
   uint8_t           Message[2]     = {0xAA, 0xBB};
   const uint8_t     Expected[2]    = {0xAA, 0xBB};
-  MCICompiledFormat CompiledFormat = {2, BitSize, BitOffset, 8, 1};
+  MCICompiledFormat CompiledFormat = {
+      .FormatCopy = NULL,
+      .NumFields  = 2,
+      .BitSize    = BitSize,
+      .BitOffset  = BitOffset,
+      .TotalBits  = 8,
+      .TotalBytes = 1,
+  };
 
   CompiledFormat.BitSize = NULL;
   ASSERT(!EncodeMCIMessage(&CompiledFormat, 2, Message, 0, MSB_FIRST, 0));
@@ -309,7 +591,14 @@ TEST(DecodeMCIMessage_RejectsMalformedCompiledFormat) {
   size_t            BitOffset[2]   = {0, 3};
   const uint8_t     Message[2]     = {0xFF, 0xFF};
   size_t            Value          = SIZE_MAX;
-  MCICompiledFormat CompiledFormat = {2, BitSize, BitOffset, 8, 1};
+  MCICompiledFormat CompiledFormat = {
+      .FormatCopy = NULL,
+      .NumFields  = 2,
+      .BitSize    = BitSize,
+      .BitOffset  = BitOffset,
+      .TotalBits  = 8,
+      .TotalBytes = 1,
+  };
 
   CompiledFormat.BitSize = NULL;
   ASSERT(!DecodeMCIMessage(&CompiledFormat, 2, Message, 0, MSB_FIRST, &Value));
@@ -364,6 +653,10 @@ TEST_SUITE(MCIStructuralContractSuite,
            FreeMCIFormat_NominalAndDoubleFree,
            GetMCIMessageByteSize_BadInput,
            GetMCIMessageFieldCount_BadInput,
+           GetMCIMessageFieldId_MaximumDepth,
+           GetMCIMessageFieldId_BadInput,
+           GetMCIMessageFieldId_RejectsMalformedCompiledFormat,
+           GetMCIMessageFieldId_RejectsOverflowingFormats,
            CompileMCIFormat_BadInput,
            CompileMCIFormat_PartialFailureCleanup,
            CompileMCIFormat_RejectsZeroFieldsAndCounts,
@@ -375,11 +668,12 @@ TEST_SUITE(MCIStructuralContractSuite,
            DecodeMCIMessage_RejectsMalformedCompiledFormat,
            DecodeMCIMessage_DoesNotModifyMessage);
 
-// Allocation faults. The simple format "8|3|5" has three Core_Malloc calls
-// (expanded format, compiled record and bit-offset array) and one Core_Realloc
-// call per field. The offset loop and final byte rounding make the additive
-// fault-free call the nineteenth one; ipow and the per-field allocation-size
-// multiplication make the multiplicative fault-free call the eighth one.
+// Allocation faults. The simple format "8|3|5" has four Core_Malloc calls
+// (expanded format, compiled record, bit-offset array and retained format
+// string) and one Core_Realloc call per field. The offset loop, final byte
+// rounding and retained-format length calculation make the additive fault-free
+// call the twentieth one; ipow and the per-field allocation-size multiplication
+// make the multiplicative fault-free call the ninth one.
 TEST_F(StructuralCtx,
        CompileMCIFormat_MallocFail) {
   MCICompiledFormat *CompiledFormat = NULL;
@@ -393,7 +687,7 @@ TEST_F(StructuralCtx,
       break;
     }
   }
-  ASSERT(FailAt == 4);
+  ASSERT(FailAt == 5);
   ASSERT(CompiledFormat);
   if (CompiledFormat) {
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
@@ -435,7 +729,7 @@ TEST_F(StructuralCtx,
       break;
     }
   }
-  ASSERT(FailAt == 19);
+  ASSERT(FailAt == 20);
   ASSERT(CompiledFormat);
   if (CompiledFormat) {
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
@@ -456,7 +750,7 @@ TEST_F(StructuralCtx,
       break;
     }
   }
-  ASSERT(FailAt == 8);
+  ASSERT(FailAt == 9);
   ASSERT(CompiledFormat);
   if (CompiledFormat) {
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
@@ -477,7 +771,7 @@ TEST_F(StructuralCtx,
       break;
     }
   }
-  ASSERT(FailAt == 4);
+  ASSERT(FailAt == 5);
   ASSERT(CompiledFormat);
   if (CompiledFormat) {
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);

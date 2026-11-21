@@ -4,6 +4,7 @@
 #include <string.h>
 
 struct MCICompiledFormat {
+  char   *FormatCopy;
   size_t  NumFields;
   size_t *BitSize;
   size_t *BitOffset;
@@ -13,14 +14,20 @@ struct MCICompiledFormat {
 
 // Bounds a single repetition count and the recursion depth of nested
 // repetition groups so straightforward runaway formats are rejected early.
-static const size_t MCIExpansionCountLimit = 64;
-static const size_t MCIExpansionDepthLimit = 64;
+// MCISemanticIdMaxComponents is the largest possible path through an expanded
+// format: one component for the top-level group plus one per repetition level.
+enum {
+  MCIExpansionCountLimit     = 64,
+  MCIExpansionDepthLimit     = 64,
+  MCISemanticIdMaxComponents = MCIExpansionDepthLimit + 1
+};
 
 void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference) {
   if (!CompiledFormatReference) {
     return;
   }
   if (*CompiledFormatReference) {
+    free((*CompiledFormatReference)->FormatCopy);
     free((*CompiledFormatReference)->BitSize);
     free((*CompiledFormatReference)->BitOffset);
     free(*CompiledFormatReference);
@@ -260,6 +267,7 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
   size_t             NumFields;
   size_t             AllocSize = 0;
   size_t             BitSize;
+  size_t             FormatLength;
   void              *TmpAlloc = NULL;
   size_t             i;
   size_t             MaxRepresentable;
@@ -271,8 +279,6 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
 
   bool AllocatedExpandedFormat = false;
   bool AllocatedCompiledFormat = false;
-  bool AllocatedBitOffset      = false;
-  bool AllocatedBitSize        = false;
 
   if (!Format) {
     return NULL;
@@ -302,9 +308,10 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
   if (!CompiledFormat) {
     goto cleanup;
   }
-  AllocatedCompiledFormat   = true;
-  CompiledFormat->BitOffset = NULL;
-  CompiledFormat->BitSize   = NULL;
+  AllocatedCompiledFormat    = true;
+  CompiledFormat->FormatCopy = NULL;
+  CompiledFormat->BitOffset  = NULL;
+  CompiledFormat->BitSize    = NULL;
 
   NumFields = 0;
   while (Token) {
@@ -331,7 +338,6 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
       goto cleanup;
     }
     CompiledFormat->BitSize = (size_t *)TmpAlloc;
-    AllocatedBitSize        = true;
 
     // Write bit size.
     CompiledFormat->BitSize[NumFields - 1] = BitSize;
@@ -347,7 +353,6 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
   if (!CompiledFormat->BitOffset) {
     goto cleanup;
   }
-  AllocatedBitOffset = true;
 
   CompiledFormat->TotalBits = 0;
   for (i = 0; i < NumFields; i++) {
@@ -364,14 +369,27 @@ MCICompiledFormat *CompileMCIFormat(const char   Format[],
   }
   CompiledFormat->TotalBytes = CompiledFormat->TotalBytes / 8;
 
+  FormatLength = strlen(Format);
+  if (Core_AddOverflow(FormatLength, 1, &FormatLength)) {
+    goto cleanup;
+  }
+  if (Core_MulOverflow(FormatLength, sizeof(char), &AllocSize)) {
+    goto cleanup;
+  }
+  CompiledFormat->FormatCopy = (char *)Core_Malloc(AllocSize);
+  if (!CompiledFormat->FormatCopy) {
+    goto cleanup;
+  }
+  memcpy(CompiledFormat->FormatCopy, Format, FormatLength);
+
   return CompiledFormat;
 cleanup:
-  if (AllocatedBitSize)
-    free(CompiledFormat->BitSize);
-  if (AllocatedBitOffset)
+  if (AllocatedCompiledFormat) {
+    free(CompiledFormat->FormatCopy);
     free(CompiledFormat->BitOffset);
-  if (AllocatedCompiledFormat)
+    free(CompiledFormat->BitSize);
     free(CompiledFormat);
+  }
   if (AllocatedExpandedFormat)
     free(ExpandedFormat);
   return NULL;
@@ -389,6 +407,257 @@ size_t GetMCIMessageFieldCount(const MCICompiledFormat *CompiledFormat) {
     return 0;
   }
   return CompiledFormat->NumFields;
+}
+
+static bool ParseSemanticId(const char *SemanticId,
+                            size_t      Components[],
+                            size_t     *ComponentCount) {
+  const char *ComponentStart;
+  const char *Cursor;
+  size_t      Count = 0;
+  size_t      Digit;
+  size_t      Value;
+
+  if (*SemanticId == '\0') {
+    return false;
+  }
+
+  Cursor = SemanticId;
+  for (;;) {
+    ComponentStart = Cursor;
+    Value          = 0;
+    while (('0' <= *Cursor) && (*Cursor <= '9')) {
+      Digit = (size_t)(*Cursor - '0');
+      if (Core_MulOverflow(Value, 10, &Value)) {
+        return false;
+      }
+      if (Core_AddOverflow(Value, Digit, &Value)) {
+        return false;
+      }
+      Cursor++;
+    }
+    if (Cursor == ComponentStart) {
+      return false;
+    }
+    if (((size_t)(Cursor - ComponentStart) > 1) && (ComponentStart[0] == '0')) {
+      return false;
+    }
+    if (Value == 0) {
+      return false;
+    }
+    if (Count >= MCISemanticIdMaxComponents) {
+      return false;
+    }
+    Components[Count++] = Value;
+
+    if (*Cursor == '\0') {
+      break;
+    }
+    if (*Cursor != '.') {
+      return false;
+    }
+    Cursor++;
+  }
+
+  *ComponentCount = Count;
+  return true;
+}
+
+// Measures one format sequence without expanding it. End points at the ')' or
+// '\0' that terminates the sequence on success.
+static bool MeasureFormatSequence(const char  *Cursor,
+                                  size_t      *FieldCount,
+                                  const char **End,
+                                  const size_t NestingDepth) {
+  const char *FieldStart;
+  const char *InnerEnd;
+  size_t      FieldLength;
+  size_t      Count;
+  size_t      InnerCount;
+  size_t      Product;
+  size_t      Total = 0;
+
+  if (NestingDepth > MCIExpansionDepthLimit) {
+    return false;
+  }
+
+  for (;;) {
+    FieldStart = Cursor;
+    while (('0' <= *Cursor) && (*Cursor <= '9')) {
+      Cursor++;
+    }
+    if (Cursor == FieldStart) {
+      return false;
+    }
+    FieldLength = (size_t)(Cursor - FieldStart);
+
+    if (*Cursor == 'R') {
+      if (Cursor[1] != '(') {
+        return false;
+      }
+      if (!ParseRepetitionCount(FieldStart, FieldLength, &Count)) {
+        return false;
+      }
+      if (!MeasureFormatSequence(Cursor + 2, &InnerCount, &InnerEnd,
+                                 NestingDepth + 1)) {
+        return false;
+      }
+      if (*InnerEnd != ')') {
+        return false;
+      }
+      if (Core_MulOverflow(Count, InnerCount, &Product)) {
+        return false;
+      }
+      if (Core_AddOverflow(Total, Product, &Total)) {
+        return false;
+      }
+      Cursor = InnerEnd + 1;
+    } else if ((*Cursor == '\0') || (*Cursor == ')') || (*Cursor == '|')) {
+      if (Core_AddOverflow(Total, 1, &Total)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    if (*Cursor == '|') {
+      Cursor++;
+      continue;
+    }
+    if ((*Cursor != '\0') && (*Cursor != ')')) {
+      return false;
+    }
+    *FieldCount = Total;
+    *End        = Cursor;
+    return true;
+  }
+}
+
+// Resolves one group at the current format level, descending into a repetition
+// copy when Components[0] selects it. BaseFlatIndex is the flat index of the
+// first field in Cursor.
+static bool ResolveSemanticSequence(const char  *Cursor,
+                                    const size_t Components[],
+                                    size_t       ComponentCount,
+                                    size_t       BaseFlatIndex,
+                                    size_t      *FieldId,
+                                    const size_t NestingDepth) {
+  const char *FieldStart;
+  const char *InnerEnd;
+  size_t      FieldLength;
+  size_t      Count;
+  size_t      InnerCount;
+  size_t      CopyIndex;
+  size_t      CopyOffset;
+  size_t      Candidate;
+  size_t      Offset     = 0;
+  size_t      GroupIndex = 1;
+
+  for (;;) {
+    FieldStart = Cursor;
+    while (('0' <= *Cursor) && (*Cursor <= '9')) {
+      Cursor++;
+    }
+    if (Cursor == FieldStart) {
+      return false;
+    }
+    FieldLength = (size_t)(Cursor - FieldStart);
+
+    if (*Cursor == 'R') {
+      if (Cursor[1] != '(') {
+        return false;
+      }
+      if (!ParseRepetitionCount(FieldStart, FieldLength, &Count)) {
+        return false;
+      }
+      if (!MeasureFormatSequence(Cursor + 2, &InnerCount, &InnerEnd,
+                                 NestingDepth + 1)) {
+        return false;
+      }
+      if (*InnerEnd != ')') {
+        return false;
+      }
+
+      CopyOffset = 0;
+      for (CopyIndex = 0; CopyIndex < Count; CopyIndex++) {
+        if (GroupIndex == Components[0]) {
+          if (ComponentCount < 2) {
+            return false;
+          }
+          if (Core_AddOverflow(BaseFlatIndex, Offset, &Candidate)) {
+            return false;
+          }
+          if (Core_AddOverflow(Candidate, CopyOffset, &Candidate)) {
+            return false;
+          }
+          if (ResolveSemanticSequence(Cursor + 2, Components + 1,
+                                      ComponentCount - 1, Candidate, FieldId,
+                                      NestingDepth + 1)) {
+            return true;
+          }
+          return false;
+        }
+        GroupIndex++;
+        if (Core_AddOverflow(CopyOffset, InnerCount, &CopyOffset)) {
+          return false;
+        }
+      }
+      if (Core_AddOverflow(Offset, CopyOffset, &Offset)) {
+        return false;
+      }
+      Cursor = InnerEnd + 1;
+    } else if ((*Cursor == '\0') || (*Cursor == ')') || (*Cursor == '|')) {
+      if (GroupIndex == Components[0]) {
+        if (ComponentCount != 1) {
+          return false;
+        }
+        if (Core_AddOverflow(BaseFlatIndex, Offset, FieldId)) {
+          return false;
+        }
+        return true;
+      }
+      GroupIndex++;
+      if (Core_AddOverflow(Offset, 1, &Offset)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    if (*Cursor == '|') {
+      Cursor++;
+      continue;
+    }
+    return false;
+  }
+}
+
+size_t GetMCIMessageFieldId(const MCICompiledFormat *CompiledFormat,
+                            const char               SemanticId[]) {
+  size_t Components[MCISemanticIdMaxComponents];
+  size_t ComponentCount;
+  size_t FieldId;
+
+  if (!CompiledFormat) {
+    return SIZE_MAX;
+  }
+  if (!SemanticId) {
+    return SIZE_MAX;
+  }
+  if (!CompiledFormat->FormatCopy) {
+    return SIZE_MAX;
+  }
+  if (!ParseSemanticId(SemanticId, Components, &ComponentCount)) {
+    return SIZE_MAX;
+  }
+  if (!ResolveSemanticSequence(CompiledFormat->FormatCopy, Components,
+                               ComponentCount, 0, &FieldId, 0)) {
+    return SIZE_MAX;
+  }
+  if (FieldId >= CompiledFormat->NumFields) {
+    return SIZE_MAX;
+  }
+  return FieldId;
 }
 
 static bool IsEncodingValid(const EncodingLayout Encoding) {

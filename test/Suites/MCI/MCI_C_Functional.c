@@ -243,13 +243,178 @@ TEST(MCICompile_AccessorsAndFree) {
   ASSERT(CompiledFormat == NULL);
 }
 
+TEST(MCISemanticFieldId_RepeatedGroups) {
+  static const struct {
+    const char *SemanticId;
+    size_t      FieldId;
+  } Cases[] = {
+      {"1", 0}, {"2.1", 1}, {"2.2", 2}, {"3.1", 3}, {"3.2", 4},
+  };
+  MCICompiledFormat *CompiledFormat = CompileForTest("7|2R(3|5)", 7);
+  size_t             i;
+
+  if (!CompiledFormat) {
+    return;
+  }
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    ASSERT(GetMCIMessageFieldId(CompiledFormat, Cases[i].SemanticId) ==
+           Cases[i].FieldId);
+  }
+
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.3") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.1.1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "4.1") == SIZE_MAX);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCISemanticFieldId_TopLevelAndSingleFieldGroups) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("7|8", 8);
+
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1") == 0);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2") == 1);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "3") == SIZE_MAX);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileForTest("2R(7)", 7);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == 0);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.1") == 1);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "3.1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.2") == SIZE_MAX);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCISemanticFieldId_NestedAndTrailingGroups) {
+  static const struct {
+    const char *SemanticId;
+    size_t      FieldId;
+  } NestedCases[] = {
+      {"1.1.1", 0}, {"1.1.2", 1}, {"1.2.1", 2},  {"1.2.2", 3},
+      {"1.3.1", 4}, {"1.3.2", 5}, {"2.1.1", 6},  {"2.1.2", 7},
+      {"2.2.1", 8}, {"2.2.2", 9}, {"2.3.1", 10}, {"2.3.2", 11},
+  };
+  MCICompiledFormat *CompiledFormat = CompileForTest("2R(3R(4|5))", 5);
+  size_t             i;
+
+  if (!CompiledFormat) {
+    return;
+  }
+  for (i = 0; i < (sizeof(NestedCases) / sizeof(NestedCases[0])); i++) {
+    ASSERT(GetMCIMessageFieldId(CompiledFormat, NestedCases[i].SemanticId) ==
+           NestedCases[i].FieldId);
+  }
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "3.1.1") == SIZE_MAX);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.4.1") == SIZE_MAX);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileForTest("2R(3|5)|9", 9);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == 0);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.2") == 1);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.1") == 2);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.2") == 3);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "3") == 4);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "4") == SIZE_MAX);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCISemanticFieldId_InvalidIdentifiers) {
+  static const char *const Cases[] = {
+      "",
+      "0",
+      "01",
+      "1.",
+      ".1",
+      "1..2",
+      "1.0",
+      "1x",
+      " 1",
+      "+1",
+      "-1",
+      "1 2",
+      "18446744073709551616",
+      "99999999999999999999",
+  };
+  MCICompiledFormat *CompiledFormat = CompileForTest("7|2R(3|5)", 7);
+  size_t             i;
+
+  if (!CompiledFormat) {
+    return;
+  }
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    ASSERT(GetMCIMessageFieldId(CompiledFormat, Cases[i]) == SIZE_MAX);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCISemanticFieldId_OwnsFormatCopy) {
+  char               Format[]       = "7|2R(3|5)";
+  MCICompiledFormat *CompiledFormat = CompileForTest(Format, 7);
+
+  if (!CompiledFormat) {
+    return;
+  }
+  memset(Format, '\0', sizeof(Format));
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.2") == 2);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "3.2") == 4);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCISemanticFieldId_IntegratesWithCodec) {
+  static const struct {
+    const char *SemanticId;
+    size_t      Value;
+  } Cases[] = {
+      {"1", 0x55}, {"2.1", 2}, {"2.2", 0x11}, {"3.1", 5}, {"3.2", 0x1E},
+  };
+  MCICompiledFormat *CompiledFormat = CompileForTest("7|2R(3|5)", 7);
+  uint8_t            Message[3]     = {0};
+  size_t             FieldId;
+  size_t             Decoded;
+  size_t             i;
+
+  if (!CompiledFormat) {
+    return;
+  }
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    FieldId = GetMCIMessageFieldId(CompiledFormat, Cases[i].SemanticId);
+    ASSERT(FieldId < GetMCIMessageFieldCount(CompiledFormat));
+    ASSERT(EncodeMCIMessage(CompiledFormat, sizeof(Message), Message, FieldId,
+                            MSB_FIRST, Cases[i].Value));
+    Decoded = SIZE_MAX;
+    ASSERT(DecodeMCIMessage(CompiledFormat, sizeof(Message), Message, FieldId,
+                            MSB_FIRST, &Decoded));
+    ASSERT(Decoded == Cases[i].Value);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
 TEST_SUITE(MCICompileFunctionalSuite,
            MCICompile_ValidSizes,
            MCICompile_InvalidFormats,
            MCICompile_FieldLimits,
            MCICompile_OverflowRejected,
            MCICompile_FieldCount,
-           MCICompile_AccessorsAndFree);
+           MCICompile_AccessorsAndFree,
+           MCISemanticFieldId_RepeatedGroups,
+           MCISemanticFieldId_TopLevelAndSingleFieldGroups,
+           MCISemanticFieldId_NestedAndTrailingGroups,
+           MCISemanticFieldId_InvalidIdentifiers,
+           MCISemanticFieldId_OwnsFormatCopy,
+           MCISemanticFieldId_IntegratesWithCodec);
 
 TEST(MCIEncode_MSB_FIRST) {
   static const size_t  One[]           = {1};
