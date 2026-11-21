@@ -46,6 +46,7 @@ module GraphUtilities
     final                            :: FortranFreeGraphSupportBuilder_Final
   end type GraphSupportBuilder
 
+  !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyGraphSupportBuilder(Copy, Original)
       class(GraphSupportBuilder), intent(out) :: Copy
@@ -178,6 +179,7 @@ module GraphUtilities
     final                            :: FortranFreeGraphSupport_Final
   end type GraphSupport
 
+  !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyGraphSupport(Copy, Original)
       class(GraphSupport), intent(out) :: Copy
@@ -330,6 +332,7 @@ module GraphUtilities
     final                              :: FortranFreeGraphWorkspace_Final
   end type GraphWorkspace
 
+  !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyGraphWorkspace(Copy, Original)
       class(GraphWorkspace), intent(out) :: Copy
