@@ -43,14 +43,6 @@ CONTEXT(StructuralCtx,
         StructuralTeardown,
         (size_t)0);
 
-static MCICompiledFormat *
-CompileForStructuralTest(const char  *Format,
-                         const size_t MaxFieldBitSize) {
-  MCICompiledFormat *CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
-  ASSERT(CompiledFormat);
-  return CompiledFormat;
-}
-
 static void BuildNestedFormat(char        *Buffer,
                               const size_t Depth,
                               const char  *Field) {
@@ -162,10 +154,8 @@ TEST(FreeMCIFormat_BadInput) {
 TEST(FreeMCIFormat_NominalAndDoubleFree) {
   MCICompiledFormat *CompiledFormat = NULL;
 
-  CompiledFormat = CompileForStructuralTest("8|8", 8);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("8|8", 8);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageBitSize(CompiledFormat) == 16);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
   ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 2);
@@ -194,10 +184,8 @@ TEST(GetMCIMessageFieldId_MaximumDepth) {
 
   BuildNestedFormat(Format, 64, "1");
   BuildSemanticPath(Path, 65);
-  CompiledFormat = CompileForStructuralTest(Format, 1);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat(Format, 1);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, Path) == 0);
 
   BuildSemanticPath(Path, 66);
@@ -206,11 +194,8 @@ TEST(GetMCIMessageFieldId_MaximumDepth) {
 }
 
 TEST(GetMCIMessageFieldId_BadInput) {
-  MCICompiledFormat *CompiledFormat = CompileForStructuralTest("7|8", 8);
-
-  if (!CompiledFormat) {
-    return;
-  }
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|8", 8);
+  ASSERT_X(CompiledFormat);
 
   ASSERT(GetMCIMessageFieldId(NULL, "1") == SIZE_MAX);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, NULL) == SIZE_MAX);
@@ -440,11 +425,9 @@ TEST(CompileMCIFormat_RejectsExcessiveNesting) {
 
   BuildNestedFormat(Format, 64, "8");
   CompiledFormat = CompileMCIFormat(Format, 8);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
+  FreeMCIFormat(&CompiledFormat);
 
   BuildNestedFormat(Format, 65, "8");
   CompiledFormat = CompileMCIFormat(Format, 8);
@@ -456,12 +439,10 @@ TEST(CompileMCIFormat_RejectsExcessiveRepetition) {
   MCICompiledFormat *CompiledFormat;
 
   CompiledFormat = CompileMCIFormat("64R(1)", 1);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 64);
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 8);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 64);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 8);
+  FreeMCIFormat(&CompiledFormat);
 
   CompiledFormat = CompileMCIFormat("65R(1)", 1);
   ASSERT(!CompiledFormat);
@@ -497,10 +478,8 @@ TEST(EncodeMCIMessage_InvalidArgumentsPreserveMessage) {
   uint8_t            Message[2]  = {0xAA, 0xBB};
   const uint8_t      Expected[2] = {0xAA, 0xBB};
 
-  CompiledFormat = CompileForStructuralTest("3|5", 5);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("3|5", 5);
+  ASSERT_X(CompiledFormat);
 
   ASSERT(!EncodeMCIMessage(NULL, 2, Message, 0, MSB_FIRST, 0));
   ASSERT(!EncodeMCIMessage(CompiledFormat, 2, NULL, 0, MSB_FIRST, 0));
@@ -568,10 +547,8 @@ TEST(DecodeMCIMessage_InvalidArgumentsPreserveValue) {
   const uint8_t      Message[2] = {0xFF, 0xFF};
   size_t             Value      = SIZE_MAX;
 
-  CompiledFormat = CompileForStructuralTest("3|5", 5);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("3|5", 5);
+  ASSERT_X(CompiledFormat);
 
   ASSERT(!DecodeMCIMessage(NULL, 2, Message, 0, MSB_FIRST, &Value));
   ASSERT(!DecodeMCIMessage(CompiledFormat, 2, NULL, 0, MSB_FIRST, &Value));
@@ -638,10 +615,8 @@ TEST(DecodeMCIMessage_DoesNotModifyMessage) {
   const uint8_t      Expected[2] = {0xA5, 0x5A};
   size_t             Value;
 
-  CompiledFormat = CompileForStructuralTest("3|5", 5);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("3|5", 5);
+  ASSERT_X(CompiledFormat);
 
   Value = SIZE_MAX;
   ASSERT(DecodeMCIMessage(CompiledFormat, 2, Message, 0, MSB_FIRST, &Value));
@@ -692,11 +667,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt == 5);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -713,11 +686,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt == 4);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -734,11 +705,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt == 20);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -755,11 +724,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt == 9);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -776,11 +743,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt == 5);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
+  FreeMCIFormat(&CompiledFormat);
 
   ResetFallibleMalloc();
   for (FailAt = 1; FailAt <= 8; FailAt++) {
@@ -791,11 +756,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt == 6);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -812,11 +775,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt > 1);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -833,11 +794,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt > 1);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 2);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_F(StructuralCtx,
@@ -854,11 +813,9 @@ TEST_F(StructuralCtx,
     }
   }
   ASSERT(FailAt > 1);
-  ASSERT(CompiledFormat);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 4);
+  FreeMCIFormat(&CompiledFormat);
 }
 
 TEST_SUITE(MCIStructuralAllocationSuite,

@@ -5,13 +5,6 @@
 #include <stdint.h>
 #include <string.h>
 
-static MCICompiledFormat *CompileForTest(const char  *Format,
-                                         const size_t MaxFieldBitSize) {
-  MCICompiledFormat *CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
-  ASSERT(CompiledFormat != NULL);
-  return CompiledFormat;
-}
-
 static void ExpectBytes(const char          *Format,
                         const size_t         MaxFieldBitSize,
                         const EncodingLayout Encoding,
@@ -23,16 +16,10 @@ static void ExpectBytes(const char          *Format,
   uint8_t            Message[32] = {0};
   size_t             i;
 
-  CompiledFormat = CompileForTest(Format, MaxFieldBitSize);
-  if (!CompiledFormat) {
-    return;
-  }
-  ASSERT(GetMCIMessageByteSize(CompiledFormat) == ExpectedSize);
-  ASSERT(ExpectedSize <= sizeof(Message));
-  if (ExpectedSize > sizeof(Message)) {
-    FreeMCIFormat(&CompiledFormat);
-    return;
-  }
+  CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
+  ASSERT_X(CompiledFormat);
+  ASSERT_X(GetMCIMessageByteSize(CompiledFormat) == ExpectedSize);
+  ASSERT_X(ExpectedSize <= sizeof(Message));
   for (i = 0; i < NumFields; i++) {
     ASSERT(EncodeMCIMessage(CompiledFormat, ExpectedSize, Message, i, Encoding,
                             Values[i]));
@@ -52,11 +39,9 @@ static void ExpectDecoded(const char          *Format,
   size_t             Value;
   size_t             i;
 
-  CompiledFormat = CompileForTest(Format, MaxFieldBitSize);
-  if (!CompiledFormat) {
-    return;
-  }
-  ASSERT(GetMCIMessageByteSize(CompiledFormat) == MessageSize);
+  CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
+  ASSERT_X(CompiledFormat);
+  ASSERT_X(GetMCIMessageByteSize(CompiledFormat) == MessageSize);
   for (i = 0; i < NumFields; i++) {
     Value = SIZE_MAX;
     ASSERT(DecodeMCIMessage(CompiledFormat, MessageSize, Message, i, Encoding,
@@ -89,17 +74,11 @@ static void ExpectRoundTrip(const char          *Format,
   size_t             Value;
   size_t             i;
 
-  CompiledFormat = CompileForTest(Format, MaxFieldBitSize);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
+  ASSERT_X(CompiledFormat);
   MessageSize = GetMCIMessageByteSize(CompiledFormat);
-  ASSERT(MessageSize > 0);
-  ASSERT(MessageSize <= sizeof(Message));
-  if ((MessageSize == 0) || (MessageSize > sizeof(Message))) {
-    FreeMCIFormat(&CompiledFormat);
-    return;
-  }
+  ASSERT_X(MessageSize > 0);
+  ASSERT_X(MessageSize <= sizeof(Message));
   for (i = 0; i < NumFields; i++) {
     ASSERT(EncodeMCIMessage(CompiledFormat, MessageSize, Message, i, Encoding,
                             Values[i]));
@@ -142,10 +121,9 @@ TEST(MCICompile_ValidSizes) {
   size_t             i;
 
   for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
-    CompiledFormat = CompileForTest(Cases[i].Format, Cases[i].MaxFieldBitSize);
-    if (!CompiledFormat) {
-      continue;
-    }
+    CompiledFormat =
+        CompileMCIFormat(Cases[i].Format, Cases[i].MaxFieldBitSize);
+    ASSERT_X(CompiledFormat);
     ASSERT(GetMCIMessageBitSize(CompiledFormat) == Cases[i].BitSize);
     ASSERT(GetMCIMessageByteSize(CompiledFormat) == Cases[i].ByteSize);
     FreeMCIFormat(&CompiledFormat);
@@ -181,19 +159,17 @@ TEST(MCICompile_FieldLimits) {
   ASSERT(CompiledFormat == NULL);
   FreeMCIFormat(&CompiledFormat);
 
-  CompiledFormat = CompileForTest("1", 1);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageBitSize(CompiledFormat) == 1);
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  CompiledFormat = CompileMCIFormat("1", 1);
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 1);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
+  FreeMCIFormat(&CompiledFormat);
 
-  CompiledFormat = CompileForTest("8", 8);
-  if (CompiledFormat) {
-    ASSERT(GetMCIMessageBitSize(CompiledFormat) == 8);
-    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
-    FreeMCIFormat(&CompiledFormat);
-  }
+  CompiledFormat = CompileMCIFormat("8", 8);
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 8);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
+  FreeMCIFormat(&CompiledFormat);
 
   CompiledFormat = CompileMCIFormat("9", 8);
   ASSERT(CompiledFormat == NULL);
@@ -222,19 +198,15 @@ TEST(MCICompile_FieldCount) {
 
   ASSERT(GetMCIMessageFieldCount(NULL) == 0);
 
-  CompiledFormat = CompileForTest("8|2R(2|3)", 8);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("8|2R(2|3)", 8);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 5);
   ASSERT(GetMCIMessageBitSize(CompiledFormat) == 18);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 3);
   FreeMCIFormat(&CompiledFormat);
 
-  CompiledFormat = CompileForTest("64R(1)", 1);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("64R(1)", 1);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 64);
   ASSERT(GetMCIMessageBitSize(CompiledFormat) == 64);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 8);
@@ -250,10 +222,8 @@ TEST(MCICompile_AccessorsAndFree) {
   FreeMCIFormat(&CompiledFormat);
   ASSERT(CompiledFormat == NULL);
 
-  CompiledFormat = CompileForTest("8", 8);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("8", 8);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageBitSize(CompiledFormat) == 8);
   ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
   FreeMCIFormat(&CompiledFormat);
@@ -269,12 +239,10 @@ TEST(MCISemanticFieldId_RepeatedGroups) {
   } Cases[] = {
       {"1", 0}, {"2.1", 1}, {"2.2", 2}, {"3.1", 3}, {"3.2", 4},
   };
-  MCICompiledFormat *CompiledFormat = CompileForTest("7|2R(3|5)", 7);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|2R(3|5)", 7);
   size_t             i;
+  ASSERT_X(CompiledFormat);
 
-  if (!CompiledFormat) {
-    return;
-  }
   for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
     ASSERT(GetMCIMessageFieldId(CompiledFormat, Cases[i].SemanticId) ==
            Cases[i].FieldId);
@@ -290,21 +258,17 @@ TEST(MCISemanticFieldId_RepeatedGroups) {
 }
 
 TEST(MCISemanticFieldId_TopLevelAndSingleFieldGroups) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("7|8", 8);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|8", 8);
+  ASSERT_X(CompiledFormat);
 
-  if (!CompiledFormat) {
-    return;
-  }
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1") == 0);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "2") == 1);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == SIZE_MAX);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "3") == SIZE_MAX);
   FreeMCIFormat(&CompiledFormat);
 
-  CompiledFormat = CompileForTest("2R(7)", 7);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("2R(7)", 7);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == 0);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.1") == 1);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1") == SIZE_MAX);
@@ -322,12 +286,10 @@ TEST(MCISemanticFieldId_NestedAndTrailingGroups) {
       {"1.3.1", 4}, {"1.3.2", 5}, {"2.1.1", 6},  {"2.1.2", 7},
       {"2.2.1", 8}, {"2.2.2", 9}, {"2.3.1", 10}, {"2.3.2", 11},
   };
-  MCICompiledFormat *CompiledFormat = CompileForTest("2R(3R(4|5))", 5);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("2R(3R(4|5))", 5);
   size_t             i;
+  ASSERT_X(CompiledFormat);
 
-  if (!CompiledFormat) {
-    return;
-  }
   for (i = 0; i < (sizeof(NestedCases) / sizeof(NestedCases[0])); i++) {
     ASSERT(GetMCIMessageFieldId(CompiledFormat, NestedCases[i].SemanticId) ==
            NestedCases[i].FieldId);
@@ -337,10 +299,8 @@ TEST(MCISemanticFieldId_NestedAndTrailingGroups) {
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.4.1") == SIZE_MAX);
   FreeMCIFormat(&CompiledFormat);
 
-  CompiledFormat = CompileForTest("2R(3|5)|9", 9);
-  if (!CompiledFormat) {
-    return;
-  }
+  CompiledFormat = CompileMCIFormat("2R(3|5)|9", 9);
+  ASSERT_X(CompiledFormat);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.1") == 0);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "1.2") == 1);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.1") == 2);
@@ -367,12 +327,10 @@ TEST(MCISemanticFieldId_InvalidIdentifiers) {
       "18446744073709551616",
       "99999999999999999999",
   };
-  MCICompiledFormat *CompiledFormat = CompileForTest("7|2R(3|5)", 7);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|2R(3|5)", 7);
   size_t             i;
+  ASSERT_X(CompiledFormat);
 
-  if (!CompiledFormat) {
-    return;
-  }
   for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
     ASSERT(GetMCIMessageFieldId(CompiledFormat, Cases[i]) == SIZE_MAX);
   }
@@ -381,11 +339,9 @@ TEST(MCISemanticFieldId_InvalidIdentifiers) {
 
 TEST(MCISemanticFieldId_OwnsFormatCopy) {
   char               Format[]       = "7|2R(3|5)";
-  MCICompiledFormat *CompiledFormat = CompileForTest(Format, 7);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat(Format, 7);
+  ASSERT_X(CompiledFormat);
 
-  if (!CompiledFormat) {
-    return;
-  }
   memset(Format, '\0', sizeof(Format));
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "2.2") == 2);
   ASSERT(GetMCIMessageFieldId(CompiledFormat, "3.2") == 4);
@@ -399,15 +355,13 @@ TEST(MCISemanticFieldId_IntegratesWithCodec) {
   } Cases[] = {
       {"1", 0x55}, {"2.1", 2}, {"2.2", 0x11}, {"3.1", 5}, {"3.2", 0x1E},
   };
-  MCICompiledFormat *CompiledFormat = CompileForTest("7|2R(3|5)", 7);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|2R(3|5)", 7);
   uint8_t            Message[3]     = {0};
   size_t             FieldId;
   size_t             Decoded;
   size_t             i;
+  ASSERT_X(CompiledFormat);
 
-  if (!CompiledFormat) {
-    return;
-  }
   for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
     FieldId = GetMCIMessageFieldId(CompiledFormat, Cases[i].SemanticId);
     ASSERT(FieldId < GetMCIMessageFieldCount(CompiledFormat));
@@ -506,12 +460,9 @@ TEST(MCIEncode_LSB_FIRST) {
 }
 
 TEST(MCIEncode_PreservesBits) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("3", 3);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("3", 3);
   uint8_t            Message[1];
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   Message[0] = 0xFF;
   ASSERT(EncodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, 0));
@@ -533,12 +484,9 @@ TEST(MCIEncode_PreservesBits) {
 }
 
 TEST(MCIEncode_PreservesOtherFields) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("8|8", 8);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("8|8", 8);
   uint8_t            Message[3]     = {0xAA, 0xBB, 0xCC};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ASSERT(EncodeMCIMessage(CompiledFormat, 3, Message, 0, MSB_FIRST, 0x12));
   ASSERT(Message[0] == 0x12);
@@ -554,12 +502,9 @@ TEST(MCIEncode_PreservesOtherFields) {
 }
 
 TEST(MCIEncode_RejectsSmallBuffer) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("8|8", 8);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("8|8", 8);
   uint8_t            Message[2]     = {0xAA, 0xBB};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ASSERT(!EncodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, 0x12));
   ASSERT(Message[0] == 0xAA);
@@ -573,12 +518,9 @@ TEST(MCIEncode_RejectsSmallBuffer) {
 }
 
 TEST(MCIEncode_InvalidInputs) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("4", 4);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("4", 4);
   uint8_t            Message[1]     = {0xAA};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ASSERT(!EncodeMCIMessage(NULL, 1, Message, 0, MSB_FIRST, 0));
   ASSERT(!EncodeMCIMessage(CompiledFormat, 1, NULL, 0, MSB_FIRST, 0));
@@ -596,13 +538,10 @@ TEST(MCIEncode_InvalidInputs) {
 }
 
 TEST(MCIEncode_ValueRange) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("4", 4);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("4", 4);
   uint8_t            MSBMessage[1]  = {0};
   uint8_t            LSBMessage[1]  = {0};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ASSERT(EncodeMCIMessage(CompiledFormat, 1, MSBMessage, 0, MSB_FIRST, 15));
   ASSERT(MSBMessage[0] == 0xF0);
@@ -621,12 +560,9 @@ TEST(MCIEncode_ValueRange) {
 }
 
 TEST(MCIEncode_WideRange) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("24", 24);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("24", 24);
   uint8_t            Message[3]     = {0};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ASSERT(EncodeMCIMessage(CompiledFormat, 3, Message, 0, MSB_FIRST, 0xFFFFFF));
   ASSERT(Message[0] == 0xFF);
@@ -730,13 +666,10 @@ TEST(MCIDecode_LSB_FIRST) {
 }
 
 TEST(MCIDecode_IgnoresPadding) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("3", 3);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("3", 3);
   uint8_t            Message[1];
   size_t             Value;
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   Message[0] = 0x1F;
   Value      = SIZE_MAX;
@@ -772,13 +705,10 @@ TEST(MCIDecode_IgnoresPadding) {
 }
 
 TEST(MCIDecode_AcceptsExtraBytes) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("8", 8);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("8", 8);
   const uint8_t      Message[]      = {0x12, 0x34};
   size_t             Value;
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   Value = SIZE_MAX;
   ASSERT(DecodeMCIMessage(CompiledFormat, 2, Message, 0, MSB_FIRST, &Value));
@@ -792,12 +722,9 @@ TEST(MCIDecode_AcceptsExtraBytes) {
 }
 
 TEST(MCIDecode_RejectsSmallBuffer) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("8|8", 8);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("8|8", 8);
   const uint8_t      Message[]      = {0x12, 0x34};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ExpectDecodeFailure(CompiledFormat, 1, Message, 0, MSB_FIRST);
   ExpectDecodeFailure(CompiledFormat, 0, Message, 0, MSB_FIRST);
@@ -806,12 +733,9 @@ TEST(MCIDecode_RejectsSmallBuffer) {
 }
 
 TEST(MCIDecode_InvalidInputs) {
-  MCICompiledFormat *CompiledFormat = CompileForTest("4", 4);
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("4", 4);
   const uint8_t      Message[]      = {0x0F};
-
-  if (!CompiledFormat) {
-    return;
-  }
+  ASSERT_X(CompiledFormat);
 
   ExpectDecodeFailure(NULL, 1, Message, 0, MSB_FIRST);
   ExpectDecodeFailure(CompiledFormat, 1, NULL, 0, MSB_FIRST);
