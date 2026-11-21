@@ -1,0 +1,812 @@
+#include "test/TSD/TSD_Fortran.h"
+#ifdef TSD_FORTRAN_IMPL
+#include "src/MCI/MessageCodingInterface.M90"
+#endif
+
+TEST_E(MCIFortranCompileAndAccessors)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat)      :: CompiledFormat
+  character(24)                :: Format
+  integer(C_SIZE_T), parameter :: InvalidFieldId = not(0_C_SIZE_T)
+
+  !A default-initialized wrapper owns no C-side state.
+  ASSERT(.not.CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 0_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 0_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "1", InvalidFieldId)
+
+  Format = "8|2R(2|3)"
+  call CompiledFormat%New(Format, 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 3_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 5_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "1", 0_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "2.1", 1_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "2.2", 2_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "3.1", 3_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "3.2", 4_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "2", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "2.3", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "4.1", InvalidFieldId)
+
+  !The wrapper trims the format and semantic identifiers before the C call,
+  !so trailing blanks in either character argument are harmless.
+  Format = "8|2R(2|3)   "
+  call CompiledFormat%New(Format, 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  call CheckFieldId(CompiledFormat, "2.1   ", 1_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "3.2   ", 4_C_SIZE_T)
+
+  Format = "2R(3R(4|5))"
+  call CompiledFormat%New(Format, 5_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 7_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 12_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "1.1.1", 0_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "1.3.2", 5_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "2.3.2", 11_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "3.1.1", InvalidFieldId)
+
+  !The compiled format keeps its own copy of the source string.
+  Format = "7|2R(3|5)"
+  call CompiledFormat%New(Format, 7_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  Format = "not the original format"
+  call CheckFieldId(CompiledFormat, "2.2", 2_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "3.2", 4_C_SIZE_T)
+
+  !Renewing an owner releases its previous handle before compiling again.
+  Format = "8"
+  call CompiledFormat%New(Format, 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 1_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 1_C_SIZE_T)
+
+  Format = "16|16"
+  call CompiledFormat%New(Format, 16_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 4_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 2_C_SIZE_T)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 0_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 0_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "1", InvalidFieldId)
+
+  !Releasing an already released format is a no-op.
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  contains
+
+    subroutine CheckFieldId(CompiledFormat, SemanticId, Expected)
+      type(MCICompiledFormat), intent(in) :: CompiledFormat
+      character(*),            intent(in) :: SemanticId
+      integer(C_SIZE_T),       intent(in) :: Expected
+
+      ASSERT_X(CompiledFormat%FieldId(SemanticId) == Expected)
+    end subroutine CheckFieldId
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranCompileRejectsInvalidFormats)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat) :: CompiledFormat
+
+  call CompiledFormat%New("0", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("1|", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("1R(0)", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("1r(2)", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("1 R(2)", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !The maximum field width is enforced by the C compiler.
+  call CompiledFormat%New("9", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("1", 0_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !A blank Fortran string trims to the empty format.
+  call CompiledFormat%New("   ", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !A failed recompilation leaves no stale handle behind.
+  call CompiledFormat%New("8", 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  call CompiledFormat%New("1R(0)", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%ByteSize() == 0_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 0_C_SIZE_T)
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranCopyOwnership)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat) :: Original, Copy, Empty, EmptyCopy
+
+  !Copying an empty format yields another empty, non-owning alias.
+  EmptyCopy = Empty
+  ASSERT(.not.EmptyCopy%Initialized())
+  call EmptyCopy%Free()
+  ASSERT(.not.EmptyCopy%Initialized())
+
+  call Original%New("8|8", 8_C_SIZE_T)
+  ASSERT_X(Original%Initialized())
+
+  !Assignment aliases the C-side format instead of duplicating it.
+  Copy = Original
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%ByteSize() == 2_C_SIZE_T)
+  call CheckFieldId(Copy, "2", 1_C_SIZE_T)
+
+  !Releasing the alias leaves the owner untouched.
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Original%Initialized())
+  ASSERT(Original%ByteSize() == 2_C_SIZE_T)
+
+  !Rebinding an owning alias releases its previous handle first.
+  call Copy%New("4", 4_C_SIZE_T)
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%ByteSize() == 1_C_SIZE_T)
+  Copy = Original
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%ByteSize() == 2_C_SIZE_T)
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Original%Initialized())
+
+  !Renewing a live alias unbinds it and allocates a new owned format without
+  !touching the aliased target.
+  Copy = Original
+  ASSERT_X(Copy%Initialized())
+  call Copy%New("4", 4_C_SIZE_T)
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%ByteSize() == 1_C_SIZE_T)
+  ASSERT(Copy%FieldCount() == 1_C_SIZE_T)
+  ASSERT(Original%ByteSize() == 2_C_SIZE_T)
+  ASSERT(Original%FieldCount() == 2_C_SIZE_T)
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+  ASSERT(Original%Initialized())
+
+  !Leaving the block finalizes the owning format and only unbinds the alias.
+  block
+    type(MCICompiledFormat) :: Scoped, Alias
+
+    call Scoped%New("16", 16_C_SIZE_T)
+    ASSERT_X(Scoped%Initialized())
+    Alias = Scoped
+    ASSERT_X(Alias%Initialized())
+  end block
+
+  ASSERT(Original%Initialized())
+  call Original%Free()
+  ASSERT(.not.Original%Initialized())
+
+  contains
+
+    subroutine CheckFieldId(CompiledFormat, SemanticId, Expected)
+      type(MCICompiledFormat), intent(in) :: CompiledFormat
+      character(*),            intent(in) :: SemanticId
+      integer(C_SIZE_T),       intent(in) :: Expected
+
+      ASSERT_X(CompiledFormat%FieldId(SemanticId) == Expected)
+    end subroutine CheckFieldId
+#endif
+END_TEST_E
+
+
+TEST_E(MCIFortranEncodeMSB_FIRST)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, MSB_FIRST, &
+                                    EncodingLayout, C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  !Byte vectors mirror the C-side functional encoding cases. Each tuple is a
+  !format, the maximum field width, the field values and the expected bytes.
+  call ExpectEncoded("1", 1_C_SIZE_T, MSB_FIRST, [1_C_SIZE_T], [128])
+  call ExpectEncoded("01", 1_C_SIZE_T, MSB_FIRST, [1_C_SIZE_T], [128])
+  call ExpectEncoded("4|4", 4_C_SIZE_T, MSB_FIRST, [10_C_SIZE_T, 5_C_SIZE_T], &
+                     [165])
+  call ExpectEncoded("3|5", 5_C_SIZE_T, MSB_FIRST, [5_C_SIZE_T, 13_C_SIZE_T], &
+                     [173])
+  call ExpectEncoded("16", 16_C_SIZE_T, MSB_FIRST, [4660_C_SIZE_T], [18, 52])
+  call ExpectEncoded("12|4", 12_C_SIZE_T, MSB_FIRST, &
+                     [2748_C_SIZE_T, 13_C_SIZE_T], [171, 205])
+  call ExpectEncoded("008|004", 8_C_SIZE_T, MSB_FIRST, &
+                     [171_C_SIZE_T, 12_C_SIZE_T], [171, 192])
+  call ExpectEncoded("8|2R(2|3)", 8_C_SIZE_T, MSB_FIRST, &
+                     [171_C_SIZE_T, 1_C_SIZE_T, 2_C_SIZE_T, 3_C_SIZE_T, &
+                     4_C_SIZE_T], [171, 87, 0])
+  call ExpectEncoded("24", 24_C_SIZE_T, MSB_FIRST, [1193046_C_SIZE_T], &
+                     [18, 52, 86])
+  call ExpectEncoded("12|12", 12_C_SIZE_T, MSB_FIRST, &
+                     [2748_C_SIZE_T, 3567_C_SIZE_T], [171, 205, 239])
+
+  contains
+
+    subroutine ExpectEncoded(Format, MaxFieldBitSize, Encoding, Values, &
+                             Expected)
+      character(*),            intent(in) :: Format
+      integer(C_SIZE_T),       intent(in) :: MaxFieldBitSize
+      integer(EncodingLayout), intent(in) :: Encoding
+      integer(C_SIZE_T),       intent(in) :: Values(:)
+      integer,                 intent(in) :: Expected(:)
+
+      type(MCICompiledFormat)          :: CompiledFormat
+      unsigned(C_UINT8_T), allocatable :: Message(:)
+      integer(C_SIZE_T)                :: FieldId
+      integer                          :: i
+
+      call CompiledFormat%New(Format, MaxFieldBitSize)
+      ASSERT_X(CompiledFormat%Initialized())
+      ASSERT(CompiledFormat%ByteSize() == int(size(Expected), C_SIZE_T))
+
+      allocate(Message(CompiledFormat%ByteSize()))
+      Message = uint(0, C_UINT8_T)
+
+      do i = 1, size(Values)
+        FieldId = int(i - 1, C_SIZE_T)
+        ASSERT(CompiledFormat%Encode(Message, FieldId, Encoding, Values(i)))
+      enddo
+
+      do i = 1, size(Expected)
+        ASSERT(int(Message(i)) == Expected(i))
+      enddo
+
+      call CompiledFormat%Free()
+      ASSERT(.not.CompiledFormat%Initialized())
+    end subroutine ExpectEncoded
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranEncodeLSB_FIRST)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, LSB_FIRST, &
+                                    EncodingLayout, C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  call ExpectEncoded("1", 1_C_SIZE_T, LSB_FIRST, [1_C_SIZE_T], [1])
+  call ExpectEncoded("01", 1_C_SIZE_T, LSB_FIRST, [1_C_SIZE_T], [1])
+  call ExpectEncoded("4|4", 4_C_SIZE_T, LSB_FIRST, [10_C_SIZE_T, 5_C_SIZE_T], &
+                     [90])
+  call ExpectEncoded("3|5", 5_C_SIZE_T, LSB_FIRST, [5_C_SIZE_T, 13_C_SIZE_T], &
+                     [109])
+  call ExpectEncoded("16", 16_C_SIZE_T, LSB_FIRST, [4660_C_SIZE_T], [52, 18])
+  call ExpectEncoded("12|4", 12_C_SIZE_T, LSB_FIRST, &
+                     [2748_C_SIZE_T, 13_C_SIZE_T], [188, 218])
+  call ExpectEncoded("008|004", 8_C_SIZE_T, LSB_FIRST, &
+                     [171_C_SIZE_T, 12_C_SIZE_T], [171, 12])
+  call ExpectEncoded("8|2R(2|3)", 8_C_SIZE_T, LSB_FIRST, &
+                     [171_C_SIZE_T, 1_C_SIZE_T, 2_C_SIZE_T, 3_C_SIZE_T, &
+                     4_C_SIZE_T], [171, 105, 2])
+  call ExpectEncoded("24", 24_C_SIZE_T, LSB_FIRST, [1193046_C_SIZE_T], &
+                     [86, 52, 18])
+  call ExpectEncoded("12|12", 12_C_SIZE_T, LSB_FIRST, &
+                     [2748_C_SIZE_T, 3567_C_SIZE_T], [188, 250, 222])
+
+  contains
+
+    subroutine ExpectEncoded(Format, MaxFieldBitSize, Encoding, Values, &
+                             Expected)
+      character(*),            intent(in) :: Format
+      integer(C_SIZE_T),       intent(in) :: MaxFieldBitSize
+      integer(EncodingLayout), intent(in) :: Encoding
+      integer(C_SIZE_T),       intent(in) :: Values(:)
+      integer,                 intent(in) :: Expected(:)
+
+      type(MCICompiledFormat)          :: CompiledFormat
+      unsigned(C_UINT8_T), allocatable :: Message(:)
+      integer(C_SIZE_T)                :: FieldId
+      integer                          :: i
+
+      call CompiledFormat%New(Format, MaxFieldBitSize)
+      ASSERT_X(CompiledFormat%Initialized())
+      ASSERT(CompiledFormat%ByteSize() == int(size(Expected), C_SIZE_T))
+
+      allocate(Message(CompiledFormat%ByteSize()))
+      Message = uint(0, C_UINT8_T)
+
+      do i = 1, size(Values)
+        FieldId = int(i - 1, C_SIZE_T)
+        ASSERT(CompiledFormat%Encode(Message, FieldId, Encoding, Values(i)))
+      enddo
+
+      do i = 1, size(Expected)
+        ASSERT(int(Message(i)) == Expected(i))
+      enddo
+
+      call CompiledFormat%Free()
+      ASSERT(.not.CompiledFormat%Initialized())
+    end subroutine ExpectEncoded
+#endif
+END_TEST_E
+
+
+TEST_E(MCIFortranEncodePreservesBits)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, MSB_FIRST, LSB_FIRST, &
+                                    C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat) :: CompiledFormat
+  unsigned(C_UINT8_T)     :: Message(3)
+
+  call CompiledFormat%New("3", 3_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+
+  !Only the three field bits are written; the unused padding bits are kept.
+  Message(1) = uint(255, C_UINT8_T)
+  ASSERT(CompiledFormat%Encode(Message(1:1), 0_C_SIZE_T, MSB_FIRST, 0_C_SIZE_T))
+  ASSERT(int(Message(1)) == 31)
+
+  Message(1) = uint(255, C_UINT8_T)
+  ASSERT(CompiledFormat%Encode(Message(1:1), 0_C_SIZE_T, LSB_FIRST, 0_C_SIZE_T))
+  ASSERT(int(Message(1)) == 248)
+
+  Message(1) = uint(0, C_UINT8_T)
+  ASSERT(CompiledFormat%Encode(Message(1:1), 0_C_SIZE_T, MSB_FIRST, 7_C_SIZE_T))
+  ASSERT(int(Message(1)) == 224)
+
+  Message(1) = uint(0, C_UINT8_T)
+  ASSERT(CompiledFormat%Encode(Message(1:1), 0_C_SIZE_T, LSB_FIRST, 7_C_SIZE_T))
+  ASSERT(int(Message(1)) == 7)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !Encoding one field leaves neighbouring fields and trailing bytes untouched.
+  call CompiledFormat%New("8|8", 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+
+  Message = [uint(170, C_UINT8_T), uint(187, C_UINT8_T), &
+    uint(204, C_UINT8_T)]
+  ASSERT(CompiledFormat%Encode(Message, 0_C_SIZE_T, MSB_FIRST, 18_C_SIZE_T))
+  ASSERT(int(Message(1)) == 18)
+  ASSERT(int(Message(2)) == 187)
+  ASSERT(int(Message(3)) == 204)
+
+  ASSERT(CompiledFormat%Encode(Message, 1_C_SIZE_T, MSB_FIRST, 52_C_SIZE_T))
+  ASSERT(int(Message(1)) == 18)
+  ASSERT(int(Message(2)) == 52)
+  ASSERT(int(Message(3)) == 204)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranDecodeMSB_FIRST)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, MSB_FIRST, &
+                                    EncodingLayout, C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  call ExpectDecoded("1", 1_C_SIZE_T, MSB_FIRST, [128], [1_C_SIZE_T])
+  call ExpectDecoded("01", 1_C_SIZE_T, MSB_FIRST, [128], [1_C_SIZE_T])
+  call ExpectDecoded("4|4", 4_C_SIZE_T, MSB_FIRST, [165], &
+                     [10_C_SIZE_T, 5_C_SIZE_T])
+  call ExpectDecoded("3|5", 5_C_SIZE_T, MSB_FIRST, [173], &
+                     [5_C_SIZE_T, 13_C_SIZE_T])
+  call ExpectDecoded("16", 16_C_SIZE_T, MSB_FIRST, [18, 52], &
+                     [4660_C_SIZE_T])
+  call ExpectDecoded("12|4", 12_C_SIZE_T, MSB_FIRST, [171, 205], &
+                     [2748_C_SIZE_T, 13_C_SIZE_T])
+  call ExpectDecoded("008|004", 8_C_SIZE_T, MSB_FIRST, [171, 192], &
+                     [171_C_SIZE_T, 12_C_SIZE_T])
+  call ExpectDecoded("8|2R(2|3)", 8_C_SIZE_T, MSB_FIRST, [171, 87, 0], &
+                     [171_C_SIZE_T, 1_C_SIZE_T, 2_C_SIZE_T, 3_C_SIZE_T, &
+                     4_C_SIZE_T])
+  call ExpectDecoded("24", 24_C_SIZE_T, MSB_FIRST, [18, 52, 86], &
+                     [1193046_C_SIZE_T])
+  call ExpectDecoded("12|12", 12_C_SIZE_T, MSB_FIRST, [171, 205, 239], &
+                     [2748_C_SIZE_T, 3567_C_SIZE_T])
+
+  contains
+
+    subroutine ExpectDecoded(Format, MaxFieldBitSize, Encoding, Bytes, Values)
+      character(*),            intent(in) :: Format
+      integer(C_SIZE_T),       intent(in) :: MaxFieldBitSize
+      integer(EncodingLayout), intent(in) :: Encoding
+      integer,                 intent(in) :: Bytes(:)
+      integer(C_SIZE_T),       intent(in) :: Values(:)
+
+      type(MCICompiledFormat)          :: CompiledFormat
+      unsigned(C_UINT8_T), allocatable :: Message(:)
+      integer(C_SIZE_T)                :: FieldId, Value
+      integer                          :: i
+
+      call CompiledFormat%New(Format, MaxFieldBitSize)
+      ASSERT_X(CompiledFormat%Initialized())
+      ASSERT(CompiledFormat%ByteSize() == int(size(Bytes), C_SIZE_T))
+
+      allocate(Message(CompiledFormat%ByteSize()))
+      do i = 1, size(Bytes)
+        Message(i) = uint(Bytes(i), C_UINT8_T)
+      enddo
+
+      do i = 1, size(Values)
+        FieldId = int(i - 1, C_SIZE_T)
+        Value   = 0_C_SIZE_T
+        ASSERT(CompiledFormat%Decode(Message, FieldId, Encoding, Value))
+        ASSERT(Value == Values(i))
+      enddo
+
+      call CompiledFormat%Free()
+      ASSERT(.not.CompiledFormat%Initialized())
+    end subroutine ExpectDecoded
+#endif
+END_TEST_E
+
+
+TEST_E(MCIFortranDecodeLSB_FIRST)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, LSB_FIRST, &
+                                    EncodingLayout, C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  call ExpectDecoded("1", 1_C_SIZE_T, LSB_FIRST, [1], [1_C_SIZE_T])
+  call ExpectDecoded("01", 1_C_SIZE_T, LSB_FIRST, [1], [1_C_SIZE_T])
+  call ExpectDecoded("4|4", 4_C_SIZE_T, LSB_FIRST, [90], &
+                     [10_C_SIZE_T, 5_C_SIZE_T])
+  call ExpectDecoded("3|5", 5_C_SIZE_T, LSB_FIRST, [109], &
+                     [5_C_SIZE_T, 13_C_SIZE_T])
+  call ExpectDecoded("16", 16_C_SIZE_T, LSB_FIRST, [52, 18], &
+                     [4660_C_SIZE_T])
+  call ExpectDecoded("12|4", 12_C_SIZE_T, LSB_FIRST, [188, 218], &
+                     [2748_C_SIZE_T, 13_C_SIZE_T])
+  call ExpectDecoded("008|004", 8_C_SIZE_T, LSB_FIRST, [171, 12], &
+                     [171_C_SIZE_T, 12_C_SIZE_T])
+  call ExpectDecoded("8|2R(2|3)", 8_C_SIZE_T, LSB_FIRST, [171, 105, 2], &
+                     [171_C_SIZE_T, 1_C_SIZE_T, 2_C_SIZE_T, 3_C_SIZE_T, &
+                     4_C_SIZE_T])
+  call ExpectDecoded("24", 24_C_SIZE_T, LSB_FIRST, [86, 52, 18], &
+                     [1193046_C_SIZE_T])
+  call ExpectDecoded("12|12", 12_C_SIZE_T, LSB_FIRST, [188, 250, 222], &
+                     [2748_C_SIZE_T, 3567_C_SIZE_T])
+
+  contains
+
+    subroutine ExpectDecoded(Format, MaxFieldBitSize, Encoding, Bytes, Values)
+      character(*),            intent(in) :: Format
+      integer(C_SIZE_T),       intent(in) :: MaxFieldBitSize
+      integer(EncodingLayout), intent(in) :: Encoding
+      integer,                 intent(in) :: Bytes(:)
+      integer(C_SIZE_T),       intent(in) :: Values(:)
+
+      type(MCICompiledFormat)          :: CompiledFormat
+      unsigned(C_UINT8_T), allocatable :: Message(:)
+      integer(C_SIZE_T)                :: FieldId, Value
+      integer                          :: i
+
+      call CompiledFormat%New(Format, MaxFieldBitSize)
+      ASSERT_X(CompiledFormat%Initialized())
+      ASSERT(CompiledFormat%ByteSize() == int(size(Bytes), C_SIZE_T))
+
+      allocate(Message(CompiledFormat%ByteSize()))
+      do i = 1, size(Bytes)
+        Message(i) = uint(Bytes(i), C_UINT8_T)
+      enddo
+
+      do i = 1, size(Values)
+        FieldId = int(i - 1, C_SIZE_T)
+        Value   = 0_C_SIZE_T
+        ASSERT(CompiledFormat%Decode(Message, FieldId, Encoding, Value))
+        ASSERT(Value == Values(i))
+      enddo
+
+      call CompiledFormat%Free()
+      ASSERT(.not.CompiledFormat%Initialized())
+    end subroutine ExpectDecoded
+#endif
+END_TEST_E
+
+
+TEST_E(MCIFortranDecodeHandlesPaddingAndExtraBytes)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, MSB_FIRST, LSB_FIRST, &
+                                    C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat) :: CompiledFormat
+  unsigned(C_UINT8_T)     :: Message(2)
+  integer(C_SIZE_T)       :: Value
+
+  !Padding bits outside the field are ignored.
+  call CompiledFormat%New("3", 3_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+
+  Message(1) = uint(255, C_UINT8_T)
+  Value      = 0_C_SIZE_T
+  ASSERT(CompiledFormat%Decode(Message(1:1), 0_C_SIZE_T, MSB_FIRST, Value))
+  ASSERT(Value == 7_C_SIZE_T)
+
+  Value = 0_C_SIZE_T
+  ASSERT(CompiledFormat%Decode(Message(1:1), 0_C_SIZE_T, LSB_FIRST, Value))
+  ASSERT(Value == 7_C_SIZE_T)
+
+  Message(1) = uint(7, C_UINT8_T)
+  Value      = 0_C_SIZE_T
+  ASSERT(CompiledFormat%Decode(Message(1:1), 0_C_SIZE_T, MSB_FIRST, Value))
+  ASSERT(Value == 0_C_SIZE_T)
+
+  Value = 0_C_SIZE_T
+  ASSERT(CompiledFormat%Decode(Message(1:1), 0_C_SIZE_T, LSB_FIRST, Value))
+  ASSERT(Value == 7_C_SIZE_T)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !A buffer larger than the compiled message is accepted; trailing bytes are
+  !ignored and decoding does not modify the message.
+  call CompiledFormat%New("8", 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+
+  Message = [uint(18, C_UINT8_T), uint(52, C_UINT8_T)]
+
+  Value = 0_C_SIZE_T
+  ASSERT(CompiledFormat%Decode(Message, 0_C_SIZE_T, MSB_FIRST, Value))
+  ASSERT(Value == 18_C_SIZE_T)
+  ASSERT(int(Message(1)) == 18)
+  ASSERT(int(Message(2)) == 52)
+
+  Value = 0_C_SIZE_T
+  ASSERT(CompiledFormat%Decode(Message, 0_C_SIZE_T, LSB_FIRST, Value))
+  ASSERT(Value == 18_C_SIZE_T)
+  ASSERT(int(Message(1)) == 18)
+  ASSERT(int(Message(2)) == 52)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranRejectsInvalidInputs)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, MSB_FIRST, &
+                                    EncodingLayout, C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat) :: CompiledFormat, Empty
+  unsigned(C_UINT8_T)     :: Message(2)
+  integer(C_SIZE_T)       :: Value, InvalidFieldId
+  integer(EncodingLayout) :: BadEncoding
+  logical                 :: Success
+
+  InvalidFieldId = not(0_C_SIZE_T)
+  Message        = [uint(170, C_UINT8_T), uint(187, C_UINT8_T)]
+
+  !Codec calls through a default-initialized format fail cleanly.
+  ASSERT(.not.Empty%Initialized())
+  ASSERT(.not.Empty%Encode(Message, 0_C_SIZE_T, MSB_FIRST, 0_C_SIZE_T))
+  Value = 42_C_SIZE_T
+  ASSERT(.not.Empty%Decode(Message, 0_C_SIZE_T, MSB_FIRST, Value))
+  ASSERT(Value == 42_C_SIZE_T)
+  call CheckFieldId(Empty, "1", InvalidFieldId)
+
+  call CompiledFormat%New("4", 4_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+
+  !Malformed and missing semantic identifiers resolve to SIZE_MAX.
+  call CheckFieldId(CompiledFormat, "", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "0", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "01", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "1.", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, ".1", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "1..2", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "1.0", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "1x", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, " 1", InvalidFieldId)
+  call CheckFieldId(CompiledFormat, "2", InvalidFieldId)
+
+  !An out-of-range field leaves the message untouched.
+  ASSERT(.not.CompiledFormat%Encode(Message, 1_C_SIZE_T, MSB_FIRST, 0_C_SIZE_T))
+  ASSERT(int(Message(1)) == 170)
+  ASSERT(int(Message(2)) == 187)
+
+  Value = 42_C_SIZE_T
+  ASSERT(.not.CompiledFormat%Decode(Message, 1_C_SIZE_T, MSB_FIRST, Value))
+  ASSERT(Value == 42_C_SIZE_T)
+
+  !Invalid layout values are rejected for both directions.
+  BadEncoding = 0
+  Success     = .not.CompiledFormat%Encode(Message, 0_C_SIZE_T, BadEncoding, &
+                                           0_C_SIZE_T)
+  ASSERT(Success)
+  BadEncoding = 3
+  Success     = .not.CompiledFormat%Encode(Message, 0_C_SIZE_T, BadEncoding, &
+                                           0_C_SIZE_T)
+  ASSERT(Success)
+  ASSERT(int(Message(1)) == 170)
+  ASSERT(int(Message(2)) == 187)
+
+  Value       = 42_C_SIZE_T
+  BadEncoding = 0
+  ASSERT(.not.CompiledFormat%Decode(Message, 0_C_SIZE_T, BadEncoding, Value))
+  ASSERT(Value == 42_C_SIZE_T)
+  BadEncoding = 3
+  ASSERT(.not.CompiledFormat%Decode(Message, 0_C_SIZE_T, BadEncoding, Value))
+  ASSERT(Value == 42_C_SIZE_T)
+
+  !A value that does not fit the four-bit field is rejected before any bit is
+  !written.
+  Success = .not.CompiledFormat%Encode(Message, 0_C_SIZE_T, MSB_FIRST, &
+                                       16_C_SIZE_T)
+  ASSERT(Success)
+  ASSERT(int(Message(1)) == 170)
+  ASSERT(int(Message(2)) == 187)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !The Fortran array shape supplies MessageByteSize, so a short buffer is
+  !reported as a failure without reading or writing beyond it.
+  call CompiledFormat%New("8|8", 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+
+  Message(1) = uint(170, C_UINT8_T)
+  Success    = .not.CompiledFormat%Encode(Message(1:1), 0_C_SIZE_T, MSB_FIRST, &
+                                          18_C_SIZE_T)
+  ASSERT(Success)
+  ASSERT(int(Message(1)) == 170)
+
+  Value = 42_C_SIZE_T
+  ASSERT(.not.CompiledFormat%Decode(Message(1:1), 0_C_SIZE_T, MSB_FIRST, Value))
+  ASSERT(Value == 42_C_SIZE_T)
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  contains
+
+    subroutine CheckFieldId(CompiledFormat, SemanticId, Expected)
+      type(MCICompiledFormat), intent(in) :: CompiledFormat
+      character(*),            intent(in) :: SemanticId
+      integer(C_SIZE_T),       intent(in) :: Expected
+
+      ASSERT_X(CompiledFormat%FieldId(SemanticId) == Expected)
+    end subroutine CheckFieldId
+#endif
+END_TEST_E
+
+TEST_E(MCIFortranRoundTrip)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, MSB_FIRST, LSB_FIRST, &
+                                    EncodingLayout, C_SIZE_T, C_UINT8_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  integer(EncodingLayout) :: Layouts(2)
+  integer                 :: i
+
+  Layouts = [MSB_FIRST, LSB_FIRST]
+
+  do i = 1, size(Layouts)
+    call ExpectRoundTrip("1|1|1|1|1|1|1|1", 1_C_SIZE_T, Layouts(i), &
+                         [0_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T, &
+                         0_C_SIZE_T, 1_C_SIZE_T, 0_C_SIZE_T, 1_C_SIZE_T])
+    call ExpectRoundTrip("4|4", 4_C_SIZE_T, Layouts(i), &
+                         [10_C_SIZE_T, 5_C_SIZE_T])
+    call ExpectRoundTrip("3|5", 5_C_SIZE_T, Layouts(i), &
+                         [0_C_SIZE_T, 0_C_SIZE_T])
+    call ExpectRoundTrip("3|5", 5_C_SIZE_T, Layouts(i), &
+                         [7_C_SIZE_T, 31_C_SIZE_T])
+    call ExpectRoundTrip("3|5", 5_C_SIZE_T, Layouts(i), &
+                         [5_C_SIZE_T, 13_C_SIZE_T])
+    call ExpectRoundTrip("16", 16_C_SIZE_T, Layouts(i), [0_C_SIZE_T])
+    call ExpectRoundTrip("16", 16_C_SIZE_T, Layouts(i), [1_C_SIZE_T])
+    call ExpectRoundTrip("16", 16_C_SIZE_T, Layouts(i), [65535_C_SIZE_T])
+    call ExpectRoundTrip("16", 16_C_SIZE_T, Layouts(i), [4660_C_SIZE_T])
+    call ExpectRoundTrip("8|2R(2|3)", 8_C_SIZE_T, Layouts(i), &
+                         [171_C_SIZE_T, 1_C_SIZE_T, 2_C_SIZE_T, 3_C_SIZE_T, &
+                         4_C_SIZE_T])
+    call ExpectRoundTrip("008|004", 8_C_SIZE_T, Layouts(i), &
+                         [171_C_SIZE_T, 12_C_SIZE_T])
+    call ExpectRoundTrip("24", 24_C_SIZE_T, Layouts(i), [1193046_C_SIZE_T])
+    call ExpectRoundTrip("12|12", 12_C_SIZE_T, Layouts(i), &
+                         [2748_C_SIZE_T, 3567_C_SIZE_T])
+  enddo
+
+  contains
+
+    subroutine ExpectRoundTrip(Format, MaxFieldBitSize, Encoding, Values)
+      character(*),            intent(in) :: Format
+      integer(C_SIZE_T),       intent(in) :: MaxFieldBitSize
+      integer(EncodingLayout), intent(in) :: Encoding
+      integer(C_SIZE_T),       intent(in) :: Values(:)
+
+      type(MCICompiledFormat)          :: CompiledFormat
+      unsigned(C_UINT8_T), allocatable :: Message(:)
+      integer(C_SIZE_T)                :: FieldId, Value
+      integer                          :: i
+
+      call CompiledFormat%New(Format, MaxFieldBitSize)
+      ASSERT_X(CompiledFormat%Initialized())
+      ASSERT(CompiledFormat%ByteSize() > 0_C_SIZE_T)
+
+      allocate(Message(CompiledFormat%ByteSize()))
+      Message = uint(0, C_UINT8_T)
+
+      do i = 1, size(Values)
+        FieldId = int(i - 1, C_SIZE_T)
+        ASSERT(CompiledFormat%Encode(Message, FieldId, Encoding, Values(i)))
+      enddo
+
+      do i = 1, size(Values)
+        FieldId = int(i - 1, C_SIZE_T)
+        Value   = 0_C_SIZE_T
+        ASSERT(CompiledFormat%Decode(Message, FieldId, Encoding, Value))
+        ASSERT(Value == Values(i))
+      enddo
+
+      call CompiledFormat%Free()
+      ASSERT(.not.CompiledFormat%Initialized())
+    end subroutine ExpectRoundTrip
+#endif
+END_TEST_E
+
+#ifdef TSD_KERNEL
+TEST_SUITE(MCIFortranCompileSuite,
+           MCIFortranCompileAndAccessors,
+           MCIFortranCompileRejectsInvalidFormats);
+
+TEST_SUITE(MCIFortranOwnershipSuite,
+           MCIFortranCopyOwnership);
+
+TEST_SUITE(MCIFortranEncodeSuite,
+           MCIFortranEncodeMSB_FIRST,
+           MCIFortranEncodeLSB_FIRST,
+           MCIFortranEncodePreservesBits);
+
+TEST_SUITE(MCIFortranDecodeSuite,
+           MCIFortranDecodeMSB_FIRST,
+           MCIFortranDecodeLSB_FIRST,
+           MCIFortranDecodeHandlesPaddingAndExtraBytes);
+
+TEST_SUITE(MCIFortranContractSuite,
+           MCIFortranRejectsInvalidInputs);
+
+TEST_SUITE(MCIFortranRoundTripSuite,
+           MCIFortranRoundTrip);
+#endif

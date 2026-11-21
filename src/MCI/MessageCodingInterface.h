@@ -31,9 +31,10 @@ typedef enum {
  *
  * @details
  * Stores the number of fields, the bit width and bit offset of each field, and
- * the total message size derived from the format string. Repetition groups are
- * expanded when the format is compiled, so each repeated element receives its
- * own field index.
+ * the total message size derived from the format string. The source format is
+ * copied during compilation and retained privately so that semantic field
+ * identifiers can be resolved later. Repetition groups are expanded when the
+ * format is compiled, so each repeated element receives its own field index.
  *
  * @note
  * - The internal representation is hidden from callers.
@@ -50,9 +51,9 @@ typedef struct MCICompiledFormat MCICompiledFormat;
  * @brief Releases a compiled message format.
  *
  * @details
- * Releases the field metadata and the MCICompiledFormat object. The pointer
- * referenced by CompiledFormatReference is set to NULL after a successful
- * release.
+ * Releases the private copy of the source format, the field metadata, and the
+ * MCICompiledFormat object. The pointer referenced by CompiledFormatReference
+ * is set to NULL after a successful release.
  *
  * @param[in,out] CompiledFormatReference
  *     Reference to the compiled format pointer to release.
@@ -85,8 +86,9 @@ void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference);
  * overflow and allocation failure are reported as errors.
  *
  * @param[in] Format
- *     NUL-terminated format string to compile. The string is not modified and
- *     is not retained by the returned object.
+ *     NUL-terminated format string to compile. The caller's buffer is not
+ *     modified and is not referenced after the call; the returned object keeps
+ *     a private copy of the format for semantic field lookup.
  *
  * @param[in] MaxFieldBitSize
  *     Maximum permitted width, in bits, of any expanded field. It must leave

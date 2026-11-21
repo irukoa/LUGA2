@@ -1,0 +1,102 @@
+#ifndef MCI_C_Interfaces_H
+#define MCI_C_Interfaces_H
+
+#include "src/MCI/MessageCodingInterface.M90"
+
+submodule (MessageCodingInterface) MCI_C_Interfaces
+
+  use, intrinsic :: ISO_C_BINDING, only: C_CHAR, C_BOOL
+
+  implicit none
+
+  interface
+    pure subroutine FreeMCIFormat(OpaqueHandle) &
+      bind(C, name="FreeMCIFormat")
+      import C_PTR
+      type(C_PTR), intent(inout) :: OpaqueHandle
+    end subroutine FreeMCIFormat
+  end interface
+
+  interface
+    pure function CompileMCIFormat(Format, MaxFieldBitSize) &
+      bind(C, name="CompileMCIFormat") &
+      result(OpaqueHandle)
+      import C_CHAR, C_SIZE_T, C_PTR
+      character(C_CHAR), intent(in)        :: Format(*)
+      integer(C_SIZE_T), intent(in), value :: MaxFieldBitSize
+
+      type(C_PTR) :: OpaqueHandle
+    end function CompileMCIFormat
+  end interface
+
+  interface
+    pure function GetMCIMessageByteSize(CompiledFormat) &
+      bind(C, name="GetMCIMessageByteSize") &
+      result(ByteSize)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: CompiledFormat
+
+      integer(C_SIZE_T) :: ByteSize
+    end function GetMCIMessageByteSize
+  end interface
+
+  interface
+    pure function GetMCIMessageFieldCount(CompiledFormat) &
+      bind(C, name="GetMCIMessageFieldCount") &
+      result(FieldCount)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: CompiledFormat
+
+      integer(C_SIZE_T) :: FieldCount
+    end function GetMCIMessageFieldCount
+  end interface
+
+  interface
+    pure function GetMCIMessageFieldId(CompiledFormat, SemanticId) &
+      bind(C, name="GetMCIMessageFieldId") &
+      result(FieldId)
+      import C_PTR, C_CHAR, C_SIZE_T
+      type(C_PTR),             intent(in), value :: CompiledFormat
+      character(C_CHAR),       intent(in)        :: SemanticId(*)
+
+      integer(C_SIZE_T) :: FieldId
+    end function GetMCIMessageFieldId
+  end interface
+
+  interface
+    function EncodeMCIMessage(CompiledFormat, MessageByteSize, Message, &
+                              FieldId, Encoding, Val) &
+      bind(C, name="EncodeMCIMessage") &
+      result(Success)
+      import C_PTR, C_SIZE_T, C_UINT8_T, C_BOOL, EncodingLayout
+      type(C_PTR),             intent(in), value :: CompiledFormat
+      integer(C_SIZE_T),       intent(in), value :: MessageByteSize
+      unsigned(C_UINT8_T),     intent(inout)     :: Message(MessageByteSize)
+      integer(C_SIZE_T),       intent(in), value :: FieldId
+      integer(EncodingLayout), intent(in), value :: Encoding
+      integer(C_SIZE_T),       intent(in), value :: Val
+
+      logical(C_BOOL) :: Success
+    end function EncodeMCIMessage
+  end interface
+
+  interface
+    function DecodeMCIMessage(CompiledFormat, MessageByteSize, Message, &
+                              FieldId, Encoding, Val) &
+      bind(C, name="DecodeMCIMessage") &
+      result(Success)
+      import C_PTR, C_SIZE_T, C_UINT8_T, C_BOOL, EncodingLayout
+      type(C_PTR),             intent(in), value :: CompiledFormat
+      integer(C_SIZE_T),       intent(in), value :: MessageByteSize
+      unsigned(C_UINT8_T),     intent(in)        :: Message(MessageByteSize)
+      integer(C_SIZE_T),       intent(in), value :: FieldId
+      integer(EncodingLayout), intent(in), value :: Encoding
+      integer(C_SIZE_T),       intent(out)       :: Val
+
+      logical(C_BOOL) :: Success
+    end function DecodeMCIMessage
+  end interface
+
+end submodule MCI_C_Interfaces
+
+#endif

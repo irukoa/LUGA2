@@ -1,0 +1,138 @@
+#ifndef MessageCodingInterface_FH
+#define MessageCodingInterface_FH
+
+module MessageCodingInterface
+
+  use, intrinsic :: ISO_C_BINDING, only: C_PTR, C_NULL_PTR, &
+                                         C_SIZE_T, C_UINT8_T
+
+  implicit none
+
+  private
+
+  public :: C_SIZE_T
+  public :: C_UINT8_T
+
+  enum, bind(C)
+    enumerator :: MSB_FIRST = 1
+    enumerator :: LSB_FIRST = 2
+  end enum
+  public :: MSB_FIRST
+  public :: LSB_FIRST
+  integer, parameter, public :: EncodingLayout = kind(MSB_FIRST)
+
+  type, public :: MCICompiledFormat
+    private
+    type(C_PTR) :: OpaqueHandle = C_NULL_PTR
+    logical     :: Init         = .false.
+    logical     :: Owner        = .true.
+    contains
+    procedure, public, pass(CompiledFormat) :: Free          => FortranFreeMCIFormat
+    procedure, public, pass(CompiledFormat) :: New           => FortranCompileMCIFormat
+    procedure, public, pass(CompiledFormat) :: Initialized   => FortranInitialized
+    procedure, public, pass(CompiledFormat) :: ByteSize      => FortranGetMCIMessageByteSize
+    procedure, public, pass(CompiledFormat) :: FieldCount    => FortranGetMCIMessageFieldCount
+    procedure, public, pass(CompiledFormat) :: FieldId       => FortranGetMCIMessageFieldId
+    procedure, public, pass(CompiledFormat) :: Encode        => FortranEncodeMCIMessage
+    procedure, public, pass(CompiledFormat) :: Decode        => FortranDecodeMCIMessage
+    procedure                               :: FortranCopyMCICompiledFormat
+    generic,   public                       :: assignment(=) => FortranCopyMCICompiledFormat
+    final                                   :: FortranFreeMCIFormat_Final
+  end type MCICompiledFormat
+
+  interface
+    module subroutine FortranCopyMCICompiledFormat(Copy, Original)
+      class(MCICompiledFormat), intent(out) :: Copy
+      type(MCICompiledFormat),  intent(in)  :: Original
+    end subroutine FortranCopyMCICompiledFormat
+  end interface
+
+  interface
+    pure module subroutine FortranFreeMCIFormat(CompiledFormat)
+      class(MCICompiledFormat), intent(inout) :: CompiledFormat
+    end subroutine FortranFreeMCIFormat
+  end interface
+
+  interface
+    pure module subroutine FortranFreeMCIFormat_Final(CompiledFormat)
+      type(MCICompiledFormat), intent(inout) :: CompiledFormat
+    end subroutine FortranFreeMCIFormat_Final
+  end interface
+
+  interface
+    pure module subroutine FortranCompileMCIFormat(CompiledFormat, Format, MaxFieldBitSize)
+      class(MCICompiledFormat), intent(inout) :: CompiledFormat
+      character(*),             intent(in)    :: Format
+      integer(C_SIZE_T),        intent(in)    :: MaxFieldBitSize
+    end subroutine FortranCompileMCIFormat
+  end interface
+
+  interface
+    pure module function FortranInitialized(CompiledFormat) &
+      result(Initialized)
+      class(MCICompiledFormat), intent(in) :: CompiledFormat
+
+      logical :: Initialized
+    end function FortranInitialized
+  end interface
+
+  interface
+    pure module function FortranGetMCIMessageByteSize(CompiledFormat) &
+      result(ByteSize)
+      class(MCICompiledFormat), intent(in) :: CompiledFormat
+
+      integer(C_SIZE_T) :: ByteSize
+    end function FortranGetMCIMessageByteSize
+  end interface
+
+  interface
+    pure module function FortranGetMCIMessageFieldCount(CompiledFormat) &
+      result(FieldCount)
+      class(MCICompiledFormat), intent(in) :: CompiledFormat
+
+      integer(C_SIZE_T) :: FieldCount
+    end function FortranGetMCIMessageFieldCount
+  end interface
+
+  interface
+    !Note: FieldId \in [0, FieldCount - 1].
+    pure module function FortranGetMCIMessageFieldId(CompiledFormat, SemanticId) &
+      result(FieldId)
+      class(MCICompiledFormat), intent(in) :: CompiledFormat
+      character(*),             intent(in) :: SemanticId
+
+      integer(C_SIZE_T) :: FieldId
+    end function FortranGetMCIMessageFieldId
+  end interface
+
+  interface
+    !Note: FieldId \in [0, FieldCount - 1].
+    module function FortranEncodeMCIMessage(CompiledFormat, Message, FieldId, Encoding, Value) &
+      result(Success)
+      class(MCICompiledFormat), intent(in)    :: CompiledFormat
+      unsigned(C_UINT8_T),      intent(inout) :: Message(:)
+      integer(C_SIZE_T),        intent(in)    :: FieldId
+      integer(EncodingLayout),  intent(in)    :: Encoding
+      integer(C_SIZE_T),        intent(in)    :: Value
+
+      logical :: Success
+    end function FortranEncodeMCIMessage
+  end interface
+
+  interface
+    !Note: FieldId \in [0, FieldCount - 1].
+    module function FortranDecodeMCIMessage(CompiledFormat, Message, FieldId, Encoding, Value) &
+      result(Success)
+      class(MCICompiledFormat), intent(in)    :: CompiledFormat
+      unsigned(C_UINT8_T),      intent(in)    :: Message(:)
+      integer(C_SIZE_T),        intent(in)    :: FieldId
+      integer(EncodingLayout),  intent(in)    :: Encoding
+      integer(C_SIZE_T),        intent(inout) :: Value
+
+      logical :: Success
+    end function FortranDecodeMCIMessage
+  end interface
+
+end module MessageCodingInterface
+
+#endif
