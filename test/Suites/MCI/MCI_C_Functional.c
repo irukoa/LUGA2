@@ -1,0 +1,687 @@
+#include "src/MCI/MessageCodingInterface.h"
+#include "test/TSD/TSD.h"
+
+#include <limits.h>
+#include <stdint.h>
+#include <string.h>
+
+static MCICompiledFormat *CompileForTest(const char  *Format,
+                                         const size_t MaxFieldBitSize) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
+  ASSERT(CompiledFormat != NULL);
+  return CompiledFormat;
+}
+
+static void ExpectBytes(const char          *Format,
+                        const size_t         MaxFieldBitSize,
+                        const EncodingLayout Encoding,
+                        const size_t         Values[],
+                        const size_t         NumFields,
+                        const uint8_t        Expected[],
+                        const size_t         ExpectedSize) {
+  MCICompiledFormat *CompiledFormat;
+  uint8_t            Message[32] = {0};
+  size_t             i;
+
+  CompiledFormat = CompileForTest(Format, MaxFieldBitSize);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == ExpectedSize);
+  ASSERT(ExpectedSize <= sizeof(Message));
+  if (ExpectedSize > sizeof(Message)) {
+    FreeMCIFormat(&CompiledFormat);
+    return;
+  }
+  for (i = 0; i < NumFields; i++) {
+    ASSERT(EncodeMCIMessage(CompiledFormat, ExpectedSize, Message, i, Encoding,
+                            Values[i]));
+  }
+  ASSERT(memcmp(Message, Expected, ExpectedSize) == 0);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+static void ExpectDecoded(const char          *Format,
+                          const size_t         MaxFieldBitSize,
+                          const EncodingLayout Encoding,
+                          const uint8_t        Message[],
+                          const size_t         MessageSize,
+                          const size_t         ExpectedValues[],
+                          const size_t         NumFields) {
+  MCICompiledFormat *CompiledFormat;
+  size_t             Value;
+  size_t             i;
+
+  CompiledFormat = CompileForTest(Format, MaxFieldBitSize);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == MessageSize);
+  for (i = 0; i < NumFields; i++) {
+    Value = SIZE_MAX;
+    ASSERT(DecodeMCIMessage(CompiledFormat, MessageSize, Message, i, Encoding,
+                            &Value));
+    ASSERT(Value == ExpectedValues[i]);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
+static void ExpectDecodeFailure(const MCICompiledFormat *CompiledFormat,
+                                const size_t             MessageByteSize,
+                                const uint8_t            Message[],
+                                const size_t             FieldId,
+                                const EncodingLayout     Encoding) {
+  size_t Value = SIZE_MAX;
+
+  ASSERT(!DecodeMCIMessage(CompiledFormat, MessageByteSize, Message, FieldId,
+                           Encoding, &Value));
+  ASSERT(Value == SIZE_MAX);
+}
+
+static void ExpectRoundTrip(const char          *Format,
+                            const size_t         MaxFieldBitSize,
+                            const EncodingLayout Encoding,
+                            const size_t         Values[],
+                            const size_t         NumFields) {
+  MCICompiledFormat *CompiledFormat;
+  uint8_t            Message[32] = {0};
+  size_t             MessageSize;
+  size_t             Value;
+  size_t             i;
+
+  CompiledFormat = CompileForTest(Format, MaxFieldBitSize);
+  if (!CompiledFormat) {
+    return;
+  }
+  MessageSize = GetMCIMessageByteSize(CompiledFormat);
+  ASSERT(MessageSize > 0);
+  ASSERT(MessageSize <= sizeof(Message));
+  if ((MessageSize == 0) || (MessageSize > sizeof(Message))) {
+    FreeMCIFormat(&CompiledFormat);
+    return;
+  }
+  for (i = 0; i < NumFields; i++) {
+    ASSERT(EncodeMCIMessage(CompiledFormat, MessageSize, Message, i, Encoding,
+                            Values[i]));
+  }
+  for (i = 0; i < NumFields; i++) {
+    Value = SIZE_MAX;
+    ASSERT(DecodeMCIMessage(CompiledFormat, MessageSize, Message, i, Encoding,
+                            &Value));
+    ASSERT(Value == Values[i]);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCICompile_ValidSizes) {
+  static const struct {
+    const char *Format;
+    size_t      MaxFieldBitSize;
+    size_t      ByteSize;
+  } Cases[] = {
+      {"1", 1, 1},           {"7", 7, 1},         {"8", 8, 1},
+      {"9", 9, 2},           {"16", 16, 2},       {"17", 17, 3},
+      {"8|16|3", 16, 4},     {"1R(8)", 8, 1},     {"2R(4)", 4, 1},
+      {"2R(1|2)", 2, 1},     {"2R(2|3)", 3, 2},   {"2R(2R(3))", 3, 2},
+      {"2R(2R(3|4))", 4, 4}, {"8|2R(2|3)", 8, 3}, {"0008|0004", 8, 2},
+      {"01", 1, 1},          {"64R(1)", 1, 8},
+  };
+  MCICompiledFormat *CompiledFormat;
+  size_t             i;
+
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    CompiledFormat = CompileForTest(Cases[i].Format, Cases[i].MaxFieldBitSize);
+    if (!CompiledFormat) {
+      continue;
+    }
+    ASSERT(GetMCIMessageByteSize(CompiledFormat) == Cases[i].ByteSize);
+    FreeMCIFormat(&CompiledFormat);
+  }
+}
+
+TEST(MCICompile_InvalidFormats) {
+  static const char *const Cases[] = {
+      NULL,        "",          "0",      "00",       "1|",         "|1",
+      "1||2",      "R(1)",      "1R()",   "1R(0)",    "1R(2",       "1R(2))",
+      "1r(2)",     " 1",        "1 ",     "1| 2",     "1R(2|)",     "1R(|2)",
+      "1R(2)R(3)", "1|0R(2|3)", "1 R(2)", "1R (2)",   "1.0",        "0x10",
+      "+1",        "-1",        "65R(1)", "1000R(1)", "1R(65R(1))",
+  };
+  MCICompiledFormat *CompiledFormat;
+  size_t             i;
+
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    CompiledFormat = CompileMCIFormat(Cases[i], 8);
+    ASSERT(CompiledFormat == NULL);
+    FreeMCIFormat(&CompiledFormat);
+  }
+}
+
+TEST(MCICompile_FieldLimits) {
+  MCICompiledFormat *CompiledFormat;
+
+  CompiledFormat = CompileMCIFormat("1", 0);
+  ASSERT(CompiledFormat == NULL);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileMCIFormat("2", 1);
+  ASSERT(CompiledFormat == NULL);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileForTest("1", 1);
+  if (CompiledFormat) {
+    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
+    FreeMCIFormat(&CompiledFormat);
+  }
+
+  CompiledFormat = CompileForTest("8", 8);
+  if (CompiledFormat) {
+    ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
+    FreeMCIFormat(&CompiledFormat);
+  }
+
+  CompiledFormat = CompileMCIFormat("9", 8);
+  ASSERT(CompiledFormat == NULL);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileMCIFormat("8|9", 8);
+  ASSERT(CompiledFormat == NULL);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCICompile_OverflowRejected) {
+  static const char *const Cases[] = {
+      "18446744073709551616",
+      "1R(18446744073709551616)",
+      "1R(18446744073709551615)",
+  };
+  size_t i;
+
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    ASSERT(CompileMCIFormat(Cases[i], 8) == NULL);
+  }
+}
+
+TEST(MCICompile_FieldCount) {
+  MCICompiledFormat *CompiledFormat;
+
+  ASSERT(GetMCIMessageFieldCount(NULL) == 0);
+
+  CompiledFormat = CompileForTest("8|2R(2|3)", 8);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 5);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 3);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileForTest("64R(1)", 1);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 64);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 8);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCICompile_AccessorsAndFree) {
+  MCICompiledFormat *CompiledFormat = NULL;
+
+  ASSERT(GetMCIMessageByteSize(NULL) == 0);
+  FreeMCIFormat(NULL);
+  FreeMCIFormat(&CompiledFormat);
+  ASSERT(CompiledFormat == NULL);
+
+  CompiledFormat = CompileForTest("8", 8);
+  if (!CompiledFormat) {
+    return;
+  }
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 1);
+  FreeMCIFormat(&CompiledFormat);
+  ASSERT(CompiledFormat == NULL);
+  FreeMCIFormat(&CompiledFormat);
+  ASSERT(CompiledFormat == NULL);
+}
+
+TEST_SUITE(MCICompileFunctionalSuite,
+           MCICompile_ValidSizes,
+           MCICompile_InvalidFormats,
+           MCICompile_FieldLimits,
+           MCICompile_OverflowRejected,
+           MCICompile_FieldCount,
+           MCICompile_AccessorsAndFree);
+
+TEST(MCIEncode_MSB_FIRST) {
+  static const size_t  One[]           = {1};
+  static const uint8_t OneMSB[]        = {0x80};
+  static const size_t  Nibbles[]       = {0xA, 0x5};
+  static const uint8_t NibblesMSB[]    = {0xA5};
+  static const size_t  Mixed[]         = {5, 13};
+  static const uint8_t MixedMSB[]      = {0xAD};
+  static const size_t  Word[]          = {0x1234};
+  static const uint8_t WordMSB[]       = {0x12, 0x34};
+  static const size_t  TwelveFour[]    = {0xABC, 0xD};
+  static const uint8_t TwelveFourMSB[] = {0xAB, 0xCD};
+  static const size_t  Padded[]        = {0xAB, 0xC};
+  static const uint8_t PaddedMSB[]     = {0xAB, 0xC0};
+  static const size_t  Repeated[]      = {0xAB, 1, 2, 3, 4};
+  static const uint8_t RepeatedMSB[]   = {0xAB, 0x57, 0x00};
+  static const size_t  Wide[]          = {0x123456};
+  static const uint8_t WideMSB[]       = {0x12, 0x34, 0x56};
+  static const size_t  TwoTwelve[]     = {0xABC, 0xDEF};
+  static const uint8_t TwoTwelveMSB[]  = {0xAB, 0xCD, 0xEF};
+
+  ExpectBytes("1", 1, MSB_FIRST, One, 1, OneMSB, sizeof(OneMSB));
+  ExpectBytes("01", 1, MSB_FIRST, One, 1, OneMSB, sizeof(OneMSB));
+  ExpectBytes("4|4", 4, MSB_FIRST, Nibbles, 2, NibblesMSB, sizeof(NibblesMSB));
+  ExpectBytes("3|5", 5, MSB_FIRST, Mixed, 2, MixedMSB, sizeof(MixedMSB));
+  ExpectBytes("16", 16, MSB_FIRST, Word, 1, WordMSB, sizeof(WordMSB));
+  ExpectBytes("12|4", 12, MSB_FIRST, TwelveFour, 2, TwelveFourMSB,
+              sizeof(TwelveFourMSB));
+  ExpectBytes("008|004", 8, MSB_FIRST, Padded, 2, PaddedMSB, sizeof(PaddedMSB));
+  ExpectBytes("8|2R(2|3)", 8, MSB_FIRST, Repeated, 5, RepeatedMSB,
+              sizeof(RepeatedMSB));
+  ExpectBytes("24", 24, MSB_FIRST, Wide, 1, WideMSB, sizeof(WideMSB));
+  ExpectBytes("12|12", 12, MSB_FIRST, TwoTwelve, 2, TwoTwelveMSB,
+              sizeof(TwoTwelveMSB));
+}
+
+TEST(MCIEncode_LSB_FIRST) {
+  static const size_t  One[]           = {1};
+  static const uint8_t OneLSB[]        = {0x01};
+  static const size_t  Nibbles[]       = {0xA, 0x5};
+  static const uint8_t NibblesLSB[]    = {0x5A};
+  static const size_t  Mixed[]         = {5, 13};
+  static const uint8_t MixedLSB[]      = {0x6D};
+  static const size_t  Word[]          = {0x1234};
+  static const uint8_t WordLSB[]       = {0x34, 0x12};
+  static const size_t  TwelveFour[]    = {0xABC, 0xD};
+  static const uint8_t TwelveFourLSB[] = {0xBC, 0xDA};
+  static const size_t  Padded[]        = {0xAB, 0xC};
+  static const uint8_t PaddedLSB[]     = {0xAB, 0x0C};
+  static const size_t  Repeated[]      = {0xAB, 1, 2, 3, 4};
+  static const uint8_t RepeatedLSB[]   = {0xAB, 0x69, 0x02};
+  static const size_t  Wide[]          = {0x123456};
+  static const uint8_t WideLSB[]       = {0x56, 0x34, 0x12};
+  static const size_t  TwoTwelve[]     = {0xABC, 0xDEF};
+  static const uint8_t TwoTwelveLSB[]  = {0xBC, 0xFA, 0xDE};
+
+  ExpectBytes("1", 1, LSB_FIRST, One, 1, OneLSB, sizeof(OneLSB));
+  ExpectBytes("01", 1, LSB_FIRST, One, 1, OneLSB, sizeof(OneLSB));
+  ExpectBytes("4|4", 4, LSB_FIRST, Nibbles, 2, NibblesLSB, sizeof(NibblesLSB));
+  ExpectBytes("3|5", 5, LSB_FIRST, Mixed, 2, MixedLSB, sizeof(MixedLSB));
+  ExpectBytes("16", 16, LSB_FIRST, Word, 1, WordLSB, sizeof(WordLSB));
+  ExpectBytes("12|4", 12, LSB_FIRST, TwelveFour, 2, TwelveFourLSB,
+              sizeof(TwelveFourLSB));
+  ExpectBytes("008|004", 8, LSB_FIRST, Padded, 2, PaddedLSB, sizeof(PaddedLSB));
+  ExpectBytes("8|2R(2|3)", 8, LSB_FIRST, Repeated, 5, RepeatedLSB,
+              sizeof(RepeatedLSB));
+  ExpectBytes("24", 24, LSB_FIRST, Wide, 1, WideLSB, sizeof(WideLSB));
+  ExpectBytes("12|12", 12, LSB_FIRST, TwoTwelve, 2, TwoTwelveLSB,
+              sizeof(TwoTwelveLSB));
+}
+
+TEST(MCIEncode_PreservesBits) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("3", 3);
+  uint8_t            Message[1];
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  Message[0] = 0xFF;
+  ASSERT(EncodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, 0));
+  ASSERT(Message[0] == 0x1F);
+
+  Message[0] = 0xFF;
+  ASSERT(EncodeMCIMessage(CompiledFormat, 1, Message, 0, LSB_FIRST, 0));
+  ASSERT(Message[0] == 0xF8);
+
+  Message[0] = 0x00;
+  ASSERT(EncodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, 7));
+  ASSERT(Message[0] == 0xE0);
+
+  Message[0] = 0x00;
+  ASSERT(EncodeMCIMessage(CompiledFormat, 1, Message, 0, LSB_FIRST, 7));
+  ASSERT(Message[0] == 0x07);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIEncode_PreservesOtherFields) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("8|8", 8);
+  uint8_t            Message[3]     = {0xAA, 0xBB, 0xCC};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ASSERT(EncodeMCIMessage(CompiledFormat, 3, Message, 0, MSB_FIRST, 0x12));
+  ASSERT(Message[0] == 0x12);
+  ASSERT(Message[1] == 0xBB);
+  ASSERT(Message[2] == 0xCC);
+
+  ASSERT(EncodeMCIMessage(CompiledFormat, 3, Message, 1, MSB_FIRST, 0x34));
+  ASSERT(Message[0] == 0x12);
+  ASSERT(Message[1] == 0x34);
+  ASSERT(Message[2] == 0xCC);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIEncode_RejectsSmallBuffer) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("8|8", 8);
+  uint8_t            Message[2]     = {0xAA, 0xBB};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, 0x12));
+  ASSERT(Message[0] == 0xAA);
+  ASSERT(Message[1] == 0xBB);
+
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 0, Message, 0, MSB_FIRST, 0x12));
+  ASSERT(Message[0] == 0xAA);
+  ASSERT(Message[1] == 0xBB);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIEncode_InvalidInputs) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("4", 4);
+  uint8_t            Message[1]     = {0xAA};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ASSERT(!EncodeMCIMessage(NULL, 1, Message, 0, MSB_FIRST, 0));
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 1, NULL, 0, MSB_FIRST, 0));
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 1, Message, 1, MSB_FIRST, 0));
+  ASSERT(
+      !EncodeMCIMessage(CompiledFormat, 1, Message, 0, (EncodingLayout)0, 0));
+  ASSERT(
+      !EncodeMCIMessage(CompiledFormat, 1, Message, 0, (EncodingLayout)3, 0));
+  ASSERT(
+      !EncodeMCIMessage(CompiledFormat, 1, Message, 0, (EncodingLayout)-1, 0));
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, 16));
+  ASSERT(Message[0] == 0xAA);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIEncode_ValueRange) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("4", 4);
+  uint8_t            MSBMessage[1]  = {0};
+  uint8_t            LSBMessage[1]  = {0};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ASSERT(EncodeMCIMessage(CompiledFormat, 1, MSBMessage, 0, MSB_FIRST, 15));
+  ASSERT(MSBMessage[0] == 0xF0);
+
+  ASSERT(EncodeMCIMessage(CompiledFormat, 1, LSBMessage, 0, LSB_FIRST, 15));
+  ASSERT(LSBMessage[0] == 0x0F);
+
+  MSBMessage[0] = 0xAA;
+  LSBMessage[0] = 0xAA;
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 1, MSBMessage, 0, MSB_FIRST, 16));
+  ASSERT(!EncodeMCIMessage(CompiledFormat, 1, LSBMessage, 0, LSB_FIRST, 16));
+  ASSERT(MSBMessage[0] == 0xAA);
+  ASSERT(LSBMessage[0] == 0xAA);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIEncode_WideRange) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("24", 24);
+  uint8_t            Message[3]     = {0};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ASSERT(EncodeMCIMessage(CompiledFormat, 3, Message, 0, MSB_FIRST, 0xFFFFFF));
+  ASSERT(Message[0] == 0xFF);
+  ASSERT(Message[1] == 0xFF);
+  ASSERT(Message[2] == 0xFF);
+
+  Message[0] = 0xAA;
+  Message[1] = 0xBB;
+  Message[2] = 0xCC;
+  ASSERT(
+      !EncodeMCIMessage(CompiledFormat, 3, Message, 0, MSB_FIRST, 0x1000000));
+  ASSERT(Message[0] == 0xAA);
+  ASSERT(Message[1] == 0xBB);
+  ASSERT(Message[2] == 0xCC);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST_SUITE(MCIEncodeFunctionalSuite,
+           MCIEncode_MSB_FIRST,
+           MCIEncode_LSB_FIRST,
+           MCIEncode_PreservesBits,
+           MCIEncode_PreservesOtherFields,
+           MCIEncode_RejectsSmallBuffer,
+           MCIEncode_InvalidInputs,
+           MCIEncode_ValueRange,
+           MCIEncode_WideRange);
+
+TEST(MCIDecode_MSB_FIRST) {
+  static const uint8_t One[]              = {0x80};
+  static const size_t  OneValues[]        = {1};
+  static const uint8_t Nibbles[]          = {0xA5};
+  static const size_t  NibblesValues[]    = {0xA, 0x5};
+  static const uint8_t Mixed[]            = {0xAD};
+  static const size_t  MixedValues[]      = {5, 13};
+  static const uint8_t Word[]             = {0x12, 0x34};
+  static const size_t  WordValues[]       = {0x1234};
+  static const uint8_t TwelveFour[]       = {0xAB, 0xCD};
+  static const size_t  TwelveFourValues[] = {0xABC, 0xD};
+  static const uint8_t Padded[]           = {0xAB, 0xC0};
+  static const size_t  PaddedValues[]     = {0xAB, 0xC};
+  static const uint8_t Repeated[]         = {0xAB, 0x57, 0x00};
+  static const size_t  RepeatedValues[]   = {0xAB, 1, 2, 3, 4};
+  static const uint8_t Wide[]             = {0x12, 0x34, 0x56};
+  static const size_t  WideValues[]       = {0x123456};
+  static const uint8_t TwoTwelve[]        = {0xAB, 0xCD, 0xEF};
+  static const size_t  TwoTwelveValues[]  = {0xABC, 0xDEF};
+
+  ExpectDecoded("1", 1, MSB_FIRST, One, sizeof(One), OneValues, 1);
+  ExpectDecoded("01", 1, MSB_FIRST, One, sizeof(One), OneValues, 1);
+  ExpectDecoded("4|4", 4, MSB_FIRST, Nibbles, sizeof(Nibbles), NibblesValues,
+                2);
+  ExpectDecoded("3|5", 5, MSB_FIRST, Mixed, sizeof(Mixed), MixedValues, 2);
+  ExpectDecoded("16", 16, MSB_FIRST, Word, sizeof(Word), WordValues, 1);
+  ExpectDecoded("12|4", 12, MSB_FIRST, TwelveFour, sizeof(TwelveFour),
+                TwelveFourValues, 2);
+  ExpectDecoded("008|004", 8, MSB_FIRST, Padded, sizeof(Padded), PaddedValues,
+                2);
+  ExpectDecoded("8|2R(2|3)", 8, MSB_FIRST, Repeated, sizeof(Repeated),
+                RepeatedValues, 5);
+  ExpectDecoded("24", 24, MSB_FIRST, Wide, sizeof(Wide), WideValues, 1);
+  ExpectDecoded("12|12", 12, MSB_FIRST, TwoTwelve, sizeof(TwoTwelve),
+                TwoTwelveValues, 2);
+}
+
+TEST(MCIDecode_LSB_FIRST) {
+  static const uint8_t One[]              = {0x01};
+  static const size_t  OneValues[]        = {1};
+  static const uint8_t Nibbles[]          = {0x5A};
+  static const size_t  NibblesValues[]    = {0xA, 0x5};
+  static const uint8_t Mixed[]            = {0x6D};
+  static const size_t  MixedValues[]      = {5, 13};
+  static const uint8_t Word[]             = {0x34, 0x12};
+  static const size_t  WordValues[]       = {0x1234};
+  static const uint8_t TwelveFour[]       = {0xBC, 0xDA};
+  static const size_t  TwelveFourValues[] = {0xABC, 0xD};
+  static const uint8_t Padded[]           = {0xAB, 0x0C};
+  static const size_t  PaddedValues[]     = {0xAB, 0xC};
+  static const uint8_t Repeated[]         = {0xAB, 0x69, 0x02};
+  static const size_t  RepeatedValues[]   = {0xAB, 1, 2, 3, 4};
+  static const uint8_t Wide[]             = {0x56, 0x34, 0x12};
+  static const size_t  WideValues[]       = {0x123456};
+  static const uint8_t TwoTwelve[]        = {0xBC, 0xFA, 0xDE};
+  static const size_t  TwoTwelveValues[]  = {0xABC, 0xDEF};
+
+  ExpectDecoded("1", 1, LSB_FIRST, One, sizeof(One), OneValues, 1);
+  ExpectDecoded("01", 1, LSB_FIRST, One, sizeof(One), OneValues, 1);
+  ExpectDecoded("4|4", 4, LSB_FIRST, Nibbles, sizeof(Nibbles), NibblesValues,
+                2);
+  ExpectDecoded("3|5", 5, LSB_FIRST, Mixed, sizeof(Mixed), MixedValues, 2);
+  ExpectDecoded("16", 16, LSB_FIRST, Word, sizeof(Word), WordValues, 1);
+  ExpectDecoded("12|4", 12, LSB_FIRST, TwelveFour, sizeof(TwelveFour),
+                TwelveFourValues, 2);
+  ExpectDecoded("008|004", 8, LSB_FIRST, Padded, sizeof(Padded), PaddedValues,
+                2);
+  ExpectDecoded("8|2R(2|3)", 8, LSB_FIRST, Repeated, sizeof(Repeated),
+                RepeatedValues, 5);
+  ExpectDecoded("24", 24, LSB_FIRST, Wide, sizeof(Wide), WideValues, 1);
+  ExpectDecoded("12|12", 12, LSB_FIRST, TwoTwelve, sizeof(TwoTwelve),
+                TwoTwelveValues, 2);
+}
+
+TEST(MCIDecode_IgnoresPadding) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("3", 3);
+  uint8_t            Message[1];
+  size_t             Value;
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  Message[0] = 0x1F;
+  Value      = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, &Value));
+  ASSERT(Value == 0);
+
+  Message[0] = 0xE0;
+  Value      = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, &Value));
+  ASSERT(Value == 7);
+
+  Message[0] = 0xFF;
+  Value      = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, &Value));
+  ASSERT(Value == 7);
+
+  Message[0] = 0xF8;
+  Value      = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 1, Message, 0, LSB_FIRST, &Value));
+  ASSERT(Value == 0);
+
+  Message[0] = 0x07;
+  Value      = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 1, Message, 0, LSB_FIRST, &Value));
+  ASSERT(Value == 7);
+
+  Message[0] = 0xFF;
+  Value      = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 1, Message, 0, LSB_FIRST, &Value));
+  ASSERT(Value == 7);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIDecode_AcceptsExtraBytes) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("8", 8);
+  const uint8_t      Message[]      = {0x12, 0x34};
+  size_t             Value;
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  Value = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 2, Message, 0, MSB_FIRST, &Value));
+  ASSERT(Value == 0x12);
+
+  Value = SIZE_MAX;
+  ASSERT(DecodeMCIMessage(CompiledFormat, 2, Message, 0, LSB_FIRST, &Value));
+  ASSERT(Value == 0x12);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIDecode_RejectsSmallBuffer) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("8|8", 8);
+  const uint8_t      Message[]      = {0x12, 0x34};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ExpectDecodeFailure(CompiledFormat, 1, Message, 0, MSB_FIRST);
+  ExpectDecodeFailure(CompiledFormat, 0, Message, 0, MSB_FIRST);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIDecode_InvalidInputs) {
+  MCICompiledFormat *CompiledFormat = CompileForTest("4", 4);
+  const uint8_t      Message[]      = {0x0F};
+
+  if (!CompiledFormat) {
+    return;
+  }
+
+  ExpectDecodeFailure(NULL, 1, Message, 0, MSB_FIRST);
+  ExpectDecodeFailure(CompiledFormat, 1, NULL, 0, MSB_FIRST);
+  ExpectDecodeFailure(CompiledFormat, 0, Message, 0, MSB_FIRST);
+  ExpectDecodeFailure(CompiledFormat, 1, Message, 1, MSB_FIRST);
+  ExpectDecodeFailure(CompiledFormat, 1, Message, 0, (EncodingLayout)0);
+  ExpectDecodeFailure(CompiledFormat, 1, Message, 0, (EncodingLayout)3);
+  ExpectDecodeFailure(CompiledFormat, 1, Message, 0, (EncodingLayout)-1);
+  ASSERT(!DecodeMCIMessage(CompiledFormat, 1, Message, 0, MSB_FIRST, NULL));
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST_SUITE(MCIDecodeFunctionalSuite,
+           MCIDecode_MSB_FIRST,
+           MCIDecode_LSB_FIRST,
+           MCIDecode_IgnoresPadding,
+           MCIDecode_AcceptsExtraBytes,
+           MCIDecode_RejectsSmallBuffer,
+           MCIDecode_InvalidInputs);
+
+TEST(MCIRoundTrip_BothLayouts) {
+  static const EncodingLayout Layouts[]   = {MSB_FIRST, LSB_FIRST};
+  static const size_t         Bits[]      = {0, 1, 0, 1, 0, 1, 0, 1};
+  static const size_t         Nibbles[]   = {0xA, 0x5};
+  static const size_t         Zero[]      = {0, 0};
+  static const size_t         Max[]       = {7, 31};
+  static const size_t         Mixed[]     = {5, 13};
+  static const size_t         Zero16[]    = {0};
+  static const size_t         One16[]     = {1};
+  static const size_t         Max16[]     = {0xFFFF};
+  static const size_t         Word16[]    = {0x1234};
+  static const size_t         Repeated[]  = {0xAB, 1, 2, 3, 4};
+  static const size_t         Padded[]    = {0xAB, 0xC};
+  static const size_t         Wide[]      = {0x123456};
+  static const size_t         TwoTwelve[] = {0xABC, 0xDEF};
+  size_t                      i;
+
+  for (i = 0; i < (sizeof(Layouts) / sizeof(Layouts[0])); i++) {
+    ExpectRoundTrip("1|1|1|1|1|1|1|1", 1, Layouts[i], Bits, 8);
+    ExpectRoundTrip("4|4", 4, Layouts[i], Nibbles, 2);
+    ExpectRoundTrip("3|5", 5, Layouts[i], Zero, 2);
+    ExpectRoundTrip("3|5", 5, Layouts[i], Max, 2);
+    ExpectRoundTrip("3|5", 5, Layouts[i], Mixed, 2);
+    ExpectRoundTrip("16", 16, Layouts[i], Zero16, 1);
+    ExpectRoundTrip("16", 16, Layouts[i], One16, 1);
+    ExpectRoundTrip("16", 16, Layouts[i], Max16, 1);
+    ExpectRoundTrip("16", 16, Layouts[i], Word16, 1);
+    ExpectRoundTrip("8|2R(2|3)", 8, Layouts[i], Repeated, 5);
+    ExpectRoundTrip("008|004", 8, Layouts[i], Padded, 2);
+    ExpectRoundTrip("24", 24, Layouts[i], Wide, 1);
+    ExpectRoundTrip("12|12", 12, Layouts[i], TwoTwelve, 2);
+  }
+}
+
+TEST_SUITE(MCIRoundTripFunctionalSuite,
+           MCIRoundTrip_BothLayouts);

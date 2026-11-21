@@ -23,6 +23,9 @@ include buildsystem/FModuleDefs.mk
 DIR := src/FOA
 include buildsystem/FModuleDefs.mk
 
+DIR := src/MCI
+include buildsystem/FModuleDefs.mk
+
 WEAKEN_SYMBOLS = $(foreach def, $(FMODDEFS), --weaken-symbols=$(def))
 
 # Get module objects.
@@ -52,5 +55,9 @@ include buildsystem/CModuleRules.mk
 include buildsystem/FModuleRules.mk
 
 DIR := src/FOA
+include buildsystem/CModuleRules.mk
+include buildsystem/FModuleRules.mk
+
+DIR := src/MCI
 include buildsystem/CModuleRules.mk
 include buildsystem/FModuleRules.mk
