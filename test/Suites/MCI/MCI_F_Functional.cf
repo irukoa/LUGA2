@@ -80,6 +80,15 @@ TEST_E(MCIFortranCompileAndAccessors)
   ASSERT(CompiledFormat%ByteSize() == 4_C_SIZE_T)
   ASSERT(CompiledFormat%FieldCount() == 2_C_SIZE_T)
 
+  !The expanded field limit is inclusive: 1024 fields are accepted.
+  Format = "64R(16R(1))"
+  call CompiledFormat%New(Format, 1_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%BitSize() == 1024_C_SIZE_T)
+  ASSERT(CompiledFormat%ByteSize() == 128_C_SIZE_T)
+  ASSERT(CompiledFormat%FieldCount() == 1024_C_SIZE_T)
+  call CheckFieldId(CompiledFormat, "64.16.1", 1023_C_SIZE_T)
+
   call CompiledFormat%Free()
   ASSERT(.not.CompiledFormat%Initialized())
   ASSERT(CompiledFormat%BitSize() == 0_C_SIZE_T)
@@ -129,6 +138,16 @@ TEST_E(MCIFortranCompileRejectsInvalidFormats)
 
   !The maximum field width is enforced by the C compiler.
   call CompiledFormat%New("9", 8_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  !The total expanded field count is capped at 1024.
+  call CompiledFormat%New("64R(16R(1)|1)", 1_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("64R(16R(1))|1", 1_C_SIZE_T)
+  ASSERT(.not.CompiledFormat%Initialized())
+
+  call CompiledFormat%New("64R(64R(1))", 1_C_SIZE_T)
   ASSERT(.not.CompiledFormat%Initialized())
 
   call CompiledFormat%New("1", 0_C_SIZE_T)

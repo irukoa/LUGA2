@@ -213,6 +213,31 @@ TEST(MCICompile_FieldCount) {
   FreeMCIFormat(&CompiledFormat);
 }
 
+TEST(MCICompile_ExpandedFieldLimit) {
+  static const char *const OverLimitFormats[] = {
+      "64R(16R(1))|1", "64R(16R(1)|1)",    "64R(17R(1))",
+      "64R(64R(1))",   "64R(64R(64R(1)))", "64R(16R(1))|64R(16R(1))",
+  };
+  MCICompiledFormat *CompiledFormat;
+  size_t             i;
+
+  // The limit is inclusive: 1024 expanded fields are accepted.
+  CompiledFormat = CompileMCIFormat("64R(16R(1))", 1);
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 1024);
+  ASSERT(GetMCIMessageBitSize(CompiledFormat) == 1024);
+  ASSERT(GetMCIMessageByteSize(CompiledFormat) == 128);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "64.16.1") == 1023);
+  FreeMCIFormat(&CompiledFormat);
+
+  for (i = 0; i < (sizeof(OverLimitFormats) / sizeof(OverLimitFormats[0]));
+       i++) {
+    CompiledFormat = CompileMCIFormat(OverLimitFormats[i], 1);
+    ASSERT(CompiledFormat == NULL);
+    FreeMCIFormat(&CompiledFormat);
+  }
+}
+
 TEST(MCICompile_AccessorsAndFree) {
   MCICompiledFormat *CompiledFormat = NULL;
 
@@ -381,6 +406,7 @@ TEST_SUITE(MCICompileFunctionalSuite,
            MCICompile_FieldLimits,
            MCICompile_OverflowRejected,
            MCICompile_FieldCount,
+           MCICompile_ExpandedFieldLimit,
            MCICompile_AccessorsAndFree,
            MCISemanticFieldId_RepeatedGroups,
            MCISemanticFieldId_TopLevelAndSingleFieldGroups,

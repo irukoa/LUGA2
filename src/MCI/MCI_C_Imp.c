@@ -12,13 +12,15 @@ struct MCICompiledFormat {
   size_t  TotalBytes;
 };
 
-// Bounds a single repetition count and the recursion depth of nested
-// repetition groups so straightforward runaway formats are rejected early.
-// MCISemanticIdMaxComponents is the largest possible path through an expanded
-// format: one component for the top-level group plus one per repetition level.
+// Bounds a single repetition count, the recursion depth of nested repetition
+// groups, and the total number of expanded fields so runaway formats are
+// rejected before their expansion is materialized. MCISemanticIdMaxComponents
+// is the largest possible path through an expanded format: one component for
+// the top-level group plus one per repetition level.
 enum {
   MCIExpansionCountLimit     = 64,
   MCIExpansionDepthLimit     = 64,
+  MCIExpandedFieldLimit      = 1024,
   MCISemanticIdMaxComponents = MCIExpansionDepthLimit + 1
 };
 
@@ -38,6 +40,7 @@ void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference) {
 typedef struct {
   char  *Buffer;
   size_t Length;
+  size_t FieldCount;
 } MCIExpansion;
 
 static bool AddExpansionLength(MCIExpansion *Expansion,
@@ -97,8 +100,9 @@ static bool ParseRepetitionCount(const char  *Digits,
 }
 
 // Expands Format ('|' Element)*. Returns the address of the ')' or '\0' which
-// ends the sequence, or NULL when the sequence is malformed. A NULL Buffer
-// measures the expansion without writing it.
+// ends the sequence, or NULL when the sequence is malformed or would expand to
+// more than MCIExpandedFieldLimit fields. A NULL Buffer measures the expansion
+// without writing it.
 static const char *ExpandFormatSequence(const char   *Cursor,
                                         MCIExpansion *Expansion,
                                         const size_t  NestingDepth) {
@@ -112,6 +116,7 @@ static const char *ExpandFormatSequence(const char   *Cursor,
   size_t       Start;
   size_t       Product;
   size_t       Contribution;
+  size_t       FieldContribution;
   size_t       CopyIndex;
   bool         FirstElement = true;
 
@@ -146,13 +151,24 @@ static const char *ExpandFormatSequence(const char   *Cursor,
 
       if (!Expansion->Buffer) {
         // Measure the inner sequence exactly once.
-        InnerExpansion.Buffer = NULL;
-        InnerExpansion.Length = 0;
+        InnerExpansion.Buffer     = NULL;
+        InnerExpansion.Length     = 0;
+        InnerExpansion.FieldCount = 0;
         InnerEnd =
             ExpandFormatSequence(InnerStart, &InnerExpansion, NestingDepth + 1);
         if ((!InnerEnd) || (*InnerEnd != ')')) {
           return NULL;
         }
+        if (InnerExpansion.FieldCount >
+            ((size_t)MCIExpandedFieldLimit / Count)) {
+          return NULL;
+        }
+        FieldContribution = Count * InnerExpansion.FieldCount;
+        if (FieldContribution >
+            ((size_t)MCIExpandedFieldLimit - Expansion->FieldCount)) {
+          return NULL;
+        }
+        Expansion->FieldCount += FieldContribution;
         if (Core_MulOverflow(Count, InnerExpansion.Length, &Product)) {
           return NULL;
         }
@@ -186,6 +202,12 @@ static const char *ExpandFormatSequence(const char   *Cursor,
       Cursor       = InnerEnd + 1;
     } else if ((*Cursor == '\0') || (*Cursor == ')') || (*Cursor == '|')) {
       // Plain field: copy the digits verbatim.
+      if (!Expansion->Buffer) {
+        if (Expansion->FieldCount >= (size_t)MCIExpandedFieldLimit) {
+          return NULL;
+        }
+        Expansion->FieldCount++;
+      }
       if ((!FirstElement) && (!AppendExpansionCharacter(Expansion, '|'))) {
         return NULL;
       }
@@ -214,9 +236,10 @@ static char *ExpandFormat(const char Format[]) {
   char        *Expanded;
 
   // Measure the repetitionless format.
-  Measure.Buffer = NULL;
-  Measure.Length = 0;
-  End            = ExpandFormatSequence(Format, &Measure, 0);
+  Measure.Buffer     = NULL;
+  Measure.Length     = 0;
+  Measure.FieldCount = 0;
+  End                = ExpandFormatSequence(Format, &Measure, 0);
   if ((!End) || (*End != '\0')) {
     return NULL;
   }
@@ -230,9 +253,10 @@ static char *ExpandFormat(const char Format[]) {
   }
 
   // Write the repetitionless format.
-  Write.Buffer = Expanded;
-  Write.Length = 0;
-  End          = ExpandFormatSequence(Format, &Write, 0);
+  Write.Buffer     = Expanded;
+  Write.Length     = 0;
+  Write.FieldCount = 0;
+  End              = ExpandFormatSequence(Format, &Write, 0);
   // The measuring pass has already validated the terminating NUL.
   if (!End) {
     free(Expanded);

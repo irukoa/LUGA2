@@ -80,10 +80,11 @@ void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference);
  * The syntax is exact: R is uppercase, whitespace is not allowed, and empty
  * groups are rejected. Field widths and repetition counts must be greater than
  * zero, field widths must not exceed MaxFieldBitSize, repetition counts must
- * not exceed 64, and repetition nesting is limited to 64 levels. Leading zeros
- * in a field width are accepted and do not change its value. A repetition
- * expands to Count copies of its inner sequence, separated by '|'. Arithmetic
- * overflow and allocation failure are reported as errors.
+ * not exceed 64, repetition nesting is limited to 64 levels, and the total
+ * number of expanded fields is limited to 1024. Leading zeros in a field width
+ * are accepted and do not change its value. A repetition expands to Count
+ * copies of its inner sequence, separated by '|'. Arithmetic overflow and
+ * allocation failure are reported as errors.
  *
  * @param[in] Format
  *     NUL-terminated format string to compile. The caller's buffer is not
