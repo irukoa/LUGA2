@@ -61,8 +61,18 @@ module MessageCodingInterface
     end subroutine FortranFreeMCIFormat_Final
   end interface
 
+  !< Parses Format and records the bit width and bit offset of every field. The
+  !< accepted grammar is:
+  !<
+  !<     Format  ::= Element ('|' Element)*
+  !<     Element ::= Digits ['R' '(' Format ')']
+  !<
+  !< Digits is a non-empty decimal integer. Each number is a field width in bits.
+  !< For example, "8|4|2R(3)" compiles to four fields of widths 8, 4, 3, and 3.
   interface
-    pure module subroutine FortranCompileMCIFormat(CompiledFormat, Format, MaxFieldBitSize)
+    pure module subroutine FortranCompileMCIFormat(CompiledFormat, &
+                                                   Format, &
+                                                   MaxFieldBitSize)
       class(MCICompiledFormat), intent(inout) :: CompiledFormat
       character(*),             intent(in)    :: Format
       integer(C_SIZE_T),        intent(in)    :: MaxFieldBitSize
@@ -107,7 +117,8 @@ module MessageCodingInterface
 
   interface
     !Note: FieldId \in [0, FieldCount - 1].
-    pure module function FortranGetMCIMessageFieldId(CompiledFormat, SemanticId) &
+    pure module function FortranGetMCIMessageFieldId(CompiledFormat, &
+                                                     SemanticId) &
       result(FieldId)
       class(MCICompiledFormat), intent(in) :: CompiledFormat
       character(*),             intent(in) :: SemanticId
@@ -118,7 +129,11 @@ module MessageCodingInterface
 
   interface
     !Note: FieldId \in [0, FieldCount - 1].
-    module function FortranEncodeMCIMessage(CompiledFormat, Message, FieldId, Encoding, Value) &
+    module function FortranEncodeMCIMessage(CompiledFormat, &
+                                            Message, &
+                                            FieldId, &
+                                            Encoding, &
+                                            Value) &
       result(Success)
       class(MCICompiledFormat), intent(in)    :: CompiledFormat
       unsigned(C_UINT8_T),      intent(inout) :: Message(:)
@@ -132,7 +147,11 @@ module MessageCodingInterface
 
   interface
     !Note: FieldId \in [0, FieldCount - 1].
-    module function FortranDecodeMCIMessage(CompiledFormat, Message, FieldId, Encoding, Value) &
+    module function FortranDecodeMCIMessage(CompiledFormat, &
+                                            Message, &
+                                            FieldId, &
+                                            Encoding, &
+                                            Value) &
       result(Success)
       class(MCICompiledFormat), intent(in)    :: CompiledFormat
       unsigned(C_UINT8_T),      intent(in)    :: Message(:)
