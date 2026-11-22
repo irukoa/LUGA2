@@ -82,6 +82,23 @@ which joins two pivots $\textbf{a}$ and $\textbf{b}$ of $\mathbb{R}^n$:
 
 Only the sign change, or the unimodality, is assumed: neither continuity nor differentiability is required. The bracket is kept in the parameter $t$, so no point or width can overflow, and a point of the segment is a convex combination of the pivots. The objective is a callback, optionally carrying a caller-defined context. No error code is returned: a rejected argument, a segment which does not bracket a sign change, a function which is not unimodal, or a NaN value leaves the result filled with NaN, and `Tolerance` is a stopping rule rather than a promise, so the caller validates the result. FOA keeps no global state and needs no storage beyond a few work arrays sized by the point, so concurrent calls are safe provided the callback is thread-safe.
 
+## Message Coding Interface (MCI)
+
+Bit-level packing and unpacking of fixed-width unsigned fields into a byte buffer. A textual format is compiled once into an immutable `MCICompiledFormat`, which records each field's width and offset and the total message size. The same compiled format can then encode or decode fields in either bit order, selected per call by `MSB_FIRST` or `LSB_FIRST`.
+
+The format grammar is
+
+```text
+Format  ::= Element ('|' Element)*
+Element ::= Digits ['R' '(' Format ')']
+```
+
+`Digits` is a positive decimal field width in bits. A width immediately followed by `R(` begins a repetition group, which is closed by the matching `)`. Repetition groups are expanded at compile time, so every field has a distinct zero-based `FieldId`; for example, `8|4|2R(3)` describes fields of widths 8, 4, 3 and 3, numbered 0 through 3.
+
+By default, repetition counts and nesting are limited to 64, and the total number of expanded fields is limited to 1024. These bounds are read from `ModuleConfiguration/MCI.cfg`. Edit that file and rebuild the library to change them for that compilation.
+
+MCI's Fortran buffer arguments use `unsigned(C_UINT8_T)`. With GFortran, application code that uses MCI must be compiled with `-funsigned` (the library itself uses this flag).
+
 # Building and Installation
 
 LUGA2 provides:
@@ -118,6 +135,7 @@ After installation, the generated artifacts are installed as follows:
   - `GraphUtilities.h`, `GraphUtilities.F90` (GRTP)
   - `TightBindingCrystalInterpolation.h`, `TightBindingCrystalInterpolation.F90` (TBCI)
   - `FunctionalOptimizationAlgorithms.h`, `FunctionalOptimizationAlgorithms.F90` (FOA)
+  - `MessageCodingInterface.h`, `MessageCodingInterface.F90` (MCI)
 
 ## Build targets
 

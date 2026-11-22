@@ -31,11 +31,11 @@ CPP        := cpp
 DEPSCRIPT  := ./buildsystem/GetDeps.sh
 ifeq ($(PROFILE), debug)
 CFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu23 --coverage -fPIC
-FFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu   --coverage -fPIC -Wno-c-binding-type
+FFLAGS := -g -Wall -O0 -Wextra -pedantic -std=gnu   --coverage -fPIC -Wno-c-binding-type -funsigned
 DEFS   := -DTESTABLE
 else
 CFLAGS := -Werror -O3 -std=gnu23 -fPIC
-FFLAGS := -Werror -O3 -std=gnu   -fPIC
+FFLAGS := -Werror -O3 -std=gnu   -fPIC -funsigned
 DEFS   := -DNDEBUG
 endif
 LDFLAGS :=

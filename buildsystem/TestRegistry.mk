@@ -36,3 +36,7 @@ include buildsystem/FTestRules.mk
 DIR := test/Suites/FOA
 include buildsystem/CTestRules.mk
 include buildsystem/FTestRules.mk
+
+DIR := test/Suites/MCI
+include buildsystem/CTestRules.mk
+include buildsystem/FTestRules.mk
