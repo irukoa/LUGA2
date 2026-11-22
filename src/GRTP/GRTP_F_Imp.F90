@@ -54,6 +54,8 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
   end procedure FortranWeightCallback
 
   module procedure FortranCopyGraphSupportBuilder
+    if (C_ASSOCIATED(Copy%OpaqueHandle, Original%OpaqueHandle)) return
+    if (C_ASSOCIATED(Copy%OpaqueHandle)) call FortranFreeGraphSupportBuilder(Copy)
     Copy%OpaqueHandle = Original%OpaqueHandle
     Copy%Init         = Original%Init
     Copy%Owner        = .false.
@@ -139,6 +141,8 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
   end procedure FortranGraphSupportBuilderHasEdge
 
   module procedure FortranCopyGraphSupport
+    if (C_ASSOCIATED(Copy%OpaqueHandle, Original%OpaqueHandle)) return
+    if (C_ASSOCIATED(Copy%OpaqueHandle)) call FortranFreeGraphSupport(Copy)
     Copy%OpaqueHandle = Original%OpaqueHandle
     Copy%Init         = Original%Init
     Copy%Owner        = .false.
@@ -231,6 +235,8 @@ submodule (GraphUtilities:GRTP_C_Interfaces) GRTP_F_Implementation
   end procedure FortranGraphSupportHasEdge
 
   module procedure FortranCopyGraphWorkspace
+    if (C_ASSOCIATED(Copy%OpaqueHandle, Original%OpaqueHandle)) return
+    if (C_ASSOCIATED(Copy%OpaqueHandle)) call FortranFreeGraphWorkspace(Copy)
     Copy%OpaqueHandle = Original%OpaqueHandle
     Copy%VertexCount  = Original%VertexCount
     Copy%Init         = Original%Init

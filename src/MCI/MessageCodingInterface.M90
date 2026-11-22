@@ -44,8 +44,8 @@ module MessageCodingInterface
   !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyMCICompiledFormat(Copy, Original)
-      class(MCICompiledFormat), intent(out) :: Copy
-      type(MCICompiledFormat),  intent(in)  :: Original
+      class(MCICompiledFormat), intent(inout) :: Copy
+      type(MCICompiledFormat),  intent(in)    :: Original
     end subroutine FortranCopyMCICompiledFormat
   end interface
 

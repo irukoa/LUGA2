@@ -9,6 +9,8 @@ submodule (MultidimensionalArrayContainers:MAC_C_Interfaces) MAC_F_Implementatio
   contains
 
   module procedure FortranCopyMAC
+    if (C_ASSOCIATED(Copy%OpaqueHandle, Original%OpaqueHandle)) return
+    if (C_ASSOCIATED(Copy%OpaqueHandle)) call FortranFreeMAC(Copy)
     Copy%OpaqueHandle = Original%OpaqueHandle
     Copy%Init         = Original%Init
     Copy%Owner        = .false.

@@ -43,8 +43,8 @@ module MultidimensionalArrayContainers
   !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyMAC(Copy, Original)
-      class(MAC), intent(out) :: Copy
-      type(MAC),  intent(in)  :: Original
+      class(MAC), intent(inout) :: Copy
+      type(MAC),  intent(in)    :: Original
     end subroutine FortranCopyMAC
   end interface
 

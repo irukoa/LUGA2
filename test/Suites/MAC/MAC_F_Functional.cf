@@ -18,14 +18,26 @@ TEST_E(MACFortranTypeCopyOwnership)
   call ContainerA%New(Shape = ShapeVector, Layout = COLUMN_MAJOR)
   ASSERT_X(ContainerA%Initialized())
 
+  !Self-assignment must preserve the owned handle.
+  ContainerA = ContainerA
+  ASSERT_X(ContainerA%Initialized())
+
   ContainerB = ContainerA
   ASSERT(ContainerB%Initialized())
   ASSERT(ContainerB%ElementCount() == product(ShapeVector))
+  ContainerB = ContainerB
+  ASSERT_X(ContainerB%Initialized())
   call ContainerB%Free()
   ASSERT(.not.ContainerB%Initialized())
   ASSERT(ContainerA%Initialized())
   ASSERT(ContainerA%ElementCount() == product(ShapeVector))
 
+  ContainerB = ContainerA
+  ASSERT_X(ContainerB%Initialized())
+
+  !Rebinding an owning container releases its previous handle first.
+  call ContainerB%New(Shape = ShapeVector, Layout = COLUMN_MAJOR)
+  ASSERT_X(ContainerB%Initialized())
   ContainerB = ContainerA
   ASSERT_X(ContainerB%Initialized())
 

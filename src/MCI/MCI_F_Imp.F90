@@ -9,6 +9,8 @@ submodule (MessageCodingInterface:MCI_C_Interfaces) MCI_F_Implementation
   contains
 
   module procedure FortranCopyMCICompiledFormat
+    if (C_ASSOCIATED(Copy%OpaqueHandle, Original%OpaqueHandle)) return
+    if (C_ASSOCIATED(Copy%OpaqueHandle)) call FortranFreeMCIFormat(Copy)
     Copy%OpaqueHandle = Original%OpaqueHandle
     Copy%Init         = Original%Init
     Copy%Owner        = .false.

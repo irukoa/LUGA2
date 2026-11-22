@@ -24,6 +24,8 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
   contains
 
   module procedure FortranCopyTBCrystal
+    if (C_ASSOCIATED(Copy%OpaqueHandle, Original%OpaqueHandle)) return
+    if (C_ASSOCIATED(Copy%OpaqueHandle)) call FortranFreeTBCrystal(Copy)
     Copy%OpaqueHandle   = Original%OpaqueHandle
     Copy%Init           = Original%Init
     Copy%Owner          = .false.

@@ -71,8 +71,8 @@ module TightBindingCrystalInterpolation
   !< A copy must not outlive its original.
   interface
     module subroutine FortranCopyTBCrystal(Copy, Original)
-      class(TBCrystal), intent(out) :: Copy
-      type(TBCrystal),  intent(in)  :: Original
+      class(TBCrystal), intent(inout) :: Copy
+      type(TBCrystal),  intent(in)    :: Original
     end subroutine FortranCopyTBCrystal
   end interface
 

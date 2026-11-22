@@ -113,6 +113,11 @@ TEST_E(GRTPFortranBuilderCopy)
   ASSERT_X(Builder%AddEdge(0_C_SIZE_T, 1_C_SIZE_T))
   ASSERT_X(Builder%AddEdge(1_C_SIZE_T, 2_C_SIZE_T))
 
+  !Self-assignment must preserve the owned graph.
+  Builder = Builder
+  ASSERT_X(Builder%Initialized())
+  ASSERT(Builder%EdgeCount() == 2)
+
   !The assignment aliases the graph instead of duplicating it.
   Copy = Builder
   ASSERT_X(Copy%Initialized())
@@ -121,6 +126,8 @@ TEST_E(GRTPFortranBuilderCopy)
   ASSERT(Copy%NeighborCount(0_C_SIZE_T) == 1)
   ASSERT(all(Copy%Neighbors(0_C_SIZE_T) == [1_C_SIZE_T]))
   ASSERT(Copy%HasEdge(1_C_SIZE_T, 2_C_SIZE_T))
+  Copy = Copy
+  ASSERT_X(Copy%Initialized())
 
   ASSERT_X(Copy%AddEdge(2_C_SIZE_T, 3_C_SIZE_T))
   ASSERT(Builder%EdgeCount() == 3)
@@ -147,6 +154,13 @@ TEST_E(GRTPFortranBuilderCopy)
   ASSERT(Copy%EdgeCount() == 1)
   ASSERT(Copy%HasEdge(3_C_SIZE_T, 4_C_SIZE_T))
   ASSERT(.not.Copy%HasEdge(2_C_SIZE_T, 3_C_SIZE_T))
+
+  !Rebinding an owning copy releases its previous graph first.
+  call Copy%New(2_C_SIZE_T)
+  ASSERT_X(Copy%Initialized())
+  Copy = Other
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%VertexCount() == 6)
 
   call Copy%Free()
   ASSERT(.not.Copy%Initialized())
@@ -258,12 +272,18 @@ TEST_E(GRTPFortranSupportCopy)
   call Support%New(Builder)
   ASSERT_X(Support%Initialized())
 
+  !Self-assignment must preserve the owned topology.
+  Support = Support
+  ASSERT_X(Support%Initialized())
+
   !The assignment only aliases the topology; the copy never owns it.
   Copy = Support
   ASSERT(Copy%Initialized())
   ASSERT(Copy%VertexCount() == 3)
   ASSERT(Copy%EdgeCount() == 1)
   ASSERT(Copy%HasEdge(0_C_SIZE_T, 2_C_SIZE_T))
+  Copy = Copy
+  ASSERT(Copy%Initialized())
 
   call Copy%Free()
   ASSERT(.not.Copy%Initialized())
@@ -275,6 +295,13 @@ TEST_E(GRTPFortranSupportCopy)
   ASSERT_X(Copy%Initialized())
   ASSERT(Copy%EdgeCount() == 1)
   ASSERT(all(Copy%Neighbors(0_C_SIZE_T) == [2_C_SIZE_T]))
+
+  !Rebinding an owning copy releases its previous topology first.
+  call Copy%New(Builder)
+  ASSERT_X(Copy%Initialized())
+  Copy = Support
+  ASSERT_X(Copy%Initialized())
+  ASSERT(Copy%EdgeCount() == 1)
 
   call Copy%Free()
   ASSERT(.not.Copy%Initialized())
@@ -487,11 +514,17 @@ TEST_E(GRTPFortranWorkspaceCopy)
   call Workspace%New(Support)
   ASSERT_X(Workspace%Initialized())
 
+  !Self-assignment must preserve the owned workspace.
+  Workspace = Workspace
+  ASSERT_X(Workspace%Initialized())
+
   ASSERT_X(GraphDijkstra(Workspace, 1_C_SIZE_T, [0_C_SIZE_T]))
   call Workspace%Distance(Distance)
 
   !The alias inherits the cached topology size and shares the result buffers.
   Copy = Workspace
+  ASSERT_X(Copy%Initialized())
+  Copy = Copy
   ASSERT_X(Copy%Initialized())
 
   !Vertex #4 is unreachable, so only the reachable entries are comparable.
@@ -512,6 +545,14 @@ TEST_E(GRTPFortranWorkspaceCopy)
   ASSERT(.not.IEEE_IS_FINITE(Distance(1)))
 
   !Releasing the alias leaves the original owner untouched and usable.
+  call Copy%Free()
+  ASSERT(.not.Copy%Initialized())
+
+  !Rebinding an owning copy releases its previous workspace first.
+  call Copy%New(Support)
+  ASSERT_X(Copy%Initialized())
+  Copy = Workspace
+  ASSERT_X(Copy%Initialized())
   call Copy%Free()
   ASSERT(.not.Copy%Initialized())
 

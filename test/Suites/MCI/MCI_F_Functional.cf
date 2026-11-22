@@ -244,12 +244,19 @@ TEST_E(MCIFortranCopyOwnership)
   ASSERT_X(Original%Initialized())
   ASSERT(Original%BitSize() == 16_C_SIZE_T)
 
+  !Self-assignment must preserve the owned handle.
+  Original = Original
+  ASSERT_X(Original%Initialized())
+  ASSERT(Original%BitSize() == 16_C_SIZE_T)
+
   !Assignment aliases the C-side format instead of duplicating it.
   Copy = Original
   ASSERT_X(Copy%Initialized())
   ASSERT(Copy%BitSize() == 16_C_SIZE_T)
   ASSERT(Copy%ByteSize() == 2_C_SIZE_T)
   call CheckFieldId(Copy, "2", 1_C_SIZE_T)
+  Copy = Copy
+  ASSERT_X(Copy%Initialized())
 
   !Releasing the alias leaves the owner untouched.
   call Copy%Free()
