@@ -79,12 +79,13 @@ void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference);
  * For example, "8|4|2R(3)" compiles to four fields of widths 8, 4, 3, and 3.
  * The syntax is exact: R is uppercase, whitespace is not allowed, and empty
  * groups are rejected. Field widths and repetition counts must be greater than
- * zero, field widths must not exceed MaxFieldBitSize, repetition counts must
- * not exceed 64, repetition nesting is limited to 64 levels, and the total
- * number of expanded fields is limited to 1024. Leading zeros in a field width
- * are accepted and do not change its value. A repetition expands to Count
- * copies of its inner sequence, separated by '|'. Arithmetic overflow and
- * allocation failure are reported as errors.
+ * zero, and field widths must not exceed MaxFieldBitSize. Repetition counts,
+ * repetition nesting, and the total number of expanded fields are limited by
+ * compile-time values in ModuleConfiguration/MCI.cfg, which default to 64, 64,
+ * and 1024 respectively. Leading zeros in a field width are accepted and do not
+ * change its value. A repetition expands to Count copies of its inner sequence,
+ * separated by '|'. Arithmetic overflow and allocation failure are reported as
+ * errors.
  *
  * @param[in] Format
  *     NUL-terminated format string to compile. The caller's buffer is not

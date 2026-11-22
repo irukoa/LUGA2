@@ -69,8 +69,12 @@ module MessageCodingInterface
   !<
   !< Digits is a non-empty decimal integer. Each number is a field width in bits.
   !< For example, "8|4|2R(3)" compiles to four fields of widths 8, 4, 3, and 3.
-  !< Repetition counts and nesting are limited to 64, and the expanded format is
-  !< limited to 1024 fields.
+  !< The syntax is exact: R is uppercase, whitespace is not allowed, and empty
+  !< groups are rejected. Field widths and repetition counts must be greater than
+  !< zero, and field widths must not exceed MaxFieldBitSize. Repetition counts,
+  !< repetition nesting, and the total number of expanded fields are limited by
+  !< compile-time values in ModuleConfiguration/MCI.cfg, which default to 64, 64,
+  !< and 1024 respectively.
   interface
     pure module subroutine FortranCompileMCIFormat(CompiledFormat, &
                                                    Format, &

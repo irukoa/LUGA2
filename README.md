@@ -93,7 +93,9 @@ Format  ::= Element ('|' Element)*
 Element ::= Digits ['R' '(' Format ')']
 ```
 
-`Digits` is a positive decimal field width in bits. A width immediately followed by `R(` begins a repetition group, which is closed by the matching `)`. Repetition groups are expanded at compile time, so every field has a distinct zero-based `FieldId`; for example, `8|4|2R(3)` describes fields of widths 8, 4, 3 and 3, numbered 0 through 3. Repetition counts and nesting are limited to 64, and the total number of expanded fields is limited to 1024.
+`Digits` is a positive decimal field width in bits. A width immediately followed by `R(` begins a repetition group, which is closed by the matching `)`. Repetition groups are expanded at compile time, so every field has a distinct zero-based `FieldId`; for example, `8|4|2R(3)` describes fields of widths 8, 4, 3 and 3, numbered 0 through 3.
+
+By default, repetition counts and nesting are limited to 64, and the total number of expanded fields is limited to 1024. These bounds are read from `ModuleConfiguration/MCI.cfg`. Edit that file and rebuild the library to change them for that compilation.
 
 MCI's Fortran buffer arguments use `unsigned(C_UINT8_T)`. With GFortran, application code that uses MCI must be compiled with `-funsigned` (the library itself uses this flag).
 

@@ -18,10 +18,7 @@ struct MCICompiledFormat {
 // is the largest possible path through an expanded format: one component for
 // the top-level group plus one per repetition level.
 enum {
-  MCIExpansionCountLimit     = 64,
-  MCIExpansionDepthLimit     = 64,
-  MCIExpandedFieldLimit      = 1024,
-  MCISemanticIdMaxComponents = MCIExpansionDepthLimit + 1
+#include "ModuleConfiguration/MCI.cfg"
 };
 
 void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference) {
