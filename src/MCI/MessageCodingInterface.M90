@@ -74,7 +74,7 @@ module MessageCodingInterface
   !< zero, and field widths must not exceed MaxFieldBitSize. Repetition counts,
   !< repetition nesting, and the total number of expanded fields are limited by
   !< compile-time values in ModuleConfiguration/MCI.cfg, which default to 64, 64,
-  !< and 1024 respectively.
+  !< and 65536 respectively.
   interface
     pure module subroutine FortranCompileMCIFormat(CompiledFormat, &
                                                    Format, &

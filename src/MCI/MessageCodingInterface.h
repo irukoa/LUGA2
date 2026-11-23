@@ -82,10 +82,10 @@ void FreeMCIFormat(MCICompiledFormat **CompiledFormatReference);
  * zero, and field widths must not exceed MaxFieldBitSize. Repetition counts,
  * repetition nesting, and the total number of expanded fields are limited by
  * compile-time values in ModuleConfiguration/MCI.cfg, which default to 64, 64,
- * and 1024 respectively. Leading zeros in a field width are accepted and do not
- * change its value. A repetition expands to Count copies of its inner sequence,
- * separated by '|'. Arithmetic overflow and allocation failure are reported as
- * errors.
+ * and 65536 respectively. Leading zeros in a field width are accepted and do
+ * not change its value. A repetition expands to Count copies of its inner
+ * sequence, separated by '|'. Arithmetic overflow and allocation failure are
+ * reported as errors.
  *
  * @param[in] Format
  *     NUL-terminated format string to compile. The caller's buffer is not
