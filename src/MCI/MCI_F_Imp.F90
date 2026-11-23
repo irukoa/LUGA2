@@ -1,8 +1,12 @@
 #include "src/MCI/MCI_C_Int.M90"
+#include "src/Core/CoreFortran.M90"
 
 submodule (MessageCodingInterface:MCI_C_Interfaces) MCI_F_Implementation
 
-  use, intrinsic :: ISO_C_BINDING, only: C_ASSOCIATED, C_NULL_CHAR
+  use, intrinsic :: ISO_C_BINDING, only: C_ASSOCIATED, C_F_POINTER, &
+                                         C_NULL_CHAR
+
+  use CoreFortran, only: FortranFree
 
   implicit none
 
@@ -64,6 +68,26 @@ submodule (MessageCodingInterface:MCI_C_Interfaces) MCI_F_Implementation
     FieldId = GetMCIMessageFieldId(CompiledFormat = CompiledFormat%OpaqueHandle, &
                                    SemanticId = trim(SemanticId) // C_NULL_CHAR)
   end procedure FortranGetMCIMessageFieldId
+
+  module procedure FortranGetMCIMessageSemanticId
+    character(C_CHAR), pointer :: Characters(:)
+    type(C_PTR)                :: SemanticIdPtr
+    integer(C_SIZE_T)          :: SemanticIdLength
+
+    SemanticIdPtr = GetMCIMessageSemanticId(CompiledFormat = CompiledFormat%OpaqueHandle, &
+                                            FieldId = FieldId)
+    if (.not.C_ASSOCIATED(SemanticIdPtr)) then
+      SemanticId = ''
+      return
+    endif
+
+    SemanticIdLength = CStrlen(SemanticIdPtr)
+    call C_F_POINTER(SemanticIdPtr, Characters, [SemanticIdLength])
+    SemanticId = transfer(Characters, repeat(' ', SemanticIdLength))
+    nullify(Characters)
+    call FortranFree(SemanticIdPtr)
+    SemanticIdPtr = C_NULL_PTR
+  end procedure FortranGetMCIMessageSemanticId
 
   module procedure FortranEncodeMCIMessage
     Success = logical(EncodeMCIMessage(CompiledFormat = CompiledFormat%OpaqueHandle, &

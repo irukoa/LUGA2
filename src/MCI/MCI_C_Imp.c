@@ -668,6 +668,116 @@ static bool ResolveSemanticSequence(const char  *Cursor,
   }
 }
 
+// Rejects a retained format that does not describe exactly NumFields fields.
+// This completes the prefix-only validation performed by
+// ResolveSemanticSequence so the inverse lookup never accepts a malformed
+// structural record.
+static bool ValidateFormatCopy(const MCICompiledFormat *CompiledFormat) {
+  const char *End;
+  size_t      FieldCount;
+
+  if (!MeasureFormatSequence(CompiledFormat->FormatCopy, &FieldCount, &End,
+                             0)) {
+    return false;
+  }
+  return (*End == '\0') && (FieldCount == CompiledFormat->NumFields);
+}
+
+// Appends the semantic path of FieldId to Components. Remaining is the
+// zero-based field index relative to the first field in Cursor. FormatCopy has
+// already passed ValidateFormatCopy, so field syntax, nesting, and the
+// MCISemanticIdMaxComponents bound are known to be valid; this function only
+// walks the selected path.
+static bool BuildSemanticSequence(const char *Cursor,
+                                  size_t      Remaining,
+                                  size_t      Components[],
+                                  size_t     *ComponentCount) {
+  const char *FieldStart;
+  const char *InnerEnd;
+  size_t      FieldLength;
+  size_t      Count;
+  size_t      InnerCount;
+  size_t      GroupSize;
+  size_t      CopyIndex;
+  size_t      InnerOffset;
+  size_t      Next;
+  size_t      GroupIndex = 1;
+
+  for (;;) {
+    FieldStart = Cursor;
+    while (('0' <= *Cursor) && (*Cursor <= '9')) {
+      Cursor++;
+    }
+    FieldLength = (size_t)(Cursor - FieldStart);
+
+    if (*Cursor == 'R') {
+      if (!ParseRepetitionCount(FieldStart, FieldLength, &Count)) {
+        return false;
+      }
+      if (!MeasureFormatSequence(Cursor + 2, &InnerCount, &InnerEnd, 0)) {
+        return false;
+      }
+      if (Core_MulOverflow(Count, InnerCount, &GroupSize)) {
+        return false;
+      }
+
+      if (Remaining < GroupSize) {
+        CopyIndex   = Remaining / InnerCount;
+        InnerOffset = Remaining % InnerCount;
+        if (Core_AddOverflow(GroupIndex, CopyIndex, &Next)) {
+          return false;
+        }
+        Components[(*ComponentCount)++] = Next;
+        return BuildSemanticSequence(Cursor + 2, InnerOffset, Components,
+                                     ComponentCount);
+      }
+
+      Remaining -= GroupSize;
+      if (Core_AddOverflow(GroupIndex, Count, &GroupIndex)) {
+        return false;
+      }
+      Cursor = InnerEnd + 1;
+    } else {
+      if (Remaining == 0) {
+        Components[(*ComponentCount)++] = GroupIndex;
+        return true;
+      }
+      Remaining--;
+      if (Core_AddOverflow(GroupIndex, 1, &GroupIndex)) {
+        return false;
+      }
+    }
+
+    // A validated sequence that is not selected here must continue with
+    // another element after the '|' separator.
+    Cursor++;
+  }
+}
+
+static size_t DecimalDigitCount(size_t Value) {
+  size_t Digits = 1;
+
+  while (Value >= 10) {
+    Value /= 10;
+    Digits++;
+  }
+  return Digits;
+}
+
+// Writes Value in canonical decimal form at Buffer[*Position]. The caller has
+// reserved DecimalDigitCount(Value) bytes for the digits.
+static void WriteDecimal(char   *Buffer,
+                         size_t *Position,
+                         size_t  Value) {
+  size_t Cursor = *Position + DecimalDigitCount(Value);
+
+  *Position = Cursor;
+  do {
+    Buffer[--Cursor] = (char)('0' + (Value % 10));
+    Value /= 10;
+  } while (Value > 0);
+}
+
 size_t GetMCIMessageFieldId(const MCICompiledFormat *CompiledFormat,
                             const char               SemanticId[]) {
   size_t Components[MCISemanticIdMaxComponents];
@@ -694,6 +804,61 @@ size_t GetMCIMessageFieldId(const MCICompiledFormat *CompiledFormat,
     return SIZE_MAX;
   }
   return FieldId;
+}
+
+char *GetMCIMessageSemanticId(const MCICompiledFormat *CompiledFormat,
+                              const size_t             FieldId) {
+  size_t Components[MCISemanticIdMaxComponents];
+  size_t ComponentCount = 0;
+  size_t Length         = 0;
+  size_t AllocationSize;
+  size_t Position = 0;
+  size_t i;
+  char  *SemanticId;
+
+  if ((!CompiledFormat) || (!CompiledFormat->FormatCopy) ||
+      (FieldId >= CompiledFormat->NumFields)) {
+    return NULL;
+  }
+  if (!ValidateFormatCopy(CompiledFormat)) {
+    return NULL;
+  }
+  if (!BuildSemanticSequence(CompiledFormat->FormatCopy, FieldId, Components,
+                             &ComponentCount)) {
+    return NULL;
+  }
+
+  for (i = 0; i < ComponentCount; i++) {
+    if (Core_AddOverflow(Length, DecimalDigitCount(Components[i]), &Length)) {
+      return NULL;
+    }
+    if ((i > 0) && Core_AddOverflow(Length, 1, &Length)) {
+      return NULL;
+    }
+  }
+
+  AllocationSize = Length;
+  if (Core_AddOverflow(AllocationSize, 1, &AllocationSize)) {
+    return NULL;
+  }
+  if (Core_MulOverflow(AllocationSize, sizeof(char), &AllocationSize)) {
+    return NULL;
+  }
+
+  SemanticId = (char *)Core_Malloc(AllocationSize);
+  if (!SemanticId) {
+    return NULL;
+  }
+
+  for (i = 0; i < ComponentCount; i++) {
+    if (i > 0) {
+      SemanticId[Position++] = '.';
+    }
+    WriteDecimal(SemanticId, &Position, Components[i]);
+  }
+  SemanticId[Position] = '\0';
+
+  return SemanticId;
 }
 
 static bool IsEncodingValid(const EncodingLayout Encoding) {

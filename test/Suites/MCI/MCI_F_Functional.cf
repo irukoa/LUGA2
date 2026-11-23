@@ -112,6 +112,116 @@ TEST_E(MCIFortranCompileAndAccessors)
 #endif
 END_TEST_E
 
+TEST_E(MCIFortranMessageSemanticId)
+#ifdef TSD_FORTRAN_IMPL
+  use MessageCodingInterface, only: MCICompiledFormat, C_SIZE_T
+
+  implicit none
+  TSD_TEST_E_INTERFACES
+
+  type(MCICompiledFormat)   :: CompiledFormat
+  character(24)             :: Format
+  character(:), allocatable :: SemanticId
+  character(:), allocatable :: Empty
+  integer(C_SIZE_T)         :: FieldId
+  integer                   :: i
+
+  Empty = ""
+
+  !A default-initialized wrapper has no semantic identifiers.
+  SemanticId = CompiledFormat%SemanticId(0_C_SIZE_T)
+  ASSERT(allocated(SemanticId))
+  ASSERT(SemanticId == Empty)
+  ASSERT(len(SemanticId) == 0)
+  ASSERT(len_trim(SemanticId) == 0)
+  ASSERT(CompiledFormat%SemanticId(0_C_SIZE_T) == Empty)
+
+  Format = "8|2R(2|3)"
+  call CompiledFormat%New(Format, 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%FieldCount() == 5_C_SIZE_T)
+  call CheckSemanticId(CompiledFormat, 0_C_SIZE_T, "1")
+  call CheckSemanticId(CompiledFormat, 1_C_SIZE_T, "2.1")
+  call CheckSemanticId(CompiledFormat, 2_C_SIZE_T, "2.2")
+  call CheckSemanticId(CompiledFormat, 3_C_SIZE_T, "3.1")
+  call CheckSemanticId(CompiledFormat, 4_C_SIZE_T, "3.2")
+
+  !Out-of-range field indices return an allocated empty string.
+  SemanticId = CompiledFormat%SemanticId(5_C_SIZE_T)
+  ASSERT(allocated(SemanticId))
+  ASSERT(SemanticId == Empty)
+  ASSERT(len(SemanticId) == 0)
+  ASSERT(len_trim(SemanticId) == 0)
+  ASSERT(CompiledFormat%SemanticId(5_C_SIZE_T) == Empty)
+  SemanticId = CompiledFormat%SemanticId(not(0_C_SIZE_T))
+  ASSERT(allocated(SemanticId))
+  ASSERT(SemanticId == Empty)
+  ASSERT(len(SemanticId) == 0)
+  ASSERT(len_trim(SemanticId) == 0)
+  ASSERT(CompiledFormat%SemanticId(not(0_C_SIZE_T)) == Empty)
+
+  !Nested groups are addressed from the outer copy inward.
+  Format = "2R(3R(4|5))"
+  call CompiledFormat%New(Format, 5_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  call CheckSemanticId(CompiledFormat, 0_C_SIZE_T, "1.1.1")
+  call CheckSemanticId(CompiledFormat, 5_C_SIZE_T, "1.3.2")
+  call CheckSemanticId(CompiledFormat, 11_C_SIZE_T, "2.3.2")
+
+  !Leading zeros in the source are not part of the canonical identifier.
+  Format = "0002R(07)"
+  call CompiledFormat%New(Format, 8_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  call CheckSemanticId(CompiledFormat, 0_C_SIZE_T, "1.1")
+  call CheckSemanticId(CompiledFormat, 1_C_SIZE_T, "2.1")
+
+  !The compiled format owns its source copy, so overwriting Format is harmless.
+  Format = "not the original format"
+  call CheckSemanticId(CompiledFormat, 0_C_SIZE_T, "1.1")
+
+  !Every field of the expanded limit resolves back to its own index.
+  Format = "64R(16R(1))"
+  call CompiledFormat%New(Format, 1_C_SIZE_T)
+  ASSERT_X(CompiledFormat%Initialized())
+  ASSERT(CompiledFormat%FieldCount() == 1024_C_SIZE_T)
+  do i = 1, int(CompiledFormat%FieldCount())
+    FieldId    = int(i - 1, C_SIZE_T)
+    SemanticId = CompiledFormat%SemanticId(FieldId)
+    ASSERT_X(allocated(SemanticId))
+    ASSERT(len_trim(SemanticId) == len(SemanticId))
+    ASSERT(CompiledFormat%FieldId(SemanticId) == FieldId)
+  enddo
+  call CheckSemanticId(CompiledFormat, 0_C_SIZE_T, "1.1.1")
+  call CheckSemanticId(CompiledFormat, 1023_C_SIZE_T, "64.16.1")
+
+  call CompiledFormat%Free()
+  ASSERT(.not.CompiledFormat%Initialized())
+  SemanticId = CompiledFormat%SemanticId(0_C_SIZE_T)
+  ASSERT(allocated(SemanticId))
+  ASSERT(SemanticId == Empty)
+  ASSERT(len(SemanticId) == 0)
+  ASSERT(len_trim(SemanticId) == 0)
+  ASSERT(CompiledFormat%SemanticId(0_C_SIZE_T) == Empty)
+
+  contains
+
+    subroutine CheckSemanticId(CompiledFormat, FieldId, Expected)
+      type(MCICompiledFormat), intent(in) :: CompiledFormat
+      integer(C_SIZE_T),       intent(in) :: FieldId
+      character(*),            intent(in) :: Expected
+
+      character(:), allocatable :: SemanticId
+
+      SemanticId = CompiledFormat%SemanticId(FieldId)
+      ASSERT_X(allocated(SemanticId))
+      ASSERT(SemanticId == Expected)
+      ASSERT(len_trim(SemanticId) == len(SemanticId))
+      ASSERT(trim(SemanticId) == SemanticId)
+      ASSERT(CompiledFormat%FieldId(SemanticId) == FieldId)
+    end subroutine CheckSemanticId
+#endif
+END_TEST_E
+
 TEST_E(MCIFortranCompileRejectsInvalidFormats)
 #ifdef TSD_FORTRAN_IMPL
   use MessageCodingInterface, only: MCICompiledFormat, C_SIZE_T
@@ -909,4 +1019,7 @@ TEST_SUITE(MCIFortranContractSuite,
 
 TEST_SUITE(MCIFortranRoundTripSuite,
            MCIFortranRoundTrip);
+
+TEST_SUITE(MCIFortranSemanticIdSuite,
+           MCIFortranMessageSemanticId);
 #endif

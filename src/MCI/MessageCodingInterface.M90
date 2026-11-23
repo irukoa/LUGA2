@@ -34,6 +34,7 @@ module MessageCodingInterface
     procedure, public, pass(CompiledFormat) :: ByteSize      => FortranGetMCIMessageByteSize
     procedure, public, pass(CompiledFormat) :: FieldCount    => FortranGetMCIMessageFieldCount
     procedure, public, pass(CompiledFormat) :: FieldId       => FortranGetMCIMessageFieldId
+    procedure, public, pass(CompiledFormat) :: SemanticId    => FortranGetMCIMessageSemanticId
     procedure, public, pass(CompiledFormat) :: Encode        => FortranEncodeMCIMessage
     procedure, public, pass(CompiledFormat) :: Decode        => FortranDecodeMCIMessage
     procedure                               :: FortranCopyMCICompiledFormat
@@ -131,6 +132,18 @@ module MessageCodingInterface
 
       integer(C_SIZE_T) :: FieldId
     end function FortranGetMCIMessageFieldId
+  end interface
+
+  interface
+    !Note: FieldId \in [0, FieldCount - 1].
+    module function FortranGetMCIMessageSemanticId(CompiledFormat, &
+                                                   FieldId) &
+      result(SemanticId)
+      class(MCICompiledFormat), intent(in) :: CompiledFormat
+      integer(C_SIZE_T),        intent(in) :: FieldId
+
+      character(:), allocatable :: SemanticId
+    end function FortranGetMCIMessageSemanticId
   end interface
 
   interface

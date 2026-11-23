@@ -3,6 +3,7 @@
 
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void ExpectBytes(const char          *Format,
@@ -26,6 +27,47 @@ static void ExpectBytes(const char          *Format,
   }
   ASSERT(memcmp(Message, Expected, ExpectedSize) == 0);
   FreeMCIFormat(&CompiledFormat);
+}
+
+static void ExpectSemanticId(const MCICompiledFormat *CompiledFormat,
+                             const size_t             FieldId,
+                             const char              *Expected) {
+  char *SemanticId = GetMCIMessageSemanticId(CompiledFormat, FieldId);
+
+  ASSERT_X(SemanticId);
+  ASSERT(strcmp(SemanticId, Expected) == 0);
+  free(SemanticId);
+}
+
+static void CheckSemanticIdRoundTrip(const char  *Format,
+                                     const size_t MaxFieldBitSize) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat(Format, MaxFieldBitSize);
+  char              *SemanticId;
+  size_t             FieldId;
+
+  ASSERT_X(CompiledFormat);
+  for (FieldId = 0; FieldId < GetMCIMessageFieldCount(CompiledFormat);
+       FieldId++) {
+    SemanticId = GetMCIMessageSemanticId(CompiledFormat, FieldId);
+    ASSERT_X(SemanticId);
+    ASSERT(GetMCIMessageFieldId(CompiledFormat, SemanticId) == FieldId);
+    free(SemanticId);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
+static void BuildPlainFieldFormat(char        *Format,
+                                  const size_t FieldCount) {
+  size_t i;
+  size_t Position = 0;
+
+  for (i = 0; i < FieldCount; i++) {
+    if (i > 0) {
+      Format[Position++] = '|';
+    }
+    Format[Position++] = '1';
+  }
+  Format[Position] = '\0';
 }
 
 static void ExpectDecoded(const char          *Format,
@@ -399,6 +441,173 @@ TEST(MCISemanticFieldId_IntegratesWithCodec) {
   }
   FreeMCIFormat(&CompiledFormat);
 }
+
+TEST(MCIMessageSemanticId_RepeatedGroups) {
+  static const char *const Expected[]     = {"1", "2.1", "2.2", "3.1", "3.2"};
+  MCICompiledFormat       *CompiledFormat = CompileMCIFormat("7|2R(3|5)", 7);
+  size_t                   i;
+
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 5);
+  for (i = 0; i < (sizeof(Expected) / sizeof(Expected[0])); i++) {
+    ExpectSemanticId(CompiledFormat, i, Expected[i]);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIMessageSemanticId_NestedAndTrailingGroups) {
+  static const struct {
+    const char *SemanticId;
+    size_t      FieldId;
+  } NestedCases[] = {
+      {"1.1.1", 0}, {"1.1.2", 1}, {"1.2.1", 2},  {"1.2.2", 3},
+      {"1.3.1", 4}, {"1.3.2", 5}, {"2.1.1", 6},  {"2.1.2", 7},
+      {"2.2.1", 8}, {"2.2.2", 9}, {"2.3.1", 10}, {"2.3.2", 11},
+  };
+  static const struct {
+    const char *SemanticId;
+    size_t      FieldId;
+  } TrailingCases[] = {
+      {"1.1", 0}, {"1.2", 1}, {"2.1", 2}, {"2.2", 3}, {"3", 4},
+  };
+  static const struct {
+    const char *SemanticId;
+    size_t      FieldId;
+  } RepeatedCases[] = {
+      {"1.1", 0},
+      {"2.1", 1},
+      {"3", 2},
+  };
+  MCICompiledFormat *CompiledFormat;
+  size_t             i;
+
+  CompiledFormat = CompileMCIFormat("2R(3R(4|5))", 5);
+  ASSERT_X(CompiledFormat);
+  for (i = 0; i < (sizeof(NestedCases) / sizeof(NestedCases[0])); i++) {
+    ExpectSemanticId(CompiledFormat, NestedCases[i].FieldId,
+                     NestedCases[i].SemanticId);
+  }
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileMCIFormat("2R(3|5)|9", 9);
+  ASSERT_X(CompiledFormat);
+  for (i = 0; i < (sizeof(TrailingCases) / sizeof(TrailingCases[0])); i++) {
+    ExpectSemanticId(CompiledFormat, TrailingCases[i].FieldId,
+                     TrailingCases[i].SemanticId);
+  }
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileMCIFormat("2R(3)|4", 4);
+  ASSERT_X(CompiledFormat);
+  for (i = 0; i < (sizeof(RepeatedCases) / sizeof(RepeatedCases[0])); i++) {
+    ExpectSemanticId(CompiledFormat, RepeatedCases[i].FieldId,
+                     RepeatedCases[i].SemanticId);
+  }
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIMessageSemanticId_MultiDigitComponents) {
+  // The TESTABLE expanded-field limit is 1024 fields. Each field is "1", so
+  // 1024 digits and 1023 separators plus the terminating NUL fit in 2048
+  // bytes.
+  char               Format[2048];
+  MCICompiledFormat *CompiledFormat;
+
+  BuildPlainFieldFormat(Format, 1024);
+  CompiledFormat = CompileMCIFormat(Format, 1);
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 1024);
+  ExpectSemanticId(CompiledFormat, 0, "1");
+  ExpectSemanticId(CompiledFormat, 9, "10");
+  ExpectSemanticId(CompiledFormat, 99, "100");
+  ExpectSemanticId(CompiledFormat, 999, "1000");
+  ExpectSemanticId(CompiledFormat, 1023, "1024");
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1") == 0);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "10") == 9);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "100") == 99);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1000") == 999);
+  ASSERT(GetMCIMessageFieldId(CompiledFormat, "1024") == 1023);
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileMCIFormat("64R(16R(1))", 1);
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageFieldCount(CompiledFormat) == 1024);
+  ExpectSemanticId(CompiledFormat, 0, "1.1.1");
+  ExpectSemanticId(CompiledFormat, 15, "1.16.1");
+  ExpectSemanticId(CompiledFormat, 16, "2.1.1");
+  ExpectSemanticId(CompiledFormat, 255, "16.16.1");
+  ExpectSemanticId(CompiledFormat, 1023, "64.16.1");
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIMessageSemanticId_CanonicalForm) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("008|0004", 8);
+  ASSERT_X(CompiledFormat);
+  ExpectSemanticId(CompiledFormat, 0, "1");
+  ExpectSemanticId(CompiledFormat, 1, "2");
+  FreeMCIFormat(&CompiledFormat);
+
+  CompiledFormat = CompileMCIFormat("0002R(07)", 8);
+  ASSERT_X(CompiledFormat);
+  ExpectSemanticId(CompiledFormat, 0, "1.1");
+  ExpectSemanticId(CompiledFormat, 1, "2.1");
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIMessageSemanticId_OwnsFormatCopy) {
+  char               Format[]       = "7|2R(3|5)";
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat(Format, 7);
+  ASSERT_X(CompiledFormat);
+
+  memset(Format, '\0', sizeof(Format));
+  ExpectSemanticId(CompiledFormat, 0, "1");
+  ExpectSemanticId(CompiledFormat, 2, "2.2");
+  ExpectSemanticId(CompiledFormat, 4, "3.2");
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(MCIMessageSemanticId_RoundTrip) {
+  static const struct {
+    const char *Format;
+    size_t      MaxFieldBitSize;
+  } Cases[] = {
+      {"1", 1},
+      {"2R(7)", 7},
+      {"7|2R(3|5)", 7},
+      {"2R(3R(4|5))", 5},
+      {"2R(3|5)|9", 9},
+      {"2R(3)|4", 4},
+      {"3R(1)|2R(2)|1", 2},
+      {"008|0004", 8},
+      {"0002R(07)", 8},
+      {"64R(16R(1))", 1},
+  };
+  size_t i;
+
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    CheckSemanticIdRoundTrip(Cases[i].Format, Cases[i].MaxFieldBitSize);
+  }
+}
+
+TEST(MCIMessageSemanticId_InvalidArguments) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|8", 8);
+  ASSERT_X(CompiledFormat);
+
+  ASSERT(GetMCIMessageSemanticId(NULL, 0) == NULL);
+  ASSERT(GetMCIMessageSemanticId(CompiledFormat, 2) == NULL);
+  ASSERT(GetMCIMessageSemanticId(CompiledFormat, SIZE_MAX) == NULL);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST_SUITE(MCISemanticIdFunctionalSuite,
+           MCIMessageSemanticId_RepeatedGroups,
+           MCIMessageSemanticId_NestedAndTrailingGroups,
+           MCIMessageSemanticId_CanonicalForm,
+           MCIMessageSemanticId_MultiDigitComponents,
+           MCIMessageSemanticId_OwnsFormatCopy,
+           MCIMessageSemanticId_RoundTrip,
+           MCIMessageSemanticId_InvalidArguments);
 
 TEST_SUITE(MCICompileFunctionalSuite,
            MCICompile_ValidSizes,

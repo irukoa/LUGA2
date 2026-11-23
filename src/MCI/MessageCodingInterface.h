@@ -247,6 +247,58 @@ size_t GetMCIMessageFieldId(const MCICompiledFormat *CompiledFormat,
                             const char               SemanticId[]);
 
 /**
+ * @brief Returns the semantic field identifier of a flat field index.
+ *
+ * @details
+ * This is the inverse of GetMCIMessageFieldId. The returned identifier uses the
+ * same one-based decimal components separated by periods. At each format level,
+ * every plain field and every repetition copy is one group, numbered from one
+ * in expanded left-to-right order. A plain field is identified by its group
+ * number alone. A repetition copy is identified by its group number followed by
+ * the path to a field inside its inner sequence.
+ *
+ * For example, "7|2R(3|5)" expands to five fields with flat indices 0 through
+ * 4. The semantic identifiers are:
+ *
+ *     "1"   <- 0    (the field of width 7)
+ *     "2.1" <- 1    (first copy of the group, first inner field)
+ *     "2.2" <- 2    (first copy of the group, second inner field)
+ *     "3.1" <- 3    (second copy of the group, first inner field)
+ *     "3.2" <- 4    (second copy of the group, second inner field)
+ *
+ * Nested repetitions extend the path with one component per level. The result
+ * is canonical: source spellings such as "0002R(07)" produce "1.1" and "2.1",
+ * not the original digits.
+ *
+ * @param[in] CompiledFormat
+ *     Pointer to the compiled format.
+ *
+ * @param[in] FieldId
+ *     Zero-based index of the field. It must be smaller than
+ *     GetMCIMessageFieldCount(CompiledFormat).
+ *
+ * @return
+ *     A newly allocated NUL-terminated identifier on success, or NULL when an
+ *     argument is invalid, FieldId is out of range, the retained format is
+ *     malformed, or allocation fails. The length of a successful result is
+ *     strlen(result).
+ *
+ * @note
+ * - The caller owns a successful result and must release it with free.
+ * - A failed call does not allocate, so there is nothing to release.
+ * - Semantic components are one-based; FieldId is zero-based.
+ * - A repeated group is not a leaf, so a field inside "2R(7)" is addressed as
+ *   "1.1" or "2.1", not as "1" or "2".
+ * - The lookup revalidates and parses the retained source format. Callers that
+ *   resolve the same field repeatedly may cache the result.
+ *
+ * @see GetMCIMessageFieldId
+ * @see GetMCIMessageFieldCount
+ */
+char *GetMCIMessageSemanticId(const MCICompiledFormat *CompiledFormat,
+                              size_t                   FieldId);
+
+/**
  * @brief Encodes one field value into a message buffer.
  *
  * @details

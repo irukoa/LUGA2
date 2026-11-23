@@ -5,6 +5,7 @@
 
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 // MCICompiledFormat is opaque to callers. These structural tests complete the
@@ -366,6 +367,131 @@ TEST(GetMCIMessageFieldId_RejectsOverflowingFormats) {
   ASSERT(GetMCIMessageFieldId(&CompiledFormat, Path) == SIZE_MAX);
 }
 
+TEST(GetMCIMessageSemanticId_BadInput) {
+  MCICompiledFormat Empty = {
+      .FormatCopy = NULL,
+      .NumFields  = 1,
+      .BitSize    = NULL,
+      .BitOffset  = NULL,
+      .TotalBits  = 0,
+      .TotalBytes = 0,
+  };
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|8", 8);
+
+  ASSERT(GetMCIMessageSemanticId(NULL, 0) == NULL);
+  ASSERT(GetMCIMessageSemanticId(&Empty, 0) == NULL);
+  ASSERT_X(CompiledFormat);
+  ASSERT(GetMCIMessageSemanticId(CompiledFormat, 2) == NULL);
+  ASSERT(GetMCIMessageSemanticId(CompiledFormat, SIZE_MAX) == NULL);
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST(GetMCIMessageSemanticId_RejectsMalformedCompiledFormat) {
+  static const char *const Cases[] = {
+      "",         "1x",     "1R",         "1R(",    "1R(1",
+      "1R(1))",   "1R(1)2", "1|2x",       "1R(1)|", "1R(2R)",
+      "1R(2R(3)", "1R(2x)", "1R(2R(3)4)", "0R(1)",  "1R(0R(1))",
+  };
+  MCICompiledFormat CompiledFormat = {
+      .FormatCopy = NULL,
+      .NumFields  = 1,
+      .BitSize    = NULL,
+      .BitOffset  = NULL,
+      .TotalBits  = 0,
+      .TotalBytes = 0,
+  };
+  char  *SemanticId;
+  size_t i;
+
+  for (i = 0; i < (sizeof(Cases) / sizeof(Cases[0])); i++) {
+    CompiledFormat.FormatCopy = (char *)Cases[i];
+    ASSERT(GetMCIMessageSemanticId(&CompiledFormat, 0) == NULL);
+  }
+
+  CompiledFormat.FormatCopy = (char *)"1";
+  SemanticId                = GetMCIMessageSemanticId(&CompiledFormat, 0);
+  ASSERT_X(SemanticId);
+  ASSERT(strcmp(SemanticId, "1") == 0);
+  free(SemanticId);
+
+  CompiledFormat.NumFields = 2;
+  ASSERT(GetMCIMessageSemanticId(&CompiledFormat, 0) == NULL);
+
+  CompiledFormat.NumFields = 0;
+  ASSERT(GetMCIMessageSemanticId(&CompiledFormat, 0) == NULL);
+}
+
+TEST(GetMCIMessageSemanticId_MaximumDepth) {
+  char               Format[512];
+  char               Path[256];
+  MCICompiledFormat *CompiledFormat;
+  MCICompiledFormat  Malformed = {
+      .FormatCopy = NULL,
+      .NumFields  = 1,
+      .BitSize    = NULL,
+      .BitOffset  = NULL,
+      .TotalBits  = 0,
+      .TotalBytes = 0,
+  };
+  char *SemanticId;
+
+  BuildNestedFormat(Format, 64, "1");
+  BuildSemanticPath(Path, 65);
+  CompiledFormat = CompileMCIFormat(Format, 1);
+  ASSERT_X(CompiledFormat);
+  SemanticId = GetMCIMessageSemanticId(CompiledFormat, 0);
+  ASSERT_X(SemanticId);
+  ASSERT(strcmp(SemanticId, Path) == 0);
+  free(SemanticId);
+  FreeMCIFormat(&CompiledFormat);
+
+  BuildNestedFormat(Format, 65, "1");
+  Malformed.FormatCopy = Format;
+  ASSERT(GetMCIMessageSemanticId(&Malformed, 0) == NULL);
+}
+
+TEST(GetMCIMessageSemanticId_RejectsOverflowingFormats) {
+  char              A63[512];
+  char              A12[256];
+  char              Maximum[4096];
+  char              Format[8192];
+  size_t            GroupCount;
+  size_t            Position       = 0;
+  MCICompiledFormat CompiledFormat = {
+      .FormatCopy = NULL,
+      .NumFields  = SIZE_MAX,
+      .BitSize    = NULL,
+      .BitOffset  = NULL,
+      .TotalBits  = 0,
+      .TotalBytes = 0,
+  };
+
+  // A twelve-level repetition of count 64 overflows while measuring.
+  AppendNestedRepeatedFormat(A12, &Position, 64, 64, 12);
+  Position = 0;
+  AppendText(Format, &Position, A12);
+  CompiledFormat.FormatCopy = Format;
+  ASSERT(GetMCIMessageSemanticId(&CompiledFormat, 0) == NULL);
+
+  // Multiplying a 2^63-field sequence by two overflows the group size.
+  Position = 0;
+  AppendNestedRepeatedFormat(A63, &Position, 2, 2, 62);
+  Position = 0;
+  AppendText(Format, &Position, "2R(");
+  AppendText(Format, &Position, A63);
+  AppendText(Format, &Position, ")");
+  CompiledFormat.FormatCopy = Format;
+  ASSERT(GetMCIMessageSemanticId(&CompiledFormat, 0) == NULL);
+
+  // A SIZE_MAX-field sequence followed by one more field overflows the sum.
+  BuildMaximumFieldCountSequence(Maximum, &GroupCount);
+  Position = 0;
+  AppendText(Format, &Position, Maximum);
+  AppendText(Format, &Position, "|1");
+  CompiledFormat.FormatCopy = Format;
+  ASSERT(GetMCIMessageSemanticId(&CompiledFormat, 0) == NULL);
+}
+
 TEST(CompileMCIFormat_BadInput) {
   MCICompiledFormat *CompiledFormat = NULL;
 
@@ -636,6 +762,10 @@ TEST_SUITE(MCIStructuralContractSuite,
            GetMCIMessageFieldId_BadInput,
            GetMCIMessageFieldId_RejectsMalformedCompiledFormat,
            GetMCIMessageFieldId_RejectsOverflowingFormats,
+           GetMCIMessageSemanticId_BadInput,
+           GetMCIMessageSemanticId_RejectsMalformedCompiledFormat,
+           GetMCIMessageSemanticId_MaximumDepth,
+           GetMCIMessageSemanticId_RejectsOverflowingFormats,
            CompileMCIFormat_BadInput,
            CompileMCIFormat_PartialFailureCleanup,
            CompileMCIFormat_RejectsZeroFieldsAndCounts,
@@ -818,6 +948,120 @@ TEST_F(StructuralCtx,
   FreeMCIFormat(&CompiledFormat);
 }
 
+TEST_F(StructuralCtx,
+       GetMCIMessageSemanticId_MallocFail) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("7|2R(3|5)", 7);
+  char              *SemanticId;
+
+  (void)ContextData;
+  ASSERT_X(CompiledFormat);
+
+  SetFallibleMalloc(1);
+  ASSERT(GetMCIMessageSemanticId(CompiledFormat, 0) == NULL);
+
+  SemanticId = GetMCIMessageSemanticId(CompiledFormat, 0);
+  ASSERT_X(SemanticId);
+  ASSERT(strcmp(SemanticId, "1") == 0);
+  free(SemanticId);
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST_F(StructuralCtx,
+       GetMCIMessageSemanticId_OverflowFail) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("1R(1)", 1);
+  char              *SemanticId;
+  size_t             FailAt;
+
+  (void)ContextData;
+  ASSERT_X(CompiledFormat);
+
+  // Fail every additive overflow check in turn. The successful call only
+  // occurs after the validation, path construction, length calculation and
+  // allocation-size checks have all completed.
+  for (FailAt = 1; FailAt <= 32; FailAt++) {
+    SetFallibleAddOverflow(FailAt);
+    SemanticId = GetMCIMessageSemanticId(CompiledFormat, 0);
+    if (SemanticId) {
+      ASSERT(strcmp(SemanticId, "1.1") == 0);
+      free(SemanticId);
+      break;
+    }
+  }
+  ASSERT(FailAt > 1);
+  ASSERT(FailAt <= 32);
+  ResetFallibleAddOverflow();
+
+  // The same applies to the two multiplicative checks: the repetition group
+  // size calculation and the final byte-size multiplication.
+  for (FailAt = 1; FailAt <= 16; FailAt++) {
+    SetFallibleMulOverflow(FailAt);
+    SemanticId = GetMCIMessageSemanticId(CompiledFormat, 0);
+    if (SemanticId) {
+      ASSERT(strcmp(SemanticId, "1.1") == 0);
+      free(SemanticId);
+      break;
+    }
+  }
+  ASSERT(FailAt > 1);
+  ASSERT(FailAt <= 16);
+  ResetFallibleMulOverflow();
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST_F(StructuralCtx,
+       GetMCIMessageSemanticId_SkippedGroupOverflowFail) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("1R(1)|1", 1);
+  char              *SemanticId;
+  size_t             FailAt;
+
+  (void)ContextData;
+  ASSERT_X(CompiledFormat);
+
+  // Skipping the repetition advances GroupIndex. The fault-free call is the
+  // tenth additive check after validation and path construction.
+  for (FailAt = 1; FailAt <= 10; FailAt++) {
+    SetFallibleAddOverflow(FailAt);
+    SemanticId = GetMCIMessageSemanticId(CompiledFormat, 1);
+    if (SemanticId) {
+      ASSERT(strcmp(SemanticId, "2") == 0);
+      free(SemanticId);
+      break;
+    }
+  }
+  ASSERT(FailAt == 10);
+  ResetFallibleAddOverflow();
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
+TEST_F(StructuralCtx,
+       GetMCIMessageSemanticId_SkippedFieldOverflowFail) {
+  MCICompiledFormat *CompiledFormat = CompileMCIFormat("1|1", 1);
+  char              *SemanticId;
+  size_t             FailAt;
+
+  (void)ContextData;
+  ASSERT_X(CompiledFormat);
+
+  // Skipping a plain field advances GroupIndex. The fault-free call is the
+  // sixth additive check after validation and path construction.
+  for (FailAt = 1; FailAt <= 6; FailAt++) {
+    SetFallibleAddOverflow(FailAt);
+    SemanticId = GetMCIMessageSemanticId(CompiledFormat, 1);
+    if (SemanticId) {
+      ASSERT(strcmp(SemanticId, "2") == 0);
+      free(SemanticId);
+      break;
+    }
+  }
+  ASSERT(FailAt == 6);
+  ResetFallibleAddOverflow();
+
+  FreeMCIFormat(&CompiledFormat);
+}
+
 TEST_SUITE(MCIStructuralAllocationSuite,
            CompileMCIFormat_MallocFail,
            CompileMCIFormat_ReallocFail,
@@ -826,7 +1070,11 @@ TEST_SUITE(MCIStructuralAllocationSuite,
            CompileMCIFormat_AllocationFailWithRepetition,
            CompileMCIFormat_AddOverflowFailWithRepetition,
            CompileMCIFormat_AddOverflowFailBeforeRepetition,
-           CompileMCIFormat_MulOverflowFailWithRepetition);
+           CompileMCIFormat_MulOverflowFailWithRepetition,
+           GetMCIMessageSemanticId_MallocFail,
+           GetMCIMessageSemanticId_OverflowFail,
+           GetMCIMessageSemanticId_SkippedGroupOverflowFail,
+           GetMCIMessageSemanticId_SkippedFieldOverflowFail);
 
 TEST(CompileMCIFormat_DigitOverflow) {
   ASSERT(CompileMCIFormat("18446744073709551616", 8) == NULL);

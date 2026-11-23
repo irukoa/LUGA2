@@ -18,6 +18,15 @@ submodule (MessageCodingInterface) MCI_C_Interfaces
   end interface
 
   interface
+    pure function CStrlen(String) bind(C, name="strlen") result(Length)
+      import C_PTR, C_SIZE_T
+      type(C_PTR), intent(in), value :: String
+
+      integer(C_SIZE_T) :: Length
+    end function CStrlen
+  end interface
+
+  interface
     pure function CompileMCIFormat(Format, MaxFieldBitSize) &
       bind(C, name="CompileMCIFormat") &
       result(OpaqueHandle)
@@ -72,6 +81,18 @@ submodule (MessageCodingInterface) MCI_C_Interfaces
 
       integer(C_SIZE_T) :: FieldId
     end function GetMCIMessageFieldId
+  end interface
+
+  interface
+    function GetMCIMessageSemanticId(CompiledFormat, FieldId) &
+      bind(C, name="GetMCIMessageSemanticId") &
+      result(SemanticId)
+      import C_PTR, C_SIZE_T
+      type(C_PTR),       intent(in), value :: CompiledFormat
+      integer(C_SIZE_T), intent(in), value :: FieldId
+
+      type(C_PTR) :: SemanticId
+    end function GetMCIMessageSemanticId
   end interface
 
   interface
