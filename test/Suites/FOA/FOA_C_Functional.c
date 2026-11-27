@@ -1175,6 +1175,52 @@ TEST(FOAEmptySpaceEdgeCase) {
   ASSERT(Root[0] == (double)42.0);
 }
 
+// A size_t above HUGE(0_C_SIZE_T) arrives at the Fortran side as a negative
+// integer. Like Dimension = 0, it describes no component, so every algorithm
+// must return before touching a pivot or a result buffer.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+TEST(FOAWrappedDimensionEdgeCase) {
+  double Root[1]    = {(double)42.0};
+  double Minimum[1] = {(double)42.0};
+
+  ResetRecording();
+
+  BisectionRootFinding((size_t)-1, NULL, NULL, RecordingObjective, 100, 0.0,
+                       Root, NULL);
+  GoldenSectionMinimization((size_t)-1, NULL, NULL, RecordingObjective, 100,
+                            0.0, Minimum, NULL);
+  BrentRootFinding((size_t)-1, NULL, NULL, RecordingObjective, 100, 0.0, Root,
+                   NULL);
+  BrentMinimization((size_t)-1, NULL, NULL, RecordingObjective, 100, 0.0,
+                    Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(Root[0] == (double)42.0);
+  ASSERT(Minimum[0] == (double)42.0);
+}
+#pragma GCC diagnostic pop
+
+// A wrapped iteration cap is a rejection, just like a zero cap. The result is
+// therefore NaN and the objective is never evaluated.
+TEST(FOAWrappedIterationsEdgeCase) {
+  double       A[1] = {(double)0.0}, B[1] = {(double)3.0};
+  double       Root[1] = {(double)42.0}, Minimum[1] = {(double)42.0};
+  const size_t Wrapped = (size_t)-1;
+
+  ResetRecording();
+
+  BisectionRootFinding(1, A, B, RecordingObjective, Wrapped, 0.0, Root, NULL);
+  GoldenSectionMinimization(1, A, B, RecordingObjective, Wrapped, 0.0, Minimum,
+                            NULL);
+  BrentRootFinding(1, A, B, RecordingObjective, Wrapped, 0.0, Root, NULL);
+  BrentMinimization(1, A, B, RecordingObjective, Wrapped, 0.0, Minimum, NULL);
+
+  ASSERT(RecordedCount == 0);
+  ASSERT(isnan(Root[0]));
+  ASSERT(isnan(Minimum[0]));
+}
+
 // A NULL pivot is a rejection: the routine reports it instead of reading an
 // address the caller does not own.
 TEST(FOANullPivotEdgeCase) {
@@ -1934,6 +1980,8 @@ TEST_SUITE(FOACStructuralSuite,
            FOANaNToleranceEdgeCase,
            FOAZeroIterationsEdgeCase,
            FOAEmptySpaceEdgeCase,
+           FOAWrappedDimensionEdgeCase,
+           FOAWrappedIterationsEdgeCase,
            FOANullPivotEdgeCase,
            FOANullObjectiveEdgeCase,
            FOANullRootEdgeCase,

@@ -1128,6 +1128,43 @@ TEST_EF(StructuralCtx, LDWStructuralTooLargeDimension)
 #endif
 END_TEST_EF
 
+TEST_EF(StructuralCtx, LDWStructuralNegativeDimensions)
+#ifdef TSD_FORTRAN_IMPL
+  use LapackDeferredWrappers, only: C_INT, C_SIZE_T
+  use LDWStructuralZHEEVDStubs, only: RunHermitianEigendecompositionAtDimension
+  use LDWStructuralZGEESStubs, only: RunSchurDecompositionAtDimension
+  use LDWStructuralZGGESStubs, only: RunGeneralizedSchurDecompositionAtDimension
+  use LDWStructuralZGESDDStubs, only: RunSVDecompositionAtDimensions
+
+  implicit none
+  TSD_TEST_EF_INTERFACES
+
+  integer(C_SIZE_T) :: NegativeDimension
+  integer(C_INT)    :: Info
+  type(C_PTR)       :: CCtx
+
+  CCtx              = ContextData !Unused.
+  NegativeDimension = -1_C_SIZE_T
+
+  !A negative integer(C_SIZE_T) is the Fortran representation of a wrapped
+  !size_t. Every decomposition rejects it before forming an array view.
+  call RunHermitianEigendecompositionAtDimension(NegativeDimension, Info)
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+
+  call RunSchurDecompositionAtDimension(NegativeDimension, Info)
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+
+  call RunGeneralizedSchurDecompositionAtDimension(NegativeDimension, Info)
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+
+  call RunSVDecompositionAtDimensions(NegativeDimension, 1_C_SIZE_T, Info)
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+
+  call RunSVDecompositionAtDimensions(1_C_SIZE_T, NegativeDimension, Info)
+  ASSERT(Info == int(huge(1_INT32), C_INT))
+#endif
+END_TEST_EF
+
 TEST_EF(StructuralCtx, LDWStructuralMatrixCopyColumnBytesMulOverflow)
 #ifdef TSD_FORTRAN_IMPL
   use LapackDeferredWrappers, only: C_INT, C_SIZE_T
@@ -4304,6 +4341,7 @@ END_TEST_EF
 TEST_SUITE(LDWStructuralSuite,
            LDWStructuralZeroDimension,
            LDWStructuralTooLargeDimension,
+           LDWStructuralNegativeDimensions,
            LDWStructuralMatrixCopyColumnBytesMulOverflow,
            LDWStructuralMatrixCopyTotalBytesMulOverflow,
            LDWStructuralEigenvaluesBytesMulOverflow,

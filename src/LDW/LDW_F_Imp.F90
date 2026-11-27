@@ -52,7 +52,8 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     Info = int(huge(1_INT32), C_INT)
 
-    if (Dimension > int(huge(1_INT32), C_SIZE_T)) return
+    if (Dimension < 0_C_SIZE_T .or. &
+        Dimension > int(huge(1_INT32), C_SIZE_T)) return
 
     Body: block
 
@@ -267,7 +268,8 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     Info = int(huge(1_INT32), C_INT)
 
-    if (Dimension > int(huge(1_INT32), C_SIZE_T)) return
+    if (Dimension < 0_C_SIZE_T .or. &
+        Dimension > int(huge(1_INT32), C_SIZE_T)) return
 
     Body: block
 
@@ -483,7 +485,9 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     Info = int(huge(1_INT32), C_INT)
 
-    if ((Rows > int(huge(1_INT32), C_SIZE_T)) .or. &
+    if ((Rows < 0_C_SIZE_T) .or. &
+        (Columns < 0_C_SIZE_T) .or. &
+        (Rows > int(huge(1_INT32), C_SIZE_T)) .or. &
         (Columns > int(huge(1_INT32), C_SIZE_T))) return
 
     IntRows       = int(Rows, INT32)
@@ -805,7 +809,8 @@ submodule (LapackDeferredWrappers) LDW_F_Implementation
 
     Info = int(huge(1_INT32), C_INT)
 
-    if (Dimension > int(huge(1_INT32), C_SIZE_T)) return
+    if (Dimension < 0_C_SIZE_T .or. &
+        Dimension > int(huge(1_INT32), C_SIZE_T)) return
 
     Body: block
 

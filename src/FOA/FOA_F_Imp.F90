@@ -35,7 +35,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_F_Implementation
 
     if (Tolerance < 0.0_C_DOUBLE) return
     if (IEEE_IS_NAN(Tolerance)) return
-    if (MaxIterations == 0_C_SIZE_T) return
+    if (MaxIterations <= 0_C_SIZE_T) return
 
     if (any(.not.IEEE_IS_FINITE(LeftPivot))) return
     if (any(.not.IEEE_IS_FINITE(RightPivot))) return
@@ -122,7 +122,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_F_Implementation
 
     if (Tolerance < 0.0_C_DOUBLE) return
     if (IEEE_IS_NAN(Tolerance)) return
-    if (MaxIterations == 0_C_SIZE_T) return
+    if (MaxIterations <= 0_C_SIZE_T) return
 
     if (any(.not.IEEE_IS_FINITE(LeftPivot))) return
     if (any(.not.IEEE_IS_FINITE(RightPivot))) return
@@ -247,7 +247,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_F_Implementation
 
     if (Tolerance < 0.0_C_DOUBLE) return
     if (IEEE_IS_NAN(Tolerance)) return
-    if (MaxIterations == 0_C_SIZE_T) return
+    if (MaxIterations <= 0_C_SIZE_T) return
 
     if (any(.not.IEEE_IS_FINITE(LeftPivot))) return
     if (any(.not.IEEE_IS_FINITE(RightPivot))) return
@@ -421,7 +421,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_F_Implementation
 
     if (Tolerance < 0.0_C_DOUBLE) return
     if (IEEE_IS_NAN(Tolerance)) return
-    if (MaxIterations == 0_C_SIZE_T) return
+    if (MaxIterations <= 0_C_SIZE_T) return
 
     if (any(.not.IEEE_IS_FINITE(LeftPivot))) return
     if (any(.not.IEEE_IS_FINITE(RightPivot))) return

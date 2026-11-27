@@ -3,6 +3,13 @@
 
 #include <stddef.h>
 
+/*
+ * C size_t arguments reach the Fortran implementation as integer(C_SIZE_T).
+ * A value above HUGE(0_C_SIZE_T) arrives as a negative integer: Dimension is
+ * then treated like 0 (a no-op) and MaxIterations like 0 (a rejection), before
+ * any array view is formed. See "C size_t arguments" in README.md.
+ */
+
 /**
  * @brief Objective function evaluated by the FOA algorithms.
  *

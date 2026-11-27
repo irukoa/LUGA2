@@ -56,6 +56,19 @@ TEST(EINTZeroCount) {
   ASSERT(fabs(Result) < DBL_EPSILON);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+TEST(EINTWrappedCount) {
+  double Array[1] = {(double)1.0};
+
+  // A size_t above HUGE(0_C_SIZE_T) arrives at the Fortran side as a negative
+  // integer and cannot be an array extent. The call must return the empty
+  // result without forming a view of the one-element buffer.
+  const double Result = EINT((size_t)-1, Array, 2);
+  ASSERT(fabs(Result) < DBL_EPSILON);
+}
+#pragma GCC diagnostic pop
+
 TEST(EINTNULLArray) {
   const double Result = EINT((size_t)1, NULL, 2);
   ASSERT(fabs(Result) < DBL_EPSILON);
@@ -73,6 +86,7 @@ TEST_SUITE(EINTNominalSuite,
 
 TEST_SUITE(EINTEdgeCaseSuite,
            EINTZeroCount,
+           EINTWrappedCount,
            EINTNULLArray,
            EINTFastReturn);
 
@@ -105,6 +119,17 @@ TEST(EINT_PZeroCount) {
   ASSERT(fabs(Result) < DBL_EPSILON);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+TEST(EINT_PWrappedCount) {
+  double Array[1] = {(double)1.0};
+
+  // Same wrapped count as EINTWrappedCount, through the parallel entry point.
+  const double Result = EINT_P((size_t)-1, Array, 2);
+  ASSERT(fabs(Result) < DBL_EPSILON);
+}
+#pragma GCC diagnostic pop
+
 TEST(EINT_PNULLArray) {
   const double Result = EINT_P((size_t)1, NULL, 2);
   ASSERT(fabs(Result) < DBL_EPSILON);
@@ -121,5 +146,6 @@ TEST_SUITE(EINT_PNominalSuite,
 
 TEST_SUITE(EINT_PEdgeCaseSuite,
            EINT_PZeroCount,
+           EINT_PWrappedCount,
            EINT_PNULLArray,
            EINT_PFastReturn);

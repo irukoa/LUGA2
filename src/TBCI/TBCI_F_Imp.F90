@@ -371,6 +371,14 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     complex(C_DOUBLE_COMPLEX), pointer :: ArrayFPtr(:)
     integer(C_SIZE_T),         pointer :: ArrayShapeFPtr(:)
 
+    if (Dimensionality < 0_C_SIZE_T .or. &
+        Derivative < 0_C_SIZE_T .or. &
+        ArraySize < 0_C_SIZE_T .or. &
+        ArrayShapeSize < 0_C_SIZE_T) then
+      Success = .false.
+      return
+    endif
+
     if (C_ASSOCIATED(Crystal)) then
       FortranCrystal%OpaqueHandle   = Crystal
       FortranCrystal%Init           = .true.
@@ -641,6 +649,14 @@ submodule (TightBindingCrystalInterpolation:TBCI_C_Interfaces) TBCI_F_Implementa
     real(C_DOUBLE),            pointer :: KPointFPtr(:)
     complex(C_DOUBLE_COMPLEX), pointer :: ArrayFPtr(:)
     integer(C_SIZE_T),         pointer :: ArrayShapeFPtr(:)
+
+    if (Dimensionality < 0_C_SIZE_T .or. &
+        Derivative < 0_C_SIZE_T .or. &
+        ArraySize < 0_C_SIZE_T .or. &
+        ArrayShapeSize < 0_C_SIZE_T) then
+      Success = .false.
+      return
+    endif
 
     if (C_ASSOCIATED(Crystal)) then
       FortranCrystal%OpaqueHandle   = Crystal

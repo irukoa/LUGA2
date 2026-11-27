@@ -12,16 +12,16 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
   module procedure EINT_C
     real(C_DOUBLE), pointer :: ArrayFPtr(:)
 
+    if (Count <= 0_C_SIZE_T) then
+      EINT_C = 0.0_C_DOUBLE
+      return
+    endif
+
     if (C_ASSOCIATED(Array)) then
       call C_F_POINTER(Array, &
                        ArrayFPtr, &
                        [Count])
     else
-      EINT_C = 0.0_C_DOUBLE
-      return
-    endif
-
-    if (Count == 0_C_SIZE_T) then
       EINT_C = 0.0_C_DOUBLE
       return
     endif
@@ -33,16 +33,16 @@ submodule (ExtrapolationIntegration) EINT_C_Interfaces
   module procedure EINT_PC
     real(C_DOUBLE), pointer :: ArrayFPtr(:)
 
+    if (Count <= 0_C_SIZE_T) then
+      EINT_PC = 0.0_C_DOUBLE
+      return
+    endif
+
     if (C_ASSOCIATED(Array)) then
       call C_F_POINTER(Array, &
                        ArrayFPtr, &
                        [Count])
     else
-      EINT_PC = 0.0_C_DOUBLE
-      return
-    endif
-
-    if (Count == 0_C_SIZE_T) then
       EINT_PC = 0.0_C_DOUBLE
       return
     endif

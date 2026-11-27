@@ -52,7 +52,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
     type(FortranContextWrapper),             target  :: LocalWrapper
     class(*),                                pointer :: LocalWrapperPointer
 
-    if (Dimension == 0_C_SIZE_T) return
+    if (Dimension <= 0_C_SIZE_T) return
 
     if (C_ASSOCIATED(Root)) then
       call C_F_POINTER(Root, &
@@ -107,7 +107,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
     type(FortranContextWrapper),             target  :: LocalWrapper
     class(*),                                pointer :: LocalWrapperPointer
 
-    if (Dimension == 0_C_SIZE_T) return
+    if (Dimension <= 0_C_SIZE_T) return
 
     if (C_ASSOCIATED(Minimum)) then
       call C_F_POINTER(Minimum, &
@@ -162,7 +162,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
     type(FortranContextWrapper),             target  :: LocalWrapper
     class(*),                                pointer :: LocalWrapperPointer
 
-    if (Dimension == 0_C_SIZE_T) return
+    if (Dimension <= 0_C_SIZE_T) return
 
     if (C_ASSOCIATED(Root)) then
       call C_F_POINTER(Root, &
@@ -217,7 +217,7 @@ submodule (FunctionalOptimizationAlgorithms) FOA_C_Interfaces
     type(FortranContextWrapper),             target  :: LocalWrapper
     class(*),                                pointer :: LocalWrapperPointer
 
-    if (Dimension == 0_C_SIZE_T) return
+    if (Dimension <= 0_C_SIZE_T) return
 
     if (C_ASSOCIATED(Minimum)) then
       call C_F_POINTER(Minimum, &

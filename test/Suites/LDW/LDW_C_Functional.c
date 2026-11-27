@@ -94,6 +94,24 @@ TEST(LDWDHTooLargeMatrix) {
                               Eigenvalues, DummyZHEEVD, &Info);
   ASSERT(Info == INT_MAX);
 }
+
+// A size_t above HUGE(0_C_SIZE_T) arrives at the Fortran side as a negative
+// integer. It is rejected like the above-INT_MAX dimensions, without forming
+// a view of the caller buffers.
+TEST(LDWDHWrappedCount) {
+  double complex Matrix[1], Unitary[1];
+  double         Eigenvalues[1];
+  int            Info = 1;
+  Matrix[0]           = 0.0;
+  Unitary[0]          = 42.0;
+  Eigenvalues[0]      = 42.0;
+  HermitianEigendecomposition((size_t)-1, Matrix, Unitary, Eigenvalues,
+                              DummyZHEEVD, &Info);
+  ASSERT(Info == INT_MAX);
+  // The rejected dimension leaves every output untouched.
+  ASSERT(Unitary[0] == 42.0);
+  ASSERT(Eigenvalues[0] == 42.0);
+}
 #pragma GCC diagnostic pop
 
 TEST_SUITE(LDWDHEdgeCaseSuite,
@@ -103,7 +121,8 @@ TEST_SUITE(LDWDHEdgeCaseSuite,
            LDWDHNullEigenvalues,
            LDWDHNullZHEEVDProcedure,
            LDWDHNullInfo,
-           LDWDHTooLargeMatrix);
+           LDWDHTooLargeMatrix,
+           LDWDHWrappedCount);
 
 TEST(LDWSZeroCount) {
   double complex Matrix[1], Unitary[1], SchurForm[1];
@@ -161,6 +180,19 @@ TEST(LDWSTooLargeMatrix) {
                      DummyZGEES, &Info);
   ASSERT(Info == INT_MAX);
 }
+
+TEST(LDWSWrappedCount) {
+  double complex Matrix[1], Unitary[1], SchurForm[1];
+  int            Info = 1;
+  Matrix[0]           = 0.0;
+  Unitary[0]          = 42.0;
+  SchurForm[0]        = 42.0;
+  SchurDecomposition((size_t)-1, Matrix, Unitary, SchurForm, DummyZGEES, &Info);
+  ASSERT(Info == INT_MAX);
+  // The rejected dimension leaves every output untouched.
+  ASSERT(Unitary[0] == 42.0);
+  ASSERT(SchurForm[0] == 42.0);
+}
 #pragma GCC diagnostic pop
 
 TEST_SUITE(LDWSEdgeCaseSuite,
@@ -170,7 +202,8 @@ TEST_SUITE(LDWSEdgeCaseSuite,
            LDWSNullSchurForm,
            LDWSNullZGEESProcedure,
            LDWSNullInfo,
-           LDWSTooLargeMatrix);
+           LDWSTooLargeMatrix,
+           LDWSWrappedCount);
 
 TEST(LDWSVDZeroCount) {
   double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
@@ -271,6 +304,40 @@ TEST(LDWSVDTooLargeColumnCount) {
                   SingularValues, UnitaryVH, DummyZGESDD, &Info);
   ASSERT(Info == INT_MAX);
 }
+
+TEST(LDWSVDWrappedRowCount) {
+  double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
+  double         SingularValues[1];
+  int            Info = 1;
+  Matrix[0]           = 0.0;
+  UnitaryU[0]         = 42.0;
+  SingularValues[0]   = 42.0;
+  UnitaryVH[0]        = 42.0;
+  SVDecomposition((size_t)-1, (size_t)1, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, DummyZGESDD, &Info);
+  ASSERT(Info == INT_MAX);
+  // The rejected dimension leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(SingularValues[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+}
+
+TEST(LDWSVDWrappedColumnCount) {
+  double complex Matrix[1], UnitaryU[1], UnitaryVH[1];
+  double         SingularValues[1];
+  int            Info = 1;
+  Matrix[0]           = 0.0;
+  UnitaryU[0]         = 42.0;
+  SingularValues[0]   = 42.0;
+  UnitaryVH[0]        = 42.0;
+  SVDecomposition((size_t)1, (size_t)-1, Matrix, UnitaryU, SingularValues,
+                  UnitaryVH, DummyZGESDD, &Info);
+  ASSERT(Info == INT_MAX);
+  // The rejected dimension leaves every output untouched.
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(SingularValues[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+}
 #pragma GCC diagnostic pop
 
 TEST_SUITE(LDWSVDEdgeCaseSuite,
@@ -283,7 +350,9 @@ TEST_SUITE(LDWSVDEdgeCaseSuite,
            LDWSVDNullZGESDDProcedure,
            LDWSVDNullInfo,
            LDWSVDTooLargeRowCount,
-           LDWSVDTooLargeColumnCount);
+           LDWSVDTooLargeColumnCount,
+           LDWSVDWrappedRowCount,
+           LDWSVDWrappedColumnCount);
 
 TEST(LDWGSZeroCount) {
   double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
@@ -463,6 +532,26 @@ TEST(LDWGSTooLargeMatrix) {
   ASSERT(EigenvaluesA[0] == 42.0);
   ASSERT(EigenvaluesB[0] == 42.0);
 }
+
+TEST(LDWGSWrappedCount) {
+  double complex MatrixA[1], MatrixB[1], UnitaryU[1], UnitaryVH[1];
+  double complex EigenvaluesA[1], EigenvaluesB[1];
+  int            Info = 1;
+  MatrixA[0]          = 0.0;
+  MatrixB[0]          = 0.0;
+  UnitaryU[0]         = 42.0;
+  UnitaryVH[0]        = 42.0;
+  EigenvaluesA[0]     = 42.0;
+  EigenvaluesB[0]     = 42.0;
+  GeneralizedSchurDecomposition((size_t)-1, MatrixA, MatrixB, UnitaryU,
+                                EigenvaluesA, EigenvaluesB, UnitaryVH,
+                                DummyZGGES, &Info);
+  ASSERT(Info == INT_MAX);
+  ASSERT(UnitaryU[0] == 42.0);
+  ASSERT(UnitaryVH[0] == 42.0);
+  ASSERT(EigenvaluesA[0] == 42.0);
+  ASSERT(EigenvaluesB[0] == 42.0);
+}
 #pragma GCC diagnostic pop
 
 TEST_SUITE(LDWGSEdgeCaseSuite,
@@ -476,7 +565,8 @@ TEST_SUITE(LDWGSEdgeCaseSuite,
            LDWGSZeroCountNullUnitaryVH,
            LDWGSZeroCountNullZGGESProcedure,
            LDWGSZeroCountNullInfo,
-           LDWGSTooLargeMatrix);
+           LDWGSTooLargeMatrix,
+           LDWGSWrappedCount);
 
 TEST(LDWDegenZeroCount) {
   double E[1] = {0.0};
@@ -485,6 +575,19 @@ TEST(LDWDegenZeroCount) {
   DegeneracyGrouping((size_t)0, E, (double)0.1, D);
   ASSERT(D[0] == 12);
 }
+
+// A wrapped count is a negative integer(C_SIZE_T), so it is an empty input
+// just like Dimension = 0 and leaves the output untouched.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+TEST(LDWDegenWrappedCount) {
+  double E[1] = {0.0};
+  size_t D[1];
+  D[0] = 12;
+  DegeneracyGrouping((size_t)-1, E, (double)0.1, D);
+  ASSERT(D[0] == 12);
+}
+#pragma GCC diagnostic pop
 
 TEST(LDWDegenNegativeThr) {
   double E[1] = {0.0};
@@ -508,6 +611,7 @@ TEST(LDWDegenNullDeg) {
 
 TEST_SUITE(LDWDegenEdgeCaseSuite,
            LDWDegenZeroCount,
+           LDWDegenWrappedCount,
            LDWDegenNegativeThr,
            LDWDegenNullEig,
            LDWDegenNullDeg);

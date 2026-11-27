@@ -65,7 +65,7 @@
  * - This method generalizes classical Romberg integration (Base = 2).
  *
  * @param[in] Count
- *     Number of samples in Array.
+ *     Number of samples in Array. It must not exceed HUGE(0_C_SIZE_T).
  *
  * @param[in] Array
  *     Function values f(x_i) sampled on a uniform grid.
@@ -102,7 +102,7 @@ double EINT(const size_t Count,
  * table is then built serially.
  *
  * @param[in] Count
- *     Number of samples in Array.
+ *     Number of samples in Array. It must not exceed HUGE(0_C_SIZE_T).
  *
  * @param[in] Array
  *     Function values f(x_i) sampled on a uniform grid.

@@ -60,7 +60,7 @@ $$
 The Bloch Hamiltonian and the Berry connection at a reciprocal-space point $\textbf{k}$ are the Fourier sums
 
 $$
-H(\textbf{k}) = \sum_{R}H(\textbf{R})e^{i\textbf{k}\textbf{R}}, \qquad A^j(\textbf{k}) = \sum_{R}A^j(\textbf{R})e^{i\textbf{k}\textbf{R}}.
+H(\textbf{k}) = \sum_{\textbf{R}}H(\textbf{R})e^{i\textbf{k}\textbf{R}}, \qquad A^j(\textbf{k}) = \sum_{\textbf{R}}A^j(\textbf{R})e^{i\textbf{k}\textbf{R}}.
 $$
 
 `TBCrystalHamiltonian` and `TBCrystalPositionOperator` evaluate $H(\textbf{k})$ and $A^j(\textbf{k})$, or any Cartesian k-derivative of them of order `Derivative`, and return the result as a flat array plus its runtime shape in column-major order.
@@ -157,6 +157,19 @@ Compile the provided Fortran interface modules as part of your project and link 
 The public interface modules define the available derived types, procedures, and interfaces exposed by the library. They are intended to be used directly by applications and should be considered part of the library documentation.
 
 Users are encouraged to consult the interface modules when exploring the API, as they provide complete procedure signatures, argument intents, result definitions, and type declarations.
+
+### C `size_t` arguments
+
+The C headers use `size_t` for counts, sizes, and zero-based identifiers. The Fortran implementation of a C entry point receives those arguments as `integer(C_SIZE_T)`, whose signed range is `0` through `HUGE(0_C_SIZE_T)` (`2^63 - 1` on LP64). A C `size_t` above that range arrives on the Fortran side as a negative integer and cannot describe an array extent, a bound, or a `SIZE` result.
+
+C callers must therefore keep such arguments within `HUGE(0_C_SIZE_T)`. This applies to the C entry points implemented in Fortran:
+
+- `EINT` and `EINT_P`: `Count`.
+- `BisectionRootFinding`, `GoldenSectionMinimization`, `BrentRootFinding`, and `BrentMinimization`: `Dimension` and `MaxIterations`.
+- `HermitianEigendecomposition`, `SchurDecomposition`, `SVDecomposition`, and `GeneralizedSchurDecomposition`: `Dimension`, `Rows`, and `Columns`; `DegeneracyGrouping`: `Dimension`.
+- `TBCrystalHamiltonian` and `TBCrystalPositionOperator`: `Dimensionality`, `Derivative`, `ArraySize`, and `ArrayShapeSize`.
+
+The limit is normally theoretical rather than practical. An actual array must fit in memory, so for an element type of `k` bytes the largest possible element count is already at most `SIZE_MAX / k`. On LP64 that is below `HUGE(0_C_SIZE_T)` for `k >= 3`, and for a `double` array (`k = 8`) it is `2^61 - 1`. Only a byte-sized element type could in principle produce a count at or above the boundary. The C prototypes keep `size_t` for ABI compatibility and for the language-level contract; they do not promise that a Fortran implementation accepts the full unsigned range. LDW's LAPACK-backed decompositions additionally cap their dimensions at `INT32_MAX`, as required by the LAPACK ABI.
 
 ## Notes
 

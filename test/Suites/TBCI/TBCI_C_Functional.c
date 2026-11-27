@@ -921,6 +921,19 @@ TEST(TBCrystalBlochHamiltonian_BadInput) {
   ASSERT(!TBCrystalHamiltonian(Crystal, Dim, KPoint, SIZE_MAX, 4, Array, 2,
                                ArrayShape));
 
+  // Every size_t is an integer(C_SIZE_T) on the Fortran side. A value above
+  // HUGE(0_C_SIZE_T), such as SIZE_MAX, arrives negative and is rejected
+  // before any C_F_POINTER call forms a view with an invalid shape.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+  ASSERT(!TBCrystalHamiltonian(Crystal, SIZE_MAX, KPoint, 0, 4, Array, 2,
+                               ArrayShape));
+  ASSERT(!TBCrystalHamiltonian(Crystal, Dim, KPoint, 0, SIZE_MAX, Array, 2,
+                               ArrayShape));
+  ASSERT(!TBCrystalHamiltonian(Crystal, Dim, KPoint, 0, 4, Array, SIZE_MAX,
+                               ArrayShape));
+#pragma GCC diagnostic pop
+
   // A missing crystal or a missing buffer is reported, never dereferenced.
   ASSERT(!TBCrystalHamiltonian(NULL, Dim, KPoint, 0, 4, Array, 2, ArrayShape));
   ASSERT(!TBCrystalHamiltonian(Crystal, Dim, NULL, 0, 4, Array, 2, ArrayShape));
@@ -1857,6 +1870,18 @@ TEST(TBCrystalBlochPositionOperator_BadInput) {
   // wrapping around to a small, accidentally valid rank.
   ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, SIZE_MAX, 8, Array, 3,
                                     ArrayShape));
+
+  // Wrapped Dimensionality, ArraySize and ArrayShapeSize follow the same
+  // rule: they are rejected before any view is formed.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+  ASSERT(!TBCrystalPositionOperator(Crystal, SIZE_MAX, KPoint, 0, 8, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, SIZE_MAX, Array, 3,
+                                    ArrayShape));
+  ASSERT(!TBCrystalPositionOperator(Crystal, Dim, KPoint, 0, 8, Array, SIZE_MAX,
+                                    ArrayShape));
+#pragma GCC diagnostic pop
 
   // A missing crystal or a missing buffer is reported, never dereferenced.
   ASSERT(!TBCrystalPositionOperator(NULL, Dim, KPoint, 0, 8, Array, 3,

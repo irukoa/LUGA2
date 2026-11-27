@@ -22,7 +22,8 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
                        InfoFPtr)
-      if (Dimension > int(huge(1_INT32), C_SIZE_T)) then
+      if (Dimension < 0_C_SIZE_T .or. &
+          Dimension > int(huge(1_INT32), C_SIZE_T)) then
         InfoFPtr = int(huge(1_INT32), C_INT)
         return
       endif
@@ -93,7 +94,8 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
                        InfoFPtr)
-      if (Dimension > int(huge(1_INT32), C_SIZE_T)) then
+      if (Dimension < 0_C_SIZE_T .or. &
+          Dimension > int(huge(1_INT32), C_SIZE_T)) then
         InfoFPtr = int(huge(1_INT32), C_INT)
         return
       endif
@@ -165,8 +167,9 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
                        InfoFPtr)
-      if ((Rows > int(huge(1_INT32), C_SIZE_T)) .or. &
-          (Columns > int(huge(1_INT32), C_SIZE_T))) then
+      if (Rows < 0_C_SIZE_T .or. Columns < 0_C_SIZE_T .or. &
+          Rows > int(huge(1_INT32), C_SIZE_T) .or. &
+          Columns > int(huge(1_INT32), C_SIZE_T)) then
         InfoFPtr = int(huge(1_INT32), C_INT)
         return
       endif
@@ -253,7 +256,8 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
     if (C_ASSOCIATED(Info)) then
       call C_F_POINTER(Info, &
                        InfoFPtr)
-      if (Dimension > int(huge(1_INT32), C_SIZE_T)) then
+      if (Dimension < 0_C_SIZE_T .or. &
+          Dimension > int(huge(1_INT32), C_SIZE_T)) then
         InfoFPtr = int(huge(1_INT32), C_INT)
         return
       endif
@@ -367,6 +371,8 @@ submodule (LapackDeferredWrappers) LDW_C_Interfaces
   module procedure DegeneracyGrouping_C
     real(C_DOUBLE),    pointer :: EigenvaluesFPtr(:)
     integer(C_SIZE_T), pointer :: DegeneraciesFPtr(:)
+
+    if (Dimension < 0_C_SIZE_T) return
 
     if (C_ASSOCIATED(Eigenvalues)) then
       call C_F_POINTER(Eigenvalues, &

@@ -4,6 +4,14 @@
 #include <complex.h>
 #include <stddef.h>
 
+/*
+ * C size_t arguments reach the Fortran implementation as integer(C_SIZE_T).
+ * A value above HUGE(0_C_SIZE_T) arrives as a negative integer and is rejected
+ * before any array view is formed. The LAPACK-backed routines also reject
+ * dimensions above INT32_MAX; DegeneracyGrouping only rejects wrapped/negative
+ * values. See "C size_t arguments" in README.md.
+ */
+
 /**
  * @brief Computes the minimum of two values.
  *
