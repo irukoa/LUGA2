@@ -103,7 +103,7 @@ echo
 
 # Clean the build tree and build the release profile.
 make clean
-make PROFILE=release ${MAKEVARS[@]+"${MAKEVARS[@]}"}
+make -j PROFILE=release ${MAKEVARS[@]+"${MAKEVARS[@]}"}
 
 # Install the libraries.
 mkdir -p "${DESTDIR}${LIBDIR}"
